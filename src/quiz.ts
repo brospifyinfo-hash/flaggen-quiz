@@ -121,7 +121,8 @@ function buildPracticeRound(data: SaveData, id: ContinentId): string[] {
   return shuffle(picked)
 }
 
-function makeQuestion(code: string, id: ContinentId): Question {
+/** Vier Antworten: die Lösung plus bevorzugt ähnliche Flaggen desselben Kontinents */
+export function makeQuestion(code: string, id: ContinentId): Question {
   const pool = codesOf(id).filter((other) => other !== code)
   const distractors: string[] = []
   for (const similar of shuffle(lookalikesOf(code).filter((other) => pool.includes(other)))) {
@@ -133,6 +134,16 @@ function makeQuestion(code: string, id: ContinentId): Question {
     if (!distractors.includes(other)) distractors.push(other)
   }
   return { code, options: shuffle([code, ...distractors]), picked: null }
+}
+
+/** Kontinent eines Landes */
+export const continentOfCode = (code: string): ContinentId | null => BY_CODE.get(code)?.continent ?? null
+
+/** Wählt für einen endlosen Run eine Flagge aus der ganzen Welt – unsichere kommen häufiger */
+export function pickCountryForRun(data: SaveData, recent: readonly string[]): string | null {
+  const all = COUNTRIES.map((country) => country.code)
+  const pool = all.filter((code) => !recent.includes(code))
+  return weightedSample(pool.length > 0 ? pool : all, 1, (code) => urgency(data.stats[code]))[0] ?? null
 }
 
 // ---------- Aktionen (geben neue SaveData zurück) ----------

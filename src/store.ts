@@ -4,18 +4,35 @@ import { useSyncExternalStore } from 'react'
 import { CONTINENTS } from './data/countries'
 import { isContinentId, isCountry, sessionKey } from './quiz'
 import { isRoute } from './routes'
-import type { CountryStat, Mistake, Mode, RoundResult, SaveData, Session } from './types'
+import type {
+  CountryStat,
+  Mistake,
+  Mode,
+  ModeProgress,
+  ModeQuestion,
+  QuestionOption,
+  RoundResult,
+  Run,
+  RunResult,
+  SaveData,
+  Session,
+} from './types'
 
 const KEY = 'flaggen-quiz:v1'
 const BACKUP_PREFIX = `${KEY}:unlesbar:`
 
 export function createFresh(): SaveData {
   return {
-    version: 1,
+    version: 2,
     stats: {},
     progress: {},
     sessions: {},
     lastResult: null,
+    xp: 0,
+    modes: {},
+    achievements: {},
+    run: null,
+    lastRun: null,
     route: { name: 'home' },
     settings: { haptics: true },
     updatedAt: Date.now(),
@@ -39,6 +56,10 @@ function isMode(value: unknown): value is Mode {
 
 function isCodeList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(isCountry)
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
 }
 
 function isMistakes(value: unknown): value is Mistake[] {
@@ -82,9 +103,78 @@ function isResult(value: unknown): value is RoundResult {
   )
 }
 
-/** null, wenn es kein Spielstand dieser Version ist */
+function isOptions(value: unknown): value is QuestionOption[] {
+  return (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    value.every((option) => isObject(option) && typeof option.id === 'string' && typeof option.label === 'string')
+  )
+}
+
+function isModeQuestion(value: unknown): value is ModeQuestion {
+  if (!isObject(value) || typeof value.modeId !== 'string' || typeof value.key !== 'string') return false
+  if (typeof value.prompt !== 'string' || !isObject(value.data) || !isOptions(value.options)) return false
+  if (!Object.values(value.data).every((entry) => typeof entry === 'string')) return false
+  return typeof value.correctId === 'string' && value.options.some((option) => option.id === value.correctId)
+}
+
+function isRun(value: unknown): value is Run {
+  if (!isObject(value) || typeof value.mode !== 'string') return false
+  const question = value.current
+  if (!isModeQuestion(question)) return false
+  const records = value.startRecords
+  if (!isObject(records)) return false
+  if (['combo', 'xp', 'questions', 'accuracy'].some((field) => typeof records[field] !== 'number')) return false
+  const picked = (question as ModeQuestion & { picked?: unknown }).picked
+  return (
+    (picked === null || (typeof picked === 'string' && question.options.some((option) => option.id === picked))) &&
+    typeof value.answered === 'number' &&
+    typeof value.correct === 'number' &&
+    typeof value.xp === 'number' &&
+    typeof value.combo === 'number' &&
+    typeof value.bestCombo === 'number' &&
+    isStringList(value.recentKeys) &&
+    isStringList(value.recentModes) &&
+    typeof value.masteryStart === 'number' &&
+    isStringList(value.earned) &&
+    typeof value.startedAt === 'number' &&
+    typeof value.updatedAt === 'number'
+  )
+}
+
+function isRunResult(value: unknown): value is RunResult {
+  return (
+    isObject(value) &&
+    typeof value.mode === 'string' &&
+    typeof value.answered === 'number' &&
+    typeof value.correct === 'number' &&
+    typeof value.xp === 'number' &&
+    typeof value.bestCombo === 'number' &&
+    typeof value.masteryDelta === 'number' &&
+    isStringList(value.achievements) &&
+    isStringList(value.records) &&
+    typeof value.finishedAt === 'number'
+  )
+}
+
+function readModeProgress(value: unknown): ModeProgress | null {
+  if (!isObject(value)) return null
+  return {
+    answered: count(value.answered),
+    correct: count(value.correct),
+    runs: count(value.runs),
+    bestCombo: count(value.bestCombo),
+    bestXp: count(value.bestXp),
+    bestQuestions: count(value.bestQuestions),
+    bestAccuracy: Math.min(1, count(value.bestAccuracy)),
+    lastPlayed: count(value.lastPlayed),
+  }
+}
+
+/** null, wenn es kein bekannter Spielstand ist. Version 1 (nur Flaggen) wird mitübernommen. */
 function sanitize(input: unknown): SaveData | null {
-  if (!isObject(input) || input.version !== 1) return null
+  if (!isObject(input)) return null
+  if (input.version !== 1 && input.version !== 2) return null
 
   const stats: Record<string, CountryStat> = {}
   if (isObject(input.stats)) {
@@ -123,12 +213,32 @@ function sanitize(input: unknown): SaveData | null {
     }
   }
 
+  const modes: Record<string, ModeProgress> = {}
+  if (isObject(input.modes)) {
+    for (const [id, entry] of Object.entries(input.modes)) {
+      const progressEntry = readModeProgress(entry)
+      if (progressEntry) modes[id] = progressEntry
+    }
+  }
+
+  const achievements: Record<string, number> = {}
+  if (isObject(input.achievements)) {
+    for (const [id, at] of Object.entries(input.achievements)) {
+      if (typeof at === 'number') achievements[id] = at
+    }
+  }
+
   return {
-    version: 1,
+    version: 2,
     stats,
     progress,
     sessions,
     lastResult: isResult(input.lastResult) ? input.lastResult : null,
+    xp: count(input.xp),
+    modes,
+    achievements,
+    run: isRun(input.run) ? input.run : null,
+    lastRun: isRunResult(input.lastRun) ? input.lastRun : null,
     route: isRoute(input.route) ? input.route : { name: 'home' },
     settings: { haptics: !(isObject(input.settings) && input.settings.haptics === false) },
     updatedAt: count(input.updatedAt),
@@ -163,12 +273,39 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     }
   }
 
+  const modes = { ...older.modes }
+  for (const [id, entry] of Object.entries(current.modes)) {
+    const old = modes[id]
+    modes[id] = old
+      ? {
+          answered: Math.max(entry.answered, old.answered),
+          correct: Math.max(entry.correct, old.correct),
+          runs: Math.max(entry.runs, old.runs),
+          bestCombo: Math.max(entry.bestCombo, old.bestCombo),
+          bestXp: Math.max(entry.bestXp, old.bestXp),
+          bestQuestions: Math.max(entry.bestQuestions, old.bestQuestions),
+          bestAccuracy: Math.max(entry.bestAccuracy, old.bestAccuracy),
+          lastPlayed: Math.max(entry.lastPlayed, old.lastPlayed),
+        }
+      : entry
+  }
+
+  const achievements = { ...older.achievements }
+  for (const [id, at] of Object.entries(current.achievements)) {
+    achievements[id] = Math.min(at, achievements[id] ?? at)
+  }
+
   return {
     ...current,
     stats,
     progress,
+    modes,
+    achievements,
+    xp: Math.max(current.xp, older.xp),
     sessions: Object.keys(current.sessions).length > 0 ? current.sessions : older.sessions,
     lastResult: current.lastResult ?? older.lastResult,
+    run: current.run ?? older.run,
+    lastRun: current.lastRun ?? older.lastRun,
   }
 }
 

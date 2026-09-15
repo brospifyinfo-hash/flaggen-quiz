@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/nunito'
 import './styles.css'
 import { App } from './App'
+// registriert alle Spielmodi – muss vor dem ersten Rendern passieren
+import './modes'
 import { initPwa } from './pwa'
 import { initRouter } from './router'
 

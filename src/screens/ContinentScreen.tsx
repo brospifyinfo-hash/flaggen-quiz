@@ -39,7 +39,7 @@ export function ContinentScreen({ data, id }: { data: SaveData; id: ContinentId 
   return (
     <main className="screen">
       <header className="topbar">
-        <button className="icon-btn" aria-label="Zurück" onClick={() => goBack({ name: 'home' })}>
+        <button className="icon-btn" aria-label="Zurück" onClick={() => goBack({ name: 'mode', id: 'flaggen' })}>
           <IconBack />
         </button>
       </header>

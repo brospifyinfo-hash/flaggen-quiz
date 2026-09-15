@@ -12,9 +12,9 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Flaggen-Quiz',
-        short_name: 'Flaggen',
-        description: 'Lerne alle Flaggen der Welt – Kontinent für Kontinent. Funktioniert auch offline.',
+        name: 'Weltwissen – Quiz',
+        short_name: 'Weltwissen',
+        description: 'Quiz mit mehreren Kategorien: Flaggen, Einwohnerzahlen und mehr. Funktioniert auch offline.',
         lang: 'de',
         start_url: '/',
         scope: '/',

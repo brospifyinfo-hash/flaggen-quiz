@@ -1,5 +1,7 @@
 import type { ContinentId } from './data/countries'
 
+// ---------- Flaggen-Reise (Kontinente, Übungsrunden, Abschlusstests) ----------
+
 export type Mode = 'practice' | 'test'
 
 /** Lernstand einer einzelnen Flagge */
@@ -29,12 +31,9 @@ export interface Mistake {
 export interface Session {
   mode: Mode
   continent: ContinentId
-  /** alle Länder dieser Runde */
   round: string[]
   current: Question
-  /** offene Fragen nach der aktuellen */
   queue: string[]
-  /** Länder, die in dieser Runde schon richtig beantwortet wurden */
   done: string[]
   mistakes: Mistake[]
   answered: number
@@ -64,20 +63,110 @@ export interface RoundResult {
   finishedAt: number
 }
 
+// ---------- Spielmodi und Runs ----------
+
+export interface QuestionOption {
+  id: string
+  label: string
+}
+
+/** Eine Frage aus einem beliebigen Spielmodus – muss als JSON speicherbar sein */
+export interface ModeQuestion {
+  modeId: string
+  /** identifiziert die Frage für den Wiederholungsschutz, z. B. "flaggen:de" */
+  key: string
+  prompt: string
+  /** Anzeigedaten des Modus, z. B. { code: 'de' } */
+  data: Record<string, string>
+  options: QuestionOption[]
+  correctId: string
+  /** true: nach einer richtigen Antwort direkt weiter (z. B. Higher or Lower) */
+  quickNext?: boolean
+}
+
+export interface RunRecords {
+  combo: number
+  xp: number
+  questions: number
+  accuracy: number
+}
+
+/** Ein laufender, endloser Run – entweder Random oder ein bestimmter Modus */
+export interface Run {
+  /** Modus-ID oder 'random' */
+  mode: string
+  /** Bestwerte des Modus beim Start – daran werden neue Rekorde gemessen */
+  startRecords: RunRecords
+  startedAt: number
+  updatedAt: number
+  answered: number
+  correct: number
+  xp: number
+  combo: number
+  bestCombo: number
+  /** zuletzt gestellte Fragen und Modi, neueste zuerst */
+  recentKeys: string[]
+  recentModes: string[]
+  masteryStart: number
+  current: ModeQuestion & { picked: string | null }
+  /** in diesem Run freigeschaltete Achievements */
+  earned: string[]
+}
+
+export interface RunResult {
+  mode: string
+  answered: number
+  correct: number
+  xp: number
+  bestCombo: number
+  masteryDelta: number
+  achievements: string[]
+  /** neue Rekorde: 'combo' | 'xp' | 'questions' | 'accuracy' */
+  records: string[]
+  finishedAt: number
+}
+
+export interface ModeProgress {
+  answered: number
+  correct: number
+  runs: number
+  bestCombo: number
+  bestXp: number
+  bestQuestions: number
+  /** nur ab 10 Fragen im Run */
+  bestAccuracy: number
+  lastPlayed: number
+}
+
+// ---------- Navigation und Speicherstand ----------
+
 export type Route =
   | { name: 'home' }
   | { name: 'settings' }
+  | { name: 'specific' }
+  | { name: 'mode'; id: string }
+  | { name: 'run' }
+  | { name: 'runResult' }
   | { name: 'continent'; id: ContinentId }
   | { name: 'quiz'; id: ContinentId; mode: Mode }
   | { name: 'result'; id: ContinentId; mode: Mode }
 
 export interface SaveData {
-  version: 1
+  version: 2
+  /** Flaggen-Lernstand je Land */
   stats: Record<string, CountryStat>
+  /** Kontinent-Reise der Flaggen */
   progress: Partial<Record<ContinentId, ContinentProgress>>
-  /** Schlüssel: `${kontinent}:${modus}` */
   sessions: Partial<Record<string, Session>>
   lastResult: RoundResult | null
+  /** modusübergreifend */
+  xp: number
+  /** Statistiken je Modus, zusätzlich 'random' für die Random-Rekorde */
+  modes: Record<string, ModeProgress>
+  /** Achievement-ID → Zeitpunkt */
+  achievements: Record<string, number>
+  run: Run | null
+  lastRun: RunResult | null
   route: Route
   settings: { haptics: boolean }
   updatedAt: number
