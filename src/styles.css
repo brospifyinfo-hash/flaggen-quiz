@@ -933,12 +933,14 @@ svg {
 
 .quiz-meta {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 6px 8px;
   margin-top: 2px;
 }
 
 .chip {
+  white-space: nowrap;
   padding: 4px 10px;
   border-radius: 99px;
   background: var(--primary-soft);
@@ -1820,11 +1822,11 @@ svg {
 }
 
 .hud-item {
-  padding: 4px 8px;
+  padding: 3px 7px;
   border-radius: 99px;
   background: var(--surface);
   box-shadow: inset 0 0 0 1.5px var(--line);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1873,7 +1875,7 @@ svg {
 .versus {
   display: flex;
   flex: 1 1 0;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   gap: 10px;
   min-height: 150px;
@@ -1885,6 +1887,7 @@ svg {
   flex: 1;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-width: 0;
   padding: 14px 8px;
@@ -1906,12 +1909,12 @@ svg {
 }
 
 .versus-name {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 900;
-  line-height: 1.15;
+  line-height: 1.2;
   text-align: center;
   hyphens: auto;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .versus-value {
@@ -1970,19 +1973,22 @@ svg {
 
 .result-grid strong {
   display: block;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .result-grid span {
   display: block;
   margin-top: 2px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   text-transform: uppercase;
+  hyphens: auto;
+  overflow-wrap: break-word;
 }
 
 .achievements {

@@ -69,7 +69,9 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
         </li>
         <li>
           <strong>
-            {result.masteryDelta > 0.0005 ? `+${(result.masteryDelta * 100).toFixed(1)} %` : '±0 %'}
+            {result.masteryDelta > 0.0005
+              ? `+${(result.masteryDelta * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`
+              : '±0 %'}
           </strong>
           <span>Mastery</span>
         </li>
