@@ -5,7 +5,7 @@ import type { ContinentProgress, CountryStat, Mode, Question, RoundResult, SaveD
 export const ROUND_SIZE = 20
 /** Eine falsch beantwortete Flagge kommt in der Übung nach so vielen anderen Fragen noch einmal */
 const REPEAT_AFTER = 3
-/** Solange es unbekannte Flaggen gibt, bekommen zuletzt falsch beantwortete höchstens so viele Plätze pro Runde */
+/** Solange es unbekannte Flaggen gibt, bekommen unsichere Flaggen höchstens so viele Plätze pro Runde */
 const MAX_REPEATS_WHILE_NEW = 5
 
 const BY_CODE = new Map(COUNTRIES.map((country) => [country.code, country]))
@@ -42,6 +42,8 @@ function weightedSample<T>(items: readonly T[], count: number, weight: (item: T)
     .slice(0, count)
     .map(({ item }) => item)
 }
+
+const isShaky = (stat: CountryStat | undefined) => !!stat && stat.wrong > 0 && (stat.lastWrong || stat.streak < 2)
 
 /** Wie dringend eine Flagge wieder drankommen sollte – falsch beantwortete deutlich öfter */
 function urgency(stat: CountryStat | undefined): number {
@@ -102,13 +104,15 @@ function buildPracticeRound(data: SaveData, id: ContinentId): string[] {
   const stat = (code: string) => data.stats[code]
 
   const unseen = shuffle(codes.filter((code) => !stat(code)?.seen))
-  const wrong = shuffle(codes.filter((code) => stat(code)?.lastWrong)).sort(
-    (a, b) => (stat(b)?.wrong ?? 0) - (stat(a)?.wrong ?? 0),
+  // Unsicher: schon einmal falsch und seitdem noch nicht zweimal in Folge richtig – zuletzt falsche zuerst
+  const shaky = shuffle(codes.filter((code) => isShaky(stat(code)))).sort(
+    (a, b) =>
+      Number(stat(b)?.lastWrong) - Number(stat(a)?.lastWrong) || (stat(b)?.wrong ?? 0) - (stat(a)?.wrong ?? 0),
   )
 
-  // Erst alle Flaggen kennenlernen – zuletzt falsch beantwortete laufen aber immer mit
+  // Erst alle Flaggen kennenlernen – unsichere laufen aber immer mit
   const picked =
-    unseen.length > 0 ? [...wrong.slice(0, MAX_REPEATS_WHILE_NEW), ...unseen].slice(0, size) : wrong.slice(0, size)
+    unseen.length > 0 ? [...shaky.slice(0, MAX_REPEATS_WHILE_NEW), ...unseen].slice(0, size) : shaky.slice(0, size)
 
   if (picked.length < size) {
     const rest = codes.filter((code) => !picked.includes(code))

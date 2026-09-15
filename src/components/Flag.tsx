@@ -13,7 +13,6 @@ export function Flag({ code, className }: { code: string; className?: string }) 
       src={`/flags/${code}.svg`}
       alt=""
       draggable={false}
-      decoding="async"
       style={{ '--r': RATIOS[code] ?? 1.5 } as CSSProperties}
     />
   )

@@ -7,6 +7,7 @@ import { isRoute } from './routes'
 import type { CountryStat, Mistake, Mode, RoundResult, SaveData, Session } from './types'
 
 const KEY = 'flaggen-quiz:v1'
+const BACKUP_PREFIX = `${KEY}:unlesbar:`
 
 export function createFresh(): SaveData {
   return {
@@ -21,82 +22,28 @@ export function createFresh(): SaveData {
   }
 }
 
-function readStorage(): SaveData {
-  let raw: string | null
-  try {
-    raw = localStorage.getItem(KEY)
-  } catch {
-    return createFresh()
-  }
-  if (!raw) return createFresh()
-  try {
-    return sanitize(JSON.parse(raw))
-  } catch {
-    // Unlesbare Daten nicht einfach überschreiben, sondern beiseitelegen
-    try {
-      localStorage.setItem(`${KEY}:unlesbar:${Date.now()}`, raw)
-    } catch {
-      // Speicher voll oder gesperrt – dann bleibt nur ein frischer Stand
-    }
-    return createFresh()
-  }
-}
-
-let state = readStorage()
-let storageWorks = true
-const listeners = new Set<() => void>()
-const notify = () => listeners.forEach((listener) => listener())
-
-function write(data: SaveData) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(data))
-    storageWorks = true
-  } catch {
-    storageWorks = false
-  }
-}
-
-export const getState = () => state
-export const isStorageWorking = () => storageWorks
-
-export function setState(update: (data: SaveData) => SaveData) {
-  const next = update(state)
-  if (next === state) return
-  state = { ...next, updatedAt: Date.now() }
-  write(state)
-  notify()
-}
-
-/** Löscht den Fortschritt – nur über „Fortschritt zurücksetzen“ aufrufen */
-export function resetProgress() {
-  const { settings } = state
-  setState(() => ({ ...createFresh(), settings }))
-}
-
-const subscribe = (listener: () => void) => {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
-export const useSaveData = () => useSyncExternalStore(subscribe, getState, getState)
-
-// Spielt jemand in zwei Tabs, gewinnt immer der zuletzt gespeicherte Stand
-window.addEventListener('storage', (event) => {
-  if (event.key !== KEY && event.key !== null) return
-  state = readStorage()
-  notify()
-})
-
 // ---------- Prüfung geladener Daten ----------
+// Alles hier sind Funktionsdeklarationen: Der Stand wird schon beim Laden des Moduls gelesen.
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
-const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0)
-const isMode = (value: unknown): value is Mode => value === 'practice' || value === 'test'
-const isCodeList = (value: unknown): value is string[] => Array.isArray(value) && value.every(isCountry)
-const isMistakes = (value: unknown): value is Mistake[] =>
-  Array.isArray(value) && value.every((m) => isObject(m) && isCountry(m.code) && isCountry(m.picked))
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0
+}
+
+function isMode(value: unknown): value is Mode {
+  return value === 'practice' || value === 'test'
+}
+
+function isCodeList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isCountry)
+}
+
+function isMistakes(value: unknown): value is Mistake[] {
+  return Array.isArray(value) && value.every((m) => isObject(m) && isCountry(m.code) && isCountry(m.picked))
+}
 
 function isSession(value: unknown): value is Session {
   if (!isObject(value) || !isMode(value.mode) || !isContinentId(value.continent)) return false
@@ -135,9 +82,9 @@ function isResult(value: unknown): value is RoundResult {
   )
 }
 
-function sanitize(input: unknown): SaveData {
-  const fresh = createFresh()
-  if (!isObject(input) || input.version !== 1) return fresh
+/** null, wenn es kein Spielstand dieser Version ist */
+function sanitize(input: unknown): SaveData | null {
+  if (!isObject(input) || input.version !== 1) return null
 
   const stats: Record<string, CountryStat> = {}
   if (isObject(input.stats)) {
@@ -182,8 +129,149 @@ function sanitize(input: unknown): SaveData {
     progress,
     sessions,
     lastResult: isResult(input.lastResult) ? input.lastResult : null,
-    route: isRoute(input.route) ? input.route : fresh.route,
+    route: isRoute(input.route) ? input.route : { name: 'home' },
     settings: { haptics: !(isObject(input.settings) && input.settings.haptics === false) },
     updatedAt: count(input.updatedAt),
   }
 }
+
+/** Holt einen beiseitegelegten Stand zurück, ohne Antworten doppelt zu zählen */
+function mergeSaves(current: SaveData, older: SaveData): SaveData {
+  const stats = { ...older.stats }
+  for (const [code, stat] of Object.entries(current.stats)) {
+    const old = stats[code]
+    const recent = !old || stat.lastSeen >= old.lastSeen ? stat : old
+    stats[code] = {
+      ...recent,
+      seen: Math.max(stat.seen, old?.seen ?? 0),
+      right: Math.max(stat.right, old?.right ?? 0),
+      wrong: Math.max(stat.wrong, old?.wrong ?? 0),
+    }
+  }
+
+  const progress = { ...older.progress, ...current.progress }
+  for (const { id } of CONTINENTS) {
+    const a = current.progress[id]
+    const b = older.progress[id]
+    if (!a || !b) continue
+    progress[id] = {
+      rounds: Math.max(a.rounds, b.rounds),
+      tests: Math.max(a.tests, b.tests),
+      bestTest: Math.max(a.bestTest, b.bestTest),
+      passed: a.passed || b.passed,
+      passedAt: a.passedAt ?? b.passedAt,
+    }
+  }
+
+  return {
+    ...current,
+    stats,
+    progress,
+    sessions: Object.keys(current.sessions).length > 0 ? current.sessions : older.sessions,
+    lastResult: current.lastResult ?? older.lastResult,
+  }
+}
+
+function backupKeys(): string[] {
+  const keys: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key?.startsWith(BACKUP_PREFIX)) keys.push(key)
+  }
+  return keys
+}
+
+function readStorage(): SaveData {
+  let raw: string | null
+  let backups: string[]
+  try {
+    raw = localStorage.getItem(KEY)
+    backups = backupKeys()
+  } catch {
+    return createFresh()
+  }
+
+  let data = createFresh()
+  if (raw) {
+    try {
+      data = sanitize(JSON.parse(raw)) ?? data
+    } catch {
+      // Unlesbare Daten nicht wegwerfen, sondern beiseitelegen
+      try {
+        localStorage.setItem(`${BACKUP_PREFIX}${Date.now()}`, raw)
+        localStorage.removeItem(KEY)
+      } catch {
+        // Speicher voll oder gesperrt – dann bleibt nur ein frischer Stand
+      }
+      return data
+    }
+  }
+
+  // Beiseitegelegte Stände, die wieder lesbar sind, zurückholen
+  for (const key of backups) {
+    try {
+      const restored = sanitize(JSON.parse(localStorage.getItem(key) ?? ''))
+      if (!restored) continue
+      data = mergeSaves(data, restored)
+      localStorage.setItem(KEY, JSON.stringify(data))
+      localStorage.removeItem(key)
+    } catch {
+      // bleibt als Sicherung liegen
+    }
+  }
+  return data
+}
+
+// ---------- Zustand ----------
+
+let state = readStorage()
+let storageWorks = true
+const listeners = new Set<() => void>()
+const notify = () => listeners.forEach((listener) => listener())
+
+function write(data: SaveData) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data))
+    storageWorks = true
+  } catch {
+    storageWorks = false
+  }
+}
+
+export const getState = () => state
+export const isStorageWorking = () => storageWorks
+
+export function setState(update: (data: SaveData) => SaveData) {
+  const next = update(state)
+  if (next === state) return
+  state = { ...next, updatedAt: Date.now() }
+  write(state)
+  notify()
+}
+
+/** Löscht den Fortschritt – nur über „Fortschritt zurücksetzen“ aufrufen */
+export function resetProgress() {
+  const { settings } = state
+  try {
+    for (const key of backupKeys()) localStorage.removeItem(key)
+  } catch {
+    // ohne Speicherzugriff gibt es auch keine Sicherungen
+  }
+  setState(() => ({ ...createFresh(), settings }))
+}
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+export const useSaveData = () => useSyncExternalStore(subscribe, getState, getState)
+
+// Spielt jemand in zwei Tabs, gewinnt immer der zuletzt gespeicherte Stand
+window.addEventListener('storage', (event) => {
+  if (event.key !== KEY && event.key !== null) return
+  state = readStorage()
+  notify()
+})

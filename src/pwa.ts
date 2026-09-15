@@ -1,6 +1,5 @@
 // Service Worker (Offline-Modus), Installation als App und dauerhafter Speicher
 import { useSyncExternalStore } from 'react'
-import { registerSW } from 'virtual:pwa-register'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -10,7 +9,6 @@ interface BeforeInstallPromptEvent extends Event {
 interface PwaStatus {
   supported: boolean
   offlineReady: boolean
-  updateWaiting: boolean
   canInstall: boolean
   standalone: boolean
   persisted: boolean
@@ -19,7 +17,6 @@ interface PwaStatus {
 let status: PwaStatus = {
   supported: 'serviceWorker' in navigator,
   offlineReady: false,
-  updateWaiting: false,
   canInstall: false,
   standalone:
     matchMedia('(display-mode: standalone)').matches ||
@@ -34,7 +31,6 @@ const update = (patch: Partial<PwaStatus>) => {
 }
 
 let installEvent: BeforeInstallPromptEvent | null = null
-let applyUpdate: ((reload?: boolean) => Promise<void>) | null = null
 
 export function initPwa() {
   navigator.storage?.persisted?.().then((persisted) => update({ persisted })).catch(() => {})
@@ -51,23 +47,17 @@ export function initPwa() {
 
   if (!status.supported) return
 
-  applyUpdate = registerSW({
-    immediate: true,
-    onOfflineReady: () => update({ offlineReady: true }),
-    onNeedRefresh: () => update({ updateWaiting: true }),
-    onRegisteredSW: (_url, registration) => {
-      if (!registration) return
+  // Der Service Worker legt beim ersten Besuch alle Dateien und Flaggen ab.
+  // Die Seite wird bei Updates bewusst nicht neu geladen – der Spielstand soll nie mitten in einer Frage springen.
+  navigator.serviceWorker
+    .register('/sw.js', { scope: '/' })
+    .then((registration) => {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') registration.update().catch(() => {})
       })
-    },
-  })
+    })
+    .catch(() => {})
   navigator.serviceWorker.ready.then(() => update({ offlineReady: true })).catch(() => {})
-
-  // Neue Version nur einspielen, während die App im Hintergrund ist – nie mitten in einer Frage
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden' && status.updateWaiting) applyUpdate?.(true)
-  })
 }
 
 let persistRequested = false

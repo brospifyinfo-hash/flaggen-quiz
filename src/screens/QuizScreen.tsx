@@ -27,10 +27,13 @@ export function QuizScreen({ session }: { session: Session }) {
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
-  // nächste Flagge schon laden, damit der Wechsel ohne Flackern passiert
+  // nächste Flagge schon laden und dekodieren, damit der Wechsel ohne Flackern passiert
   const upcoming = session.queue[0]
   useEffect(() => {
-    if (upcoming) new Image().src = `/flags/${upcoming}.svg`
+    if (!upcoming) return
+    const image = new Image()
+    image.src = `/flags/${upcoming}.svg`
+    image.decode().catch(() => {})
   }, [upcoming])
 
   const goNext = () => {

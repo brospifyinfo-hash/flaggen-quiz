@@ -6,8 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // Updates werden nicht mitten im Quiz eingespielt, sondern erst auf einem ruhigen Screen (siehe src/pwa.ts)
-      registerType: 'prompt',
+      // Neue Versionen übernehmen sofort; die offene Seite läuft ungestört weiter,
+      // der nächste Start lädt die neue Version (Registrierung in src/pwa.ts, ohne Auto-Reload)
+      registerType: 'autoUpdate',
       injectRegister: false,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {

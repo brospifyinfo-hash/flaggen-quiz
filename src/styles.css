@@ -50,12 +50,12 @@
     --primary-soft: rgb(112 114 255 / 0.18);
     --good: #34c46b;
     --good-strong: #62dc91;
-    --good-soft: rgb(52 196 107 / 0.16);
+    --good-soft: rgb(52 196 107 / 0.22);
     --good-solid: #1f9d52;
     --good-shadow: #147a3d;
     --bad: #f0616a;
     --bad-strong: #ff9298;
-    --bad-soft: rgb(240 97 106 / 0.16);
+    --bad-soft: rgb(240 97 106 / 0.22);
     --bad-solid: #e0464b;
     --bad-shadow: #a8252a;
     --warn: #f7b23b;
