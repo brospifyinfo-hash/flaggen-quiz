@@ -106,7 +106,7 @@ export function ContinentScreen({ data, id }: { data: SaveData; id: ContinentId 
           </>
         ) : (
           <button className="btn btn-primary" onClick={() => start('practice')}>
-            {progress.rounds > 0 ? 'Nächste Runde starten' : 'Erste Runde starten'}
+            {progress.rounds > 0 ? 'Nächste Runde' : 'Erste Runde starten'}
           </button>
         )}
       </section>

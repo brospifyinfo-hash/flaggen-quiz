@@ -51,25 +51,6 @@ export function ResultScreen({ result }: { result: RoundResult }) {
         <Unlock title={`${unlocked.name} ist freigeschaltet!`} text={`Als Nächstes warten die Flaggen von ${unlocked.name}.`} />
       )}
 
-      {mistakes.length > 0 && (
-        <section>
-          <h2 className="section-title">Diese Flaggen solltest du dir merken</h2>
-          <ul className="mistakes">
-            {mistakes.map((mistake) => (
-              <li key={mistake.code} className="mistake">
-                <span className="mistake-flag">
-                  <Flag code={mistake.code} />
-                </span>
-                <span className="mistake-text">
-                  <strong>{countryName(mistake.code)}</strong>
-                  <span>getippt: {countryName(mistake.picked)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       <div className="actions">
         {mode === 'practice' ? (
           result.testUnlocked ? (
@@ -115,6 +96,25 @@ export function ResultScreen({ result }: { result: RoundResult }) {
           </button>
         )}
       </div>
+
+      {mistakes.length > 0 && (
+        <section>
+          <h2 className="section-title">Diese Flaggen solltest du dir merken</h2>
+          <ul className="mistakes">
+            {mistakes.map((mistake) => (
+              <li key={mistake.code} className="mistake">
+                <span className="mistake-flag">
+                  <Flag code={mistake.code} />
+                </span>
+                <span className="mistake-text">
+                  <strong>{countryName(mistake.code)}</strong>
+                  <span>getippt: {countryName(mistake.picked)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   )
 }
