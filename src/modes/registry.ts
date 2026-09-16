@@ -16,8 +16,8 @@ export interface QuizMode {
   tagline: string
   /** Erzeugt die nächste Frage. recentKeys sind die zuletzt gestellten Fragen, neueste zuerst. */
   nextQuestion: (data: SaveData, recentKeys: readonly string[]) => ModeQuestion | null
-  /** Trägt das Ergebnis in den modus-eigenen Lernstand ein (z. B. Flaggen) */
-  recordAnswer?: (data: SaveData, question: ModeQuestion, correct: boolean, now: number) => SaveData
+  /** Trägt das Ergebnis in den modus-eigenen Lernstand ein (z. B. Flaggen oder Jahresabweichung) */
+  recordAnswer?: (data: SaveData, question: ModeQuestion, picked: string, correct: boolean, now: number) => SaveData
   /** 0 bis 1 */
   mastery: (data: SaveData) => number
   /** Kurzstatistik für Auswahlkarte und Modus-Bildschirm */

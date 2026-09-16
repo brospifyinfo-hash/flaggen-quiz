@@ -87,6 +87,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'europa-bestanden', emoji: '🏆', title: 'Europa gemeistert', text: 'Bestehe den Abschlusstest von Europa', reached: (d) => d.progress.europa?.passed === true },
   { id: 'alle-kontinente', emoji: '🌍', title: 'Weltmeister', text: 'Bestehe alle Abschlusstests', reached: (d) => CONTINENTS.every((c) => d.progress[c.id]?.passed) },
   { id: 'hl-combo-20', emoji: '📈', title: 'Zahlenmensch', text: '20 Higher-or-Lower-Fragen in Folge richtig', reached: (d) => modeProgress(d, 'higher-lower').bestCombo >= 20 },
+  { id: 'geschichte-100', emoji: '⏳', title: 'Zeitreisender', text: '100 historische Ereignisse beantwortet', reached: (d) => modeProgress(d, 'geschichte').answered >= 100 },
 ]
 
 export const achievementById = (id: string) => ACHIEVEMENTS.find((a) => a.id === id)

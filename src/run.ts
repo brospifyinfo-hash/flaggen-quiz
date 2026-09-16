@@ -56,7 +56,7 @@ export function answerRun(data: SaveData, optionId: string, now = Date.now()): S
   const gained = correct ? xpForAnswer(run.combo) : 0
 
   // Lernstand des Modus (z. B. Flaggen) mitschreiben
-  let next = getMode(question.modeId)?.recordAnswer?.(data, question, correct, now) ?? data
+  let next = getMode(question.modeId)?.recordAnswer?.(data, question, optionId, correct, now) ?? data
 
   const before = modeProgress(next, question.modeId)
   const progress: ModeProgress = {

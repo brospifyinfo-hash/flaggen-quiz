@@ -165,7 +165,7 @@ function RunFeedback({ question, picked, gained, onNext }: FeedbackProps) {
       </p>
       {!correct && (
         <p className="sheet-text">
-          Richtig ist <strong>{answer?.label}</strong>.
+          Richtig: <strong>{answer?.label}</strong>
         </p>
       )}
       {mode?.renderFeedback?.(question, picked)}

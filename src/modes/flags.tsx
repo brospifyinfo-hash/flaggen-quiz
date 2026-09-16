@@ -49,7 +49,7 @@ export const flagsMode: QuizMode = {
   },
 
   // Der Lernstand je Flagge ist derselbe wie in der Kontinent-Reise
-  recordAnswer(data, question, correct, now) {
+  recordAnswer(data, question, _picked, correct, now) {
     const code = question.data.code
     const prev = data.stats[code]
     return {

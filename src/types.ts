@@ -136,6 +136,8 @@ export interface ModeProgress {
   /** nur ab 10 Fragen im Run */
   bestAccuracy: number
   lastPlayed: number
+  /** modus-eigene Zusatzwerte, z. B. die Jahresabweichung bei Geschichte */
+  extra?: Record<string, number>
 }
 
 // ---------- Navigation und Speicherstand ----------

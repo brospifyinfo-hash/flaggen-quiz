@@ -3,9 +3,11 @@
 // in den Statistiken, in der Mastery und in den Achievements.
 import { flagsMode } from './flags'
 import { higherLowerMode } from './higherLower'
+import { historyMode } from './history'
 import { registerMode } from './registry'
 
 registerMode(flagsMode)
 registerMode(higherLowerMode)
+registerMode(historyMode)
 
-export { flagsMode, higherLowerMode }
+export { flagsMode, higherLowerMode, historyMode }

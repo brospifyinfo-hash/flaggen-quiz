@@ -159,7 +159,14 @@ function isRunResult(value: unknown): value is RunResult {
 
 function readModeProgress(value: unknown): ModeProgress | null {
   if (!isObject(value)) return null
+  const extra: Record<string, number> = {}
+  if (isObject(value.extra)) {
+    for (const [key, entry] of Object.entries(value.extra)) {
+      if (typeof entry === 'number' && Number.isFinite(entry)) extra[key] = entry
+    }
+  }
   return {
+    ...(Object.keys(extra).length > 0 ? { extra } : {}),
     answered: count(value.answered),
     correct: count(value.correct),
     runs: count(value.runs),
@@ -278,6 +285,7 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     const old = modes[id]
     modes[id] = old
       ? {
+          extra: mergeExtra(entry.extra, old.extra),
           answered: Math.max(entry.answered, old.answered),
           correct: Math.max(entry.correct, old.correct),
           runs: Math.max(entry.runs, old.runs),
@@ -307,6 +315,13 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     run: current.run ?? older.run,
     lastRun: current.lastRun ?? older.lastRun,
   }
+}
+
+function mergeExtra(a?: Record<string, number>, b?: Record<string, number>) {
+  if (!a && !b) return undefined
+  const merged: Record<string, number> = { ...(b ?? {}) }
+  for (const [key, value] of Object.entries(a ?? {})) merged[key] = Math.max(value, merged[key] ?? 0)
+  return merged
 }
 
 function backupKeys(): string[] {
