@@ -3,6 +3,7 @@ import { IconClose, IconPlay } from '../components/Icons'
 import {
   EMPTY_MATH_STATS,
   STAGES,
+  START_SCORE,
   XP_HIGHSCORE_BONUS,
   stageAt,
 } from '../games/mathRunner/config'
@@ -83,7 +84,8 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
   finish.current = () => {
     const current = game.current
     endGame(current)
-    const record = current.peak > best.current
+    // Jeder Lauf startet bei 100 – ein Rekord ist es erst, wenn wirklich Punkte dazukamen
+    const record = current.peak > Math.max(best.current, START_SCORE)
     const xp = current.xp + (record ? XP_HIGHSCORE_BONUS : 0)
 
     setState((save) => {
