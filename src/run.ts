@@ -24,11 +24,8 @@ function isValidAnswer(question: ModeQuestion, answer: string): boolean {
     const value = Number(answer)
     return Number.isFinite(value) && value >= input.min && value <= input.max
   }
-  // Karte: "x,y,Ländercode" – der Code bleibt leer, wenn ins Meer getippt wurde
-  if (input?.kind === 'map') {
-    const [x, y, ...rest] = answer.split(',')
-    return rest.length === 1 && Number.isFinite(Number(x)) && Number.isFinite(Number(y)) && x !== '' && y !== ''
-  }
+  // Karte: der Code des angetippten Landes
+  if (input?.kind === 'map') return /^[a-z]{2}$/.test(answer)
   return question.options.some((option) => option.id === answer)
 }
 

@@ -2339,6 +2339,16 @@ svg {
 
 /* Weltkarte */
 
+/* Der gesuchte Laendername steht gross ueber der Karte */
+.map-target {
+  margin: 2px 0 -2px;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 .map-board {
   display: flex;
   flex: 1 1 auto;
@@ -2348,11 +2358,12 @@ svg {
   min-height: 0;
 }
 
-/* Eigene Farben: die Oberflächen der App sind sich zu ähnlich, um Land von Meer zu trennen */
+/* Eigene Farben: die Oberflaechen der App sind sich zu aehnlich, um Land von Meer zu trennen */
 .map-frame {
   --map-sea: #cfe0f2;
   --map-land: #ffffff;
   --map-line: #93a8c6;
+  position: relative;
   display: grid;
   flex: 0 1 auto;
   width: 100%;
@@ -2383,7 +2394,7 @@ svg {
   display: block;
   width: 100%;
   height: 100%;
-  touch-action: manipulation;
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -2394,36 +2405,57 @@ svg {
 .map-country {
   fill: var(--map-land);
   stroke: var(--map-line);
-  stroke-width: 0.6;
+  stroke-width: 1;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Das angetippte Land wird komplett ausgefuellt, damit die Wahl eindeutig ist */
+.map-country.is-choice {
+  fill: var(--good);
+  stroke: var(--good-strong);
+  stroke-width: 2;
+}
+
+.map-country.is-wrong {
+  fill: var(--bad);
+  stroke: var(--bad-strong);
+  stroke-width: 2;
 }
 
 .map-country.is-target {
   fill: var(--good);
   stroke: var(--good-strong);
-  stroke-width: 1.2;
+  stroke-width: 2;
 }
 
-.map-pin {
-  fill: none;
-  stroke: var(--primary);
-  paint-order: stroke;
+.map-zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  gap: 6px;
 }
 
-.map-pin.is-done {
-  stroke: var(--bad);
+.map-zoom button {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 2px var(--line-strong),
+    0 3px 0 var(--line-strong);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.map-goal {
-  fill: none;
-  stroke: var(--good-strong);
-}
-
-.map-link {
-  stroke: var(--bad);
-  stroke-dasharray: 3 3;
-  stroke-linecap: round;
-  opacity: 0.8;
+.map-zoom button:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 0 0 2px var(--line-strong),
+    0 1px 0 var(--line-strong);
 }
 
 .map-board .btn[aria-disabled='true'] {
