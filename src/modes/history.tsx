@@ -239,32 +239,11 @@ function Timeline({ onSubmit }: { onSubmit: (answer: string) => void }) {
         <span>{TIMELINE_MAX}</span>
       </div>
       <div className="timeline-fine">
-        <button className="timeline-step" onClick={() => step(-100)}>
-          −100
-        </button>
-        <button className="timeline-step" onClick={() => step(-10)}>
-          −10
-        </button>
-        <button className="timeline-step" onClick={() => step(10)}>
-          +10
-        </button>
-        <button className="timeline-step" onClick={() => step(100)}>
-          +100
-        </button>
-      </div>
-      <div className="timeline-fine">
-        <button className="timeline-step" onClick={() => step(-5)}>
-          −5
-        </button>
-        <button className="timeline-step" onClick={() => step(-1)}>
-          −1
-        </button>
-        <button className="timeline-step" onClick={() => step(1)}>
-          +1
-        </button>
-        <button className="timeline-step" onClick={() => step(5)}>
-          +5
-        </button>
+        {[-100, -10, -1, 1, 10, 100].map((delta) => (
+          <button key={delta} className="timeline-step" onClick={() => step(delta)}>
+            {delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`}
+          </button>
+        ))}
       </div>
       <button className="btn btn-primary" onClick={() => onSubmit(String(year))}>
         Antwort abgeben
