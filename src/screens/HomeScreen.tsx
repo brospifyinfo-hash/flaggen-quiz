@@ -1,6 +1,7 @@
 import { IconChevron, IconPlay, IconSettings } from '../components/Icons'
+import { RankCrest } from '../components/RankCrest'
 import { allModes, getMode } from '../modes/registry'
-import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, totalAnswered } from '../progression'
+import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, rankFor, totalAnswered } from '../progression'
 import { navigate } from '../router'
 import { RANDOM, endRun, startRun } from '../run'
 import { setState } from '../store'
@@ -8,6 +9,7 @@ import type { SaveData } from '../types'
 
 export function HomeScreen({ data }: { data: SaveData }) {
   const level = levelFor(data.xp)
+  const { rank, next, into, needed } = rankFor(data.xp)
   const run = data.run
   const runMode = run ? (run.mode === RANDOM ? null : getMode(run.mode)) : null
 
@@ -28,17 +30,21 @@ export function HomeScreen({ data }: { data: SaveData }) {
         </button>
       </header>
 
-      <section className="level-card">
-        <span className="level-badge">
-          Lv<strong>{level.level}</strong>
-        </span>
-        <span className="level-body">
-          <span className="level-row">
-            <strong>{data.xp.toLocaleString('de-DE')} XP</strong>
-            <span>noch {(level.needed - level.into).toLocaleString('de-DE')} bis Level {level.level + 1}</span>
+      <section className="rank-card">
+        <RankCrest rank={rank} />
+        <span className="rank-text">
+          <span className="rank-name">
+            {rank.name}
+            <small>Level {level.level}</small>
           </span>
+          <span className="rank-meta">{data.xp.toLocaleString('de-DE')} XP gesammelt</span>
           <span className="bar">
-            <span style={{ width: `${(level.into / level.needed) * 100}%` }} />
+            <span style={{ width: `${next ? (into / needed) * 100 : 100}%` }} />
+          </span>
+          <span className="rank-meta">
+            {next
+              ? `noch ${(needed - into).toLocaleString('de-DE')} XP bis ${next.name}`
+              : 'Höchster Rang erreicht'}
           </span>
         </span>
       </section>

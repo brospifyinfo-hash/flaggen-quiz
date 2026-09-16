@@ -2,12 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { IconCheck, IconClose, IconCross } from '../components/Icons'
 import { vibrate } from '../haptics'
 import { getMode } from '../modes/registry'
-import { xpForAnswer } from '../progression'
 import { requestPersistentStorage } from '../pwa'
 import { goBack, navigate } from '../router'
 import { RANDOM, answerRun, endRun, nextRunQuestion } from '../run'
 import { getState, setState } from '../store'
-import type { ModeQuestion, Run } from '../types'
+import type { Judgement, ModeQuestion, Run } from '../types'
 
 const AUTO_NEXT_MS = 900
 const AUTO_NEXT_QUICK_MS = 600
@@ -17,9 +16,10 @@ export function RunScreen({ run }: { run: Run }) {
   const question = run.current
   const mode = getMode(question.modeId)
   const answered = question.picked !== null
-  const correct = question.picked === question.correctId
+  const judged = run.judged
+  const correct = judged?.correct ?? false
   const accuracy = run.answered > 0 ? Math.round((run.correct / run.answered) * 100) : 0
-  const gained = answered && correct ? xpForAnswer(Math.max(0, run.combo - 1)) : 0
+  const gained = answered ? (judged?.xp ?? 0) : 0
 
   const [autoNext, setAutoNext] = useState(false)
   const timer = useRef<number | undefined>(undefined)
@@ -33,14 +33,18 @@ export function RunScreen({ run }: { run: Run }) {
     if (!getState().run) navigate({ name: 'runResult' }, { replace: true })
   }
 
-  const pick = (optionId: string) => {
+  const pick = (answer: string) => {
     if (answered) return
-    setState((data) => answerRun(data, optionId))
+    setState((data) => answerRun(data, answer))
     requestPersistentStorage()
-    if (optionId === question.correctId) {
+    const judgement = getState().run?.judged
+    if (judgement?.correct) {
       vibrate(15)
-      setAutoNext(true)
-      timer.current = window.setTimeout(goNext, question.quickNext ? AUTO_NEXT_QUICK_MS : AUTO_NEXT_MS)
+      // Bei Zeitstrahl-Fragen bleibt die Erklärung stehen, sonst läuft es automatisch weiter
+      if (!question.input) {
+        setAutoNext(true)
+        timer.current = window.setTimeout(goNext, question.quickNext ? AUTO_NEXT_QUICK_MS : AUTO_NEXT_MS)
+      }
     } else {
       vibrate([40, 70, 40])
     }
@@ -58,8 +62,9 @@ export function RunScreen({ run }: { run: Run }) {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return
       const index = Number(event.key) - 1
-      if (!answered && index >= 0 && index < question.options.length) pick(question.options[index].id)
-      else if (answered && (event.key === 'Enter' || event.key === ' ')) {
+      if (!answered && !question.input && index >= 0 && index < question.options.length) {
+        pick(question.options[index].id)
+      } else if (answered && (event.key === 'Enter' || event.key === ' ')) {
         event.preventDefault()
         goNext()
       }
@@ -106,28 +111,32 @@ export function RunScreen({ run }: { run: Run }) {
 
       <p className="question">{question.prompt}</p>
 
-      <div className="options" key={`${run.answered}-${question.key}`}>
-        {question.options.map((option) => {
-          const isAnswer = option.id === question.correctId
-          const isPicked = option.id === question.picked
-          const state = !answered ? '' : isAnswer ? ' is-correct' : isPicked ? ' is-wrong' : ' is-dim'
-          return (
-            <button
-              key={option.id}
-              className={`option${state}`}
-              aria-disabled={answered}
-              onClick={() => pick(option.id)}
-            >
-              <span>{option.label}</span>
-              {answered && isAnswer && <IconCheck className="option-mark" />}
-              {answered && isPicked && !isAnswer && <IconCross className="option-mark" />}
-            </button>
-          )
-        })}
-      </div>
+      {question.input ? (
+        mode?.renderInput?.(question, question.picked, pick)
+      ) : (
+        <div className="options" key={`${run.answered}-${question.key}`}>
+          {question.options.map((option) => {
+            const isAnswer = option.id === question.correctId
+            const isPicked = option.id === question.picked
+            const state = !answered ? '' : isAnswer ? ' is-correct' : isPicked ? ' is-wrong' : ' is-dim'
+            return (
+              <button
+                key={option.id}
+                className={`option${state}`}
+                aria-disabled={answered}
+                onClick={() => pick(option.id)}
+              >
+                <span>{option.label}</span>
+                {answered && isAnswer && <IconCheck className="option-mark" />}
+                {answered && isPicked && !isAnswer && <IconCross className="option-mark" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
-      {answered && !(correct && autoNext) && (
-        <RunFeedback question={question} picked={question.picked as string} gained={gained} onNext={goNext} />
+      {answered && judged && !(correct && autoNext) && (
+        <RunFeedback question={question} picked={question.picked as string} judged={judged} onNext={goNext} />
       )}
     </main>
   )
@@ -136,12 +145,11 @@ export function RunScreen({ run }: { run: Run }) {
 interface FeedbackProps {
   question: ModeQuestion
   picked: string
-  gained: number
+  judged: Judgement
   onNext: () => void
 }
 
-function RunFeedback({ question, picked, gained, onNext }: FeedbackProps) {
-  const correct = picked === question.correctId
+function RunFeedback({ question, picked, judged, onNext }: FeedbackProps) {
   const mode = getMode(question.modeId)
   const shownAt = useRef(0)
   const button = useRef<HTMLButtonElement>(null)
@@ -158,18 +166,19 @@ function RunFeedback({ question, picked, gained, onNext }: FeedbackProps) {
   }
 
   return (
-    <div className={`sheet ${correct ? 'sheet-good' : 'sheet-bad'}`} role="status" aria-live="assertive">
+    <div className={`sheet ${judged.correct ? 'sheet-good' : 'sheet-bad'}`} role="status" aria-live="assertive">
       <p className="sheet-title">
-        {correct ? <IconCheck /> : <IconCross />}
-        {correct ? `Richtig! +${gained} XP` : 'Leider falsch'}
+        {judged.correct ? <IconCheck /> : <IconCross />}
+        {judged.headline}
+        {judged.xp > 0 && <span className="sheet-xp">+{judged.xp} XP</span>}
       </p>
-      {!correct && (
+      {!judged.correct && !question.input && answer && (
         <p className="sheet-text">
-          Richtig: <strong>{answer?.label}</strong>
+          Richtig: <strong>{answer.label}</strong>
         </p>
       )}
       {mode?.renderFeedback?.(question, picked)}
-      <button ref={button} className={`btn ${correct ? 'btn-good' : 'btn-bad'}`} onClick={handleNext}>
+      <button ref={button} className={`btn ${judged.correct ? 'btn-good' : 'btn-bad'}`} onClick={handleNext}>
         Weiter
       </button>
     </div>

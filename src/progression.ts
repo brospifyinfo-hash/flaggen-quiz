@@ -27,6 +27,49 @@ export function levelFor(xp: number) {
   return { level, into, needed }
 }
 
+/** Ränge: Wappen auf der Startseite, vergeben nach gesammelten XP aus allen Modi */
+export interface Rank {
+  id: string
+  name: string
+  /** ab so vielen XP */
+  from: number
+  /** Verlauf des Wappens von hell nach dunkel */
+  colors: [string, string]
+  /** Farbe des Emblems im Wappen */
+  ink: string
+}
+
+export const RANKS: Rank[] = [
+  { id: 'holz', name: 'Holz', from: 0, colors: ['#c99a63', '#6f4520'], ink: '#3a2410' },
+  { id: 'bronze', name: 'Bronze', from: 750, colors: ['#f0b47c', '#a15c26'], ink: '#4a2a0e' },
+  { id: 'silber', name: 'Silber', from: 3000, colors: ['#f4f7fb', '#93a3b8'], ink: '#3c4657' },
+  { id: 'gold', name: 'Gold', from: 10000, colors: ['#ffe680', '#d79a08'], ink: '#5a3d00' },
+  { id: 'platin', name: 'Platin', from: 25000, colors: ['#edf6ff', '#9db2c8'], ink: '#33465a' },
+  { id: 'diamant', name: 'Diamant', from: 60000, colors: ['#c9f5ff', '#3fb0e6'], ink: '#0b4a63' },
+  { id: 'champion', name: 'Champion', from: 150000, colors: ['#ffd76a', '#ff5f9e'], ink: '#4a1338' },
+]
+
+export function rankFor(xp: number) {
+  let index = 0
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (xp >= RANKS[i].from) {
+      index = i
+      break
+    }
+  }
+  const rank = RANKS[index]
+  const next = RANKS[index + 1] ?? null
+  return {
+    rank,
+    index,
+    next,
+    into: Math.max(0, xp - rank.from),
+    needed: next ? next.from - rank.from : 0,
+  }
+}
+
+export const rankById = (id: string) => RANKS.find((rank) => rank.id === id)
+
 export const EMPTY_MODE_PROGRESS: ModeProgress = {
   answered: 0,
   correct: 0,

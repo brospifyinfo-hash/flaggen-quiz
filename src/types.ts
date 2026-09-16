@@ -70,6 +70,13 @@ export interface QuestionOption {
   label: string
 }
 
+/** Eingabe statt fester Antworten, z. B. der Zeitstrahl bei Geschichte */
+export interface QuestionInput {
+  kind: 'timeline'
+  min: number
+  max: number
+}
+
 /** Eine Frage aus einem beliebigen Spielmodus – muss als JSON speicherbar sein */
 export interface ModeQuestion {
   modeId: string
@@ -78,17 +85,21 @@ export interface ModeQuestion {
   prompt: string
   /** Anzeigedaten des Modus, z. B. { code: 'de' } */
   data: Record<string, string>
+  /** leer, wenn die Antwort über input kommt */
   options: QuestionOption[]
   correctId: string
+  input?: QuestionInput
   /** true: nach einer richtigen Antwort direkt weiter (z. B. Higher or Lower) */
   quickNext?: boolean
 }
 
-export interface RunRecords {
-  combo: number
+/** Bewertung einer Antwort – Modi können eigene Punkte vergeben (Zeitstrahl) */
+export interface Judgement {
+  /** zählt als richtig für Combo, Trefferquote und Statistik */
+  correct: boolean
   xp: number
-  questions: number
-  accuracy: number
+  /** Überschrift in der Auflösung, z. B. „Volltreffer“ */
+  headline: string
 }
 
 /** Ein laufender, endloser Run – entweder Random oder ein bestimmter Modus */
@@ -97,6 +108,8 @@ export interface Run {
   mode: string
   /** Bestwerte des Modus beim Start – daran werden neue Rekorde gemessen */
   startRecords: RunRecords
+  /** XP-Stand beim Start – daran wird ein Rangaufstieg gemessen */
+  xpStart: number
   startedAt: number
   updatedAt: number
   answered: number
@@ -109,8 +122,17 @@ export interface Run {
   recentModes: string[]
   masteryStart: number
   current: ModeQuestion & { picked: string | null }
+  /** Bewertung der aktuellen Antwort, solange die Auflösung zu sehen ist */
+  judged: Judgement | null
   /** in diesem Run freigeschaltete Achievements */
   earned: string[]
+}
+
+export interface RunRecords {
+  combo: number
+  xp: number
+  questions: number
+  accuracy: number
 }
 
 export interface RunResult {
@@ -123,6 +145,8 @@ export interface RunResult {
   achievements: string[]
   /** neue Rekorde: 'combo' | 'xp' | 'questions' | 'accuracy' */
   records: string[]
+  /** ID des neuen Rangs, falls in diesem Run aufgestiegen */
+  rankUp: string | null
   finishedAt: number
 }
 

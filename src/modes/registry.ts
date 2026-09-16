@@ -1,7 +1,7 @@
 // Registry aller Spielmodi. Ein neuer Modus wird einmal registriert und taucht danach
 // automatisch im Specific Mode, im Random Mode, in den Statistiken und in der Mastery auf.
 import type { ReactNode } from 'react'
-import type { ModeQuestion, SaveData } from '../types'
+import type { Judgement, ModeQuestion, SaveData } from '../types'
 
 export interface ModeStatLine {
   label: string
@@ -16,6 +16,8 @@ export interface QuizMode {
   tagline: string
   /** Erzeugt die nächste Frage. recentKeys sind die zuletzt gestellten Fragen, neueste zuerst. */
   nextQuestion: (data: SaveData, recentKeys: readonly string[]) => ModeQuestion | null
+  /** Eigene Bewertung, z. B. Punkte nach Nähe beim Zeitstrahl. Ohne Angabe gilt richtig/falsch. */
+  judge?: (question: ModeQuestion, picked: string, combo: number) => Judgement
   /** Trägt das Ergebnis in den modus-eigenen Lernstand ein (z. B. Flaggen oder Jahresabweichung) */
   recordAnswer?: (data: SaveData, question: ModeQuestion, picked: string, correct: boolean, now: number) => SaveData
   /** 0 bis 1 */
@@ -24,6 +26,8 @@ export interface QuizMode {
   summary: (data: SaveData) => ModeStatLine[]
   /** Anzeige über den Antwortmöglichkeiten */
   renderQuestion: (question: ModeQuestion, picked: string | null) => ReactNode
+  /** Eigene Eingabe statt Antwortknöpfen (Zeitstrahl); submit übergibt die Antwort */
+  renderInput?: (question: ModeQuestion, picked: string | null, submit: (answer: string) => void) => ReactNode
   /** Auflösung nach einer Antwort */
   renderFeedback?: (question: ModeQuestion, picked: string) => ReactNode
   /** eigener Bereich auf dem Modus-Bildschirm, z. B. die Kontinent-Reise der Flaggen */

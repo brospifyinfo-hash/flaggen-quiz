@@ -1,7 +1,7 @@
 // Run-Engine: endlose Runden für Random Mode und für einzelne Modi.
 import { getMode, pickRandomMode } from './modes/registry'
-import { checkAchievements, modeProgress, overallMastery, xpForAnswer } from './progression'
-import type { ModeProgress, ModeQuestion, Run, RunResult, SaveData } from './types'
+import { checkAchievements, modeProgress, overallMastery, rankFor, xpForAnswer } from './progression'
+import type { Judgement, ModeProgress, ModeQuestion, Run, RunResult, SaveData } from './types'
 
 /** Modus-ID des Random Mode */
 export const RANDOM = 'random'
@@ -17,6 +17,15 @@ function makeQuestion(data: SaveData, mode: string, recentKeys: string[], recent
   return chosen?.nextQuestion(data, recentKeys) ?? null
 }
 
+/** Prüft, ob die Antwort zur Frage passt – Knopf oder freie Eingabe wie der Zeitstrahl */
+function isValidAnswer(question: ModeQuestion, answer: string): boolean {
+  if (question.input) {
+    const value = Number(answer)
+    return Number.isFinite(value) && value >= question.input.min && value <= question.input.max
+  }
+  return question.options.some((option) => option.id === answer)
+}
+
 export function startRun(data: SaveData, mode: string, now = Date.now()): SaveData {
   const question = makeQuestion(data, mode, [], [])
   if (!question) return data
@@ -30,6 +39,7 @@ export function startRun(data: SaveData, mode: string, now = Date.now()): SaveDa
       questions: best.bestQuestions,
       accuracy: best.bestAccuracy,
     },
+    xpStart: data.xp,
     startedAt: now,
     updatedAt: now,
     answered: 0,
@@ -41,22 +51,31 @@ export function startRun(data: SaveData, mode: string, now = Date.now()): SaveDa
     recentModes: [],
     masteryStart: masteryOf(data, mode),
     current: { ...question, picked: null },
+    judged: null,
     earned: [],
   }
   return { ...data, run }
 }
 
-export function answerRun(data: SaveData, optionId: string, now = Date.now()): SaveData {
+export function answerRun(data: SaveData, answer: string, now = Date.now()): SaveData {
   const run = data.run
-  if (!run || run.current.picked !== null || !run.current.options.some((option) => option.id === optionId)) return data
-
+  if (!run || run.current.picked !== null) return data
   const question = run.current
-  const correct = optionId === question.correctId
-  const combo = correct ? run.combo + 1 : 0
-  const gained = correct ? xpForAnswer(run.combo) : 0
+  if (!isValidAnswer(question, answer)) return data
 
-  // Lernstand des Modus (z. B. Flaggen) mitschreiben
-  let next = getMode(question.modeId)?.recordAnswer?.(data, question, optionId, correct, now) ?? data
+  const mode = getMode(question.modeId)
+  const right = answer === question.correctId
+  const judged: Judgement = mode?.judge?.(question, answer, run.combo) ?? {
+    correct: right,
+    xp: right ? xpForAnswer(run.combo) : 0,
+    headline: right ? 'Richtig!' : 'Leider falsch',
+  }
+  const correct = judged.correct
+  const gained = Math.max(0, Math.round(judged.xp))
+  const combo = correct ? run.combo + 1 : 0
+
+  // Lernstand des Modus (z. B. Flaggen oder Jahresabweichung) mitschreiben
+  let next = mode?.recordAnswer?.(data, question, answer, correct, now) ?? data
 
   const before = modeProgress(next, question.modeId)
   const progress: ModeProgress = {
@@ -69,7 +88,8 @@ export function answerRun(data: SaveData, optionId: string, now = Date.now()): S
 
   const updated: Run = {
     ...run,
-    current: { ...question, picked: optionId },
+    current: { ...question, picked: answer },
+    judged,
     answered: run.answered + 1,
     correct: run.correct + (correct ? 1 : 0),
     xp: run.xp + gained,
@@ -99,10 +119,13 @@ export function nextRunQuestion(data: SaveData, now = Date.now()): SaveData {
   const question = makeQuestion(data, run.mode, recentKeys, recentModes)
   if (!question) return endRun(data, now)
 
-  return { ...data, run: { ...run, current: { ...question, picked: null }, recentKeys, recentModes, updatedAt: now } }
+  return {
+    ...data,
+    run: { ...run, current: { ...question, picked: null }, judged: null, recentKeys, recentModes, updatedAt: now },
+  }
 }
 
-/** Beendet den Run und schreibt Rekorde, Statistiken und Achievements fort */
+/** Beendet den Run und schreibt Rekorde, Statistiken, Rang und Achievements fort */
 export function endRun(data: SaveData, now = Date.now()): SaveData {
   const run = data.run
   if (!run) return data
@@ -131,6 +154,9 @@ export function endRun(data: SaveData, now = Date.now()): SaveData {
     lastPlayed: now,
   }
 
+  const rankBefore = rankFor(run.xpStart).rank.id
+  const rankAfter = rankFor(data.xp).rank.id
+
   const result: RunResult = {
     mode: run.mode,
     answered: run.answered,
@@ -140,6 +166,7 @@ export function endRun(data: SaveData, now = Date.now()): SaveData {
     masteryDelta: masteryOf(data, run.mode) - run.masteryStart,
     achievements: run.earned,
     records,
+    rankUp: rankAfter !== rankBefore ? rankAfter : null,
     finishedAt: now,
   }
 

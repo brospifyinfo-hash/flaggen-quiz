@@ -1,6 +1,7 @@
 import { Confetti } from '../components/Confetti'
+import { RankCrest } from '../components/RankCrest'
 import { getMode } from '../modes/registry'
-import { achievementById, modeProgress } from '../progression'
+import { achievementById, modeProgress, rankById } from '../progression'
 import { goBack, navigate } from '../router'
 import { RANDOM, startRun } from '../run'
 import { setState } from '../store'
@@ -19,6 +20,7 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
   const best = modeProgress(data, result.mode)
   const records = result.records.map((record) => RECORD_LABEL[record] ?? record)
   const achievements = result.achievements.map(achievementById).filter((entry) => entry !== undefined)
+  const newRank = result.rankUp ? rankById(result.rankUp) : null
 
   const again = () => {
     setState((current) => startRun(current, result.mode))
@@ -27,11 +29,11 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
 
   return (
     <main className="screen result">
-      {records.length > 0 && <Confetti />}
+      {(records.length > 0 || newRank) && <Confetti />}
 
       <section className="result-hero">
         <div className="result-emoji" aria-hidden="true">
-          {records.length > 0 ? '🏆' : accuracy >= 0.8 ? '🎉' : '💪'}
+          {newRank ? '🎖️' : records.length > 0 ? '🏆' : accuracy >= 0.8 ? '🎉' : '💪'}
         </div>
         <h1>Run beendet</h1>
         <p>{mode ? `${mode.emoji} ${mode.name}` : '🎲 Random Mode'}</p>
@@ -42,6 +44,16 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
           <span aria-hidden="true">🏆</span>
           <span>
             Neuer Rekord: <strong>{records.join(', ')}</strong>
+          </span>
+        </div>
+      )}
+
+      {newRank && (
+        <div className="rank-up">
+          <RankCrest rank={newRank} size={56} />
+          <span>
+            <strong>Neuer Rang: {newRank.name}</strong>
+            <span>Dein Wappen auf der Startseite hat sich verändert.</span>
           </span>
         </div>
       )}

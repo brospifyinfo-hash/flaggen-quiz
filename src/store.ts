@@ -10,6 +10,7 @@ import type {
   Mode,
   ModeProgress,
   ModeQuestion,
+  QuestionInput,
   QuestionOption,
   RoundResult,
   Run,
@@ -111,11 +112,18 @@ function isOptions(value: unknown): value is QuestionOption[] {
   )
 }
 
+function isInput(value: unknown): value is QuestionInput {
+  return isObject(value) && value.kind === 'timeline' && typeof value.min === 'number' && typeof value.max === 'number'
+}
+
 function isModeQuestion(value: unknown): value is ModeQuestion {
   if (!isObject(value) || typeof value.modeId !== 'string' || typeof value.key !== 'string') return false
-  if (typeof value.prompt !== 'string' || !isObject(value.data) || !isOptions(value.options)) return false
+  if (typeof value.prompt !== 'string' || !isObject(value.data)) return false
   if (!Object.values(value.data).every((entry) => typeof entry === 'string')) return false
-  return typeof value.correctId === 'string' && value.options.some((option) => option.id === value.correctId)
+  if (typeof value.correctId !== 'string') return false
+  if (value.input !== undefined && !isInput(value.input)) return false
+  if (isInput(value.input)) return Array.isArray(value.options) && value.options.length === 0
+  return isOptions(value.options) && value.options.some((option) => option.id === value.correctId)
 }
 
 function isRun(value: unknown): value is Run {
@@ -126,8 +134,20 @@ function isRun(value: unknown): value is Run {
   if (!isObject(records)) return false
   if (['combo', 'xp', 'questions', 'accuracy'].some((field) => typeof records[field] !== 'number')) return false
   const picked = (question as ModeQuestion & { picked?: unknown }).picked
+  const pickedOk =
+    picked === null ||
+    (typeof picked === 'string' && (question.input ? true : question.options.some((option) => option.id === picked)))
+  const judged = value.judged
+  const judgedOk =
+    judged === null ||
+    (isObject(judged) &&
+      typeof judged.correct === 'boolean' &&
+      typeof judged.xp === 'number' &&
+      typeof judged.headline === 'string')
   return (
-    (picked === null || (typeof picked === 'string' && question.options.some((option) => option.id === picked))) &&
+    pickedOk &&
+    judgedOk &&
+    typeof value.xpStart === 'number' &&
     typeof value.answered === 'number' &&
     typeof value.correct === 'number' &&
     typeof value.xp === 'number' &&
