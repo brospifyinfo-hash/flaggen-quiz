@@ -4,10 +4,12 @@
 import { flagsMode } from './flags'
 import { higherLowerMode } from './higherLower'
 import { historyMode } from './history'
+import { peopleMode } from './people'
 import { registerMode } from './registry'
 
 registerMode(flagsMode)
 registerMode(higherLowerMode)
 registerMode(historyMode)
+registerMode(peopleMode)
 
-export { flagsMode, higherLowerMode, historyMode }
+export { flagsMode, higherLowerMode, historyMode, peopleMode }

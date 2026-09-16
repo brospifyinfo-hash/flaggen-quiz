@@ -2086,6 +2086,39 @@ svg {
   animation: fade-in 0.3s ease both;
 }
 
+/* Berühmte Personen */
+
+.portrait {
+  display: grid;
+  flex: 1 1 0;
+  place-items: center;
+  min-height: 150px;
+  padding: 12px 2px;
+  container-type: size;
+}
+
+.portrait img {
+  width: min(100cqw, min(100cqh, 260px));
+  aspect-ratio: 1;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 22px;
+  box-shadow:
+    0 0 0 1px var(--flag-edge),
+    0 20px 40px -20px rgb(16 24 40 / 0.5);
+  animation: flag-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  pointer-events: none;
+  -webkit-touch-callout: none;
+}
+
+.credit {
+  margin-top: 8px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 /* Zeitstrahl */
 
 .timeline {

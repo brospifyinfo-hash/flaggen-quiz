@@ -191,6 +191,8 @@ export interface SaveData {
   modes: Record<string, ModeProgress>
   /** Achievement-ID → Zeitpunkt */
   achievements: Record<string, number>
+  /** Lernstand je Modus und Thema, z. B. je Person */
+  learn?: Record<string, Record<string, CountryStat>>
   run: Run | null
   lastRun: RunResult | null
   route: Route

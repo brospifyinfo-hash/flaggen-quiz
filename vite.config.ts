@@ -30,7 +30,7 @@ export default defineConfig({
       },
       workbox: {
         // Alles – inklusive aller Flaggen – landet beim ersten Besuch im Offline-Speicher
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,woff2,webmanifest}'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
         skipWaiting: true,

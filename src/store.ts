@@ -255,6 +255,26 @@ function sanitize(input: unknown): SaveData | null {
     }
   }
 
+  const learn: SaveData['learn'] = {}
+  if (isObject(input.learn)) {
+    for (const [modeId, subjects] of Object.entries(input.learn)) {
+      if (!isObject(subjects)) continue
+      const entries: Record<string, CountryStat> = {}
+      for (const [subject, stat] of Object.entries(subjects)) {
+        if (!isObject(stat)) continue
+        entries[subject] = {
+          seen: count(stat.seen),
+          right: count(stat.right),
+          wrong: count(stat.wrong),
+          streak: count(stat.streak),
+          lastWrong: stat.lastWrong === true,
+          lastSeen: count(stat.lastSeen),
+        }
+      }
+      if (Object.keys(entries).length > 0) learn[modeId] = entries
+    }
+  }
+
   return {
     version: 2,
     stats,
@@ -264,6 +284,7 @@ function sanitize(input: unknown): SaveData | null {
     xp: count(input.xp),
     modes,
     achievements,
+    learn,
     run: isRun(input.run) ? input.run : null,
     lastRun: isRunResult(input.lastRun) ? input.lastRun : null,
     route: isRoute(input.route) ? input.route : { name: 'home' },
@@ -323,12 +344,30 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     achievements[id] = Math.min(at, achievements[id] ?? at)
   }
 
+  const learn: SaveData['learn'] = { ...older.learn }
+  for (const [modeId, subjects] of Object.entries(current.learn ?? {})) {
+    const old = learn[modeId] ?? {}
+    const merged: Record<string, CountryStat> = { ...old }
+    for (const [subject, stat] of Object.entries(subjects)) {
+      const previous = old[subject]
+      const recent = !previous || stat.lastSeen >= previous.lastSeen ? stat : previous
+      merged[subject] = {
+        ...recent,
+        seen: Math.max(stat.seen, previous?.seen ?? 0),
+        right: Math.max(stat.right, previous?.right ?? 0),
+        wrong: Math.max(stat.wrong, previous?.wrong ?? 0),
+      }
+    }
+    learn[modeId] = merged
+  }
+
   return {
     ...current,
     stats,
     progress,
     modes,
     achievements,
+    learn,
     xp: Math.max(current.xp, older.xp),
     sessions: Object.keys(current.sessions).length > 0 ? current.sessions : older.sessions,
     lastResult: current.lastResult ?? older.lastResult,
