@@ -3,6 +3,7 @@ import { getMode } from './modes/registry'
 import { isContinentUnlocked, sessionKey } from './quiz'
 import { navigate } from './router'
 import { routeToHash } from './routes'
+import { CityScreen } from './screens/CityScreen'
 import { ContinentScreen } from './screens/ContinentScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { MathRunnerScreen } from './screens/MathRunnerScreen'
@@ -24,6 +25,7 @@ function resolveRoute(data: SaveData): Route {
     case 'settings':
     case 'specific':
     case 'mathRunner':
+    case 'city':
       return route
     case 'mode':
       return getMode(route.id) ? route : { name: 'specific' }
@@ -71,6 +73,8 @@ export function App() {
       return <SettingsScreen data={data} />
     case 'mathRunner':
       return <MathRunnerScreen data={data} />
+    case 'city':
+      return <CityScreen data={data} />
     case 'specific':
       return <SpecificScreen data={data} />
     case 'mode':

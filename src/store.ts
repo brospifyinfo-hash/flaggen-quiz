@@ -1,6 +1,7 @@
 // Der gesamte Fortschritt liegt als JSON im localStorage dieses Geräts.
 // Jede Änderung wird sofort und synchron geschrieben – ohne Server, ohne Konto, auch offline.
 import { useSyncExternalStore } from 'react'
+import { mergeCities, sanitizeCity } from './city/state'
 import { CONTINENTS } from './data/countries'
 import { isContinentId, isCountry, sessionKey } from './quiz'
 import { isRoute } from './routes'
@@ -292,6 +293,7 @@ function sanitize(input: unknown): SaveData | null {
   }
 
   const mathRunner = readMath(input.mathRunner)
+  const city = sanitizeCity(input.city)
 
   return {
     version: 2,
@@ -304,6 +306,7 @@ function sanitize(input: unknown): SaveData | null {
     achievements,
     learn,
     ...(mathRunner ? { mathRunner } : {}),
+    ...(city ? { city } : {}),
     run: isRun(input.run) ? input.run : null,
     lastRun: isRunResult(input.lastRun) ? input.lastRun : null,
     route: isRoute(input.route) ? input.route : { name: 'home' },
@@ -384,9 +387,11 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
   }
 
   const mathRunner = mergeMath(current.mathRunner, older.mathRunner)
+  const city = mergeCities(current.city, older.city)
 
   return {
     ...current,
+    ...(city ? { city } : {}),
     stats,
     progress,
     modes,

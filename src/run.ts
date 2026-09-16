@@ -1,6 +1,6 @@
 // Run-Engine: endlose Runden für Random Mode und für einzelne Modi.
 import { getMode, pickRandomMode } from './modes/registry'
-import { checkAchievements, modeProgress, overallMastery, rankFor, xpForAnswer } from './progression'
+import { checkAchievements, creditXp, modeProgress, overallMastery, rankFor, xpForAnswer } from './progression'
 import type { Judgement, ModeProgress, ModeQuestion, Run, RunResult, SaveData } from './types'
 
 /** Modus-ID des Random Mode */
@@ -102,8 +102,7 @@ export function answerRun(data: SaveData, answer: string, now = Date.now()): Sav
   }
 
   next = {
-    ...next,
-    xp: next.xp + gained,
+    ...creditXp(next, gained),
     modes: { ...next.modes, [question.modeId]: progress },
     run: updated,
   }

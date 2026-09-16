@@ -1,5 +1,6 @@
 // XP, Level, Mastery und Achievements – gelten für alle Spielmodi gemeinsam.
 // Alle Regeln stehen hier oben und lassen sich einzeln ändern.
+import { grant } from './city/state'
 import { CONTINENTS, COUNTRIES } from './data/countries'
 import { allModes } from './modes/registry'
 import { flagState } from './quiz'
@@ -15,13 +16,20 @@ export function xpForAnswer(comboBefore: number): number {
 }
 
 /**
- * XP aus Spielen außerhalb der Quiz-Runs, z. B. dem Math Runner.
- * Es gibt bewusst nur diesen einen XP-Topf – kein zweites System daneben.
+ * Der einzige Weg, XP zu vergeben: Sie zählen für den Rang und fließen zugleich
+ * als Münzen und Material in die Stadt. Jedes Spiel nutzt diese eine Kette.
  */
+export function creditXp(data: SaveData, gained: number): SaveData {
+  if (gained <= 0) return data
+  const city = data.city ? grant(data.city, gained, Math.floor(gained / 20)) : undefined
+  return { ...data, xp: data.xp + gained, ...(city ? { city } : {}) }
+}
+
+/** XP aus Spielen außerhalb der Quiz-Runs, z. B. dem Math Runner */
 export function awardXP(data: SaveData, amount: number, now = Date.now()): SaveData {
   const gained = Math.max(0, Math.round(amount))
   if (gained === 0) return data
-  return checkAchievements({ ...data, xp: data.xp + gained }, now).data
+  return checkAchievements(creditXp(data, gained), now).data
 }
 
 /** Level 2 ab 100 XP, jede weitere Stufe kostet 100 XP mehr als die vorige */

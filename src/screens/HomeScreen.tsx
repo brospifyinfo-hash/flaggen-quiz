@@ -1,3 +1,4 @@
+import { cityTitle, statsOf } from '../city/state'
 import { IconChevron, IconPlay, IconSettings } from '../components/Icons'
 import { haptic } from '../haptics'
 import { RankCrest } from '../components/RankCrest'
@@ -50,6 +51,29 @@ export function HomeScreen({ data }: { data: SaveData }) {
           </span>
         </span>
       </section>
+
+      <button
+        className="city-launch"
+        onClick={() => {
+          haptic('soft')
+          navigate({ name: 'city' })
+        }}
+      >
+        <span className="city-launch-emblem" aria-hidden="true">
+          {data.city?.emblem ?? '🏙️'}
+        </span>
+        <span className="city-launch-body">
+          <strong>{data.city ? data.city.name : 'Deine Stadt'}</strong>
+          <span>
+            {data.city
+              ? `${cityTitle(data.city.level)} · Stufe ${data.city.level} · 👥 ${statsOf(data.city).population.toLocaleString('de-DE')}`
+              : 'Gründen und aus jedem Spiel aufbauen'}
+          </span>
+        </span>
+        <span className="city-launch-go">
+          {data.city ? `🪙 ${data.city.coins.toLocaleString('de-DE')}` : 'NEU'}
+        </span>
+      </button>
 
       {run && (
         <button className="resume" onClick={() => navigate({ name: 'run' })}>

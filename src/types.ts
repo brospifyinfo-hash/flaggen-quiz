@@ -1,3 +1,4 @@
+import type { CityState } from './city/types'
 import type { ContinentId } from './data/countries'
 
 // ---------- Flaggen-Reise (Kontinente, Übungsrunden, Abschlusstests) ----------
@@ -195,6 +196,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'settings' }
   | { name: 'mathRunner' }
+  | { name: 'city' }
   | { name: 'specific' }
   | { name: 'mode'; id: string }
   | { name: 'run' }
@@ -221,6 +223,8 @@ export interface SaveData {
   learn?: Record<string, Record<string, CountryStat>>
   /** Bestleistungen des Math Runners */
   mathRunner?: MathRunnerStats
+  /** Die Stadt – eigener Versionsstand, siehe src/city/types.ts */
+  city?: CityState
   run: Run | null
   lastRun: RunResult | null
   route: Route
