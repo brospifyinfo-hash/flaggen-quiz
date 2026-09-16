@@ -97,7 +97,7 @@ export const historyMode: QuizMode = {
     const tolerance = toleranceFor(year)
     const comboBonus = Math.min(combo, 10) * 2
 
-    if (diff === 0) return { correct: true, xp: 120 + comboBonus * 2, headline: 'Volltreffer! Exakt das richtige Jahr' }
+    if (diff === 0) return { correct: true, xp: 120 + comboBonus * 2, headline: 'Volltreffer!' }
     if (diff <= tolerance) {
       const share = 1 - diff / (tolerance + 1)
       return {
@@ -185,18 +185,16 @@ export const historyMode: QuizMode = {
     const event = BY_ID.get(question.data.event)
     if (!event) return null
     const guess = Number(picked)
+    const hit = guess === event.year
     return (
       <>
         <div className="timeline-marks">
-          <span className="timeline-mark is-guess" style={{ left: `${positionOf(guess)}%` }}>
-            <span>Du: {formatYear(guess)}</span>
-          </span>
-          <span className="timeline-mark is-truth" style={{ left: `${positionOf(event.year)}%` }}>
-            <span>{formatYear(event.year)}</span>
-          </span>
+          {!hit && <span className="timeline-mark is-guess" style={{ left: `${positionOf(guess)}%` }} />}
+          <span className="timeline-mark is-truth" style={{ left: `${positionOf(event.year)}%` }} />
         </div>
-        <p className="sheet-text">
-          Richtig: <strong>{formatYear(event.year)}</strong>
+        <p className="timeline-legend">
+          <span className="is-guess">Dein Tipp: {formatYear(guess)}</span>
+          <span className="is-truth">Richtig: {formatYear(event.year)}</span>
         </p>
         <p className="sheet-hint">{event.note}</p>
       </>
