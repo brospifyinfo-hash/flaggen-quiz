@@ -28,9 +28,15 @@ export interface Scene {
   shake: number
   flash: { r: number; g: number; b: number; life: number } | null
   trail: number
+  /** Gesichtsausdruck der Figur */
+  mood: { kind: 'happy' | 'hurt'; life: number } | null
+  /** 0 bis 1, steigt wenn es brenzlig wird */
+  danger: number
+  /** Tempogefühl: 0 bis 1 */
+  rush: number
 }
 
-const MAX_PARTICLES = 160
+const MAX_PARTICLES = 170
 
 const hexToRgb = (hex: string): [number, number, number] => [
   parseInt(hex.slice(1, 3), 16),
@@ -54,6 +60,9 @@ export function createScene(): Scene {
     shake: 0,
     flash: null,
     trail: 0,
+    mood: null,
+    danger: 0,
+    rush: 0,
   }
 }
 
@@ -92,8 +101,11 @@ export function flash(scene: Scene, color: string): void {
   scene.flash = { r, g, b, life: 1 }
 }
 
+export function mood(scene: Scene, kind: 'happy' | 'hurt'): void {
+  scene.mood = { kind, life: kind === 'hurt' ? 1.1 : 0.8 }
+}
+
 export function updateScene(scene: Scene, game: Game, dt: number, width: number, height: number): void {
-  // Himmel weich zur aktuellen Stufe überblenden
   const stage = stageAt(game.stage)
   const target = [hexToRgb(stage.sky[0]), hexToRgb(stage.sky[1])]
   for (let i = 0; i < 2; i++) {
@@ -119,24 +131,31 @@ export function updateScene(scene: Scene, game: Game, dt: number, width: number,
     scene.flash.life -= dt * 2.4
     if (scene.flash.life <= 0) scene.flash = null
   }
+  if (scene.mood) {
+    scene.mood.life -= dt
+    if (scene.mood.life <= 0) scene.mood = null
+  }
 
-  // Spur hinter der Figur
+  // Gefahr und Tempo werden weich nachgeführt, damit nichts springt
+  scene.danger += ((game.danger && game.phase === 'running' ? 1 : 0) - scene.danger) * Math.min(1, dt * 3)
+  scene.rush += (Math.min(1, (stage.flow - 0.55) / 0.6) - scene.rush) * Math.min(1, dt * 2)
+
   if (game.phase === 'running') {
     scene.trail -= dt
     if (scene.trail <= 0) {
-      scene.trail = 0.045
+      scene.trail = 0.035
       const x = laneX(game.x, width)
-      const y = height * RUNNER_Y + 18
+      const y = height * RUNNER_Y + 22
       if (scene.particles.length < MAX_PARTICLES) {
         scene.particles.push({
-          x: x + (Math.random() - 0.5) * 14,
+          x: x + (Math.random() - 0.5) * 16,
           y,
-          vx: (Math.random() - 0.5) * 30,
-          vy: 120 + Math.random() * 80,
-          life: 0.45,
-          max: 0.45,
-          size: 4 + Math.random() * 4,
-          color: stage.accent,
+          vx: (Math.random() - 0.5) * 40,
+          vy: 150 + Math.random() * 120,
+          life: 0.4,
+          max: 0.4,
+          size: 3 + Math.random() * 5,
+          color: Math.random() < 0.5 ? stage.accent : '#ffffff',
         })
       }
     }
@@ -166,7 +185,7 @@ function drawGate(
 ): void {
   ctx.save()
   ctx.shadowColor = color
-  ctx.shadowBlur = 18 + glow * 26
+  ctx.shadowBlur = 18 + glow * 30
   const fill = ctx.createLinearGradient(x, y, x, y + h)
   fill.addColorStop(0, color)
   fill.addColorStop(1, 'rgba(0,0,0,0.35)')
@@ -177,7 +196,7 @@ function drawGate(
 
   ctx.save()
   ctx.lineWidth = 4
-  ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+  ctx.strokeStyle = `rgba(255,255,255,${0.7 + glow * 0.3})`
   roundedPath(ctx, x + 2, y + 2, w - 4, h - 4, 18)
   ctx.stroke()
   ctx.restore()
@@ -197,41 +216,110 @@ function drawGate(
   ctx.restore()
 }
 
-function drawRunner(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, accent: string, t: number): void {
-  const bob = Math.sin(t * 11) * size * 0.08
+/** Die Figur: eine Rakete mit Visier, Flamme und Combo-Ring */
+function drawRunner(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  accent: string,
+  t: number,
+  tilt: number,
+  scene: Scene,
+  combo: number,
+): void {
   ctx.save()
-  ctx.translate(x, y + bob)
+  ctx.translate(x, y)
+  ctx.rotate(tilt)
 
+  // Combo-Ring: dreht sich, wächst mit der Serie
+  if (combo >= 5) {
+    const ringR = size * (0.95 + Math.min(combo, 30) * 0.012)
+    const dots = combo >= 20 ? 12 : combo >= 10 ? 8 : 5
+    ctx.save()
+    ctx.rotate(t * (combo >= 20 ? 3 : 1.6))
+    for (let i = 0; i < dots; i++) {
+      const angle = (i / dots) * Math.PI * 2
+      ctx.fillStyle = i % 2 === 0 ? '#ffd23f' : accent
+      ctx.globalAlpha = 0.9
+      ctx.beginPath()
+      ctx.arc(Math.cos(angle) * ringR, Math.sin(angle) * ringR, size * 0.09, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
+    ctx.globalAlpha = 1
+  }
+
+  // Flamme
+  const flicker = 0.55 + Math.abs(Math.sin(t * 24)) * 0.3 + scene.rush * 0.3
+  const flame = size * flicker
+  const fire = ctx.createLinearGradient(0, size * 0.45, 0, size * 0.45 + flame)
+  fire.addColorStop(0, '#fffbe0')
+  fire.addColorStop(0.45, accent)
+  fire.addColorStop(1, 'rgba(255,90,0,0)')
+  ctx.fillStyle = fire
+  ctx.beginPath()
+  ctx.moveTo(-size * 0.28, size * 0.42)
+  ctx.quadraticCurveTo(0, size * 0.45 + flame, size * 0.28, size * 0.42)
+  ctx.closePath()
+  ctx.fill()
+
+  const bob = Math.sin(t * 9) * size * 0.04
+  ctx.translate(0, bob)
+
+  // Rumpf
   ctx.shadowColor = accent
   ctx.shadowBlur = 26
-  ctx.fillStyle = accent
-  roundedPath(ctx, -size / 2, -size * 0.7, size, size * 1.4, size * 0.42)
+  const body = ctx.createLinearGradient(-size * 0.4, -size * 0.9, size * 0.4, size * 0.6)
+  body.addColorStop(0, '#ffffff')
+  body.addColorStop(0.4, accent)
+  body.addColorStop(1, '#161b38')
+  ctx.fillStyle = body
+  ctx.beginPath()
+  ctx.moveTo(0, -size * 0.92)
+  ctx.quadraticCurveTo(size * 0.6, -size * 0.2, size * 0.44, size * 0.48)
+  ctx.quadraticCurveTo(0, size * 0.28, -size * 0.44, size * 0.48)
+  ctx.quadraticCurveTo(-size * 0.6, -size * 0.2, 0, -size * 0.92)
+  ctx.closePath()
   ctx.fill()
   ctx.shadowBlur = 0
 
-  ctx.fillStyle = 'rgba(255,255,255,0.92)'
+  // Flügel
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'
   ctx.beginPath()
-  ctx.arc(-size * 0.17, -size * 0.18, size * 0.14, 0, Math.PI * 2)
-  ctx.arc(size * 0.17, -size * 0.18, size * 0.14, 0, Math.PI * 2)
+  ctx.moveTo(-size * 0.44, size * 0.1)
+  ctx.lineTo(-size * 0.78, size * 0.55)
+  ctx.lineTo(-size * 0.3, size * 0.44)
+  ctx.closePath()
+  ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(size * 0.44, size * 0.1)
+  ctx.lineTo(size * 0.78, size * 0.55)
+  ctx.lineTo(size * 0.3, size * 0.44)
+  ctx.closePath()
   ctx.fill()
 
-  ctx.fillStyle = '#12162a'
-  ctx.beginPath()
-  ctx.arc(-size * 0.15, -size * 0.16, size * 0.07, 0, Math.PI * 2)
-  ctx.arc(size * 0.19, -size * 0.16, size * 0.07, 0, Math.PI * 2)
+  // Visier
+  const hurt = scene.mood?.kind === 'hurt'
+  const happy = scene.mood?.kind === 'happy'
+  ctx.fillStyle = '#10142c'
+  roundedPath(ctx, -size * 0.34, -size * 0.44, size * 0.68, size * 0.42, size * 0.18)
   ctx.fill()
 
-  // Beine laufen mit
-  ctx.strokeStyle = '#12162a'
-  ctx.lineCap = 'round'
-  ctx.lineWidth = size * 0.13
-  const swing = Math.sin(t * 16) * size * 0.28
-  ctx.beginPath()
-  ctx.moveTo(-size * 0.16, size * 0.6)
-  ctx.lineTo(-size * 0.16 + swing, size * 0.95)
-  ctx.moveTo(size * 0.16, size * 0.6)
-  ctx.lineTo(size * 0.16 - swing, size * 0.95)
-  ctx.stroke()
+  ctx.fillStyle = hurt ? '#ff6b7d' : happy ? '#8cffc8' : '#8be9ff'
+  ctx.shadowColor = ctx.fillStyle
+  ctx.shadowBlur = 12
+  if (hurt) {
+    // zusammengekniffene Augen
+    ctx.fillRect(-size * 0.24, -size * 0.27, size * 0.18, size * 0.05)
+    ctx.fillRect(size * 0.06, -size * 0.27, size * 0.18, size * 0.05)
+  } else {
+    ctx.beginPath()
+    ctx.arc(-size * 0.15, -size * 0.24, size * 0.08, 0, Math.PI * 2)
+    ctx.arc(size * 0.15, -size * 0.24, size * 0.08, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.shadowBlur = 0
   ctx.restore()
 }
 
@@ -256,7 +344,7 @@ export function draw(
   ctx.fillStyle = sky
   ctx.fillRect(-20, -20, width + 40, height + 40)
 
-  // Sterne, die mit der Welt nach unten ziehen
+  // Sterne
   ctx.fillStyle = 'rgba(255,255,255,0.75)'
   for (const star of scene.stars) {
     const y = ((star.y + game.scroll * star.depth * 0.25) % 1) * height
@@ -267,7 +355,22 @@ export function draw(
   }
   ctx.globalAlpha = 1
 
-  // Strecke: zwei Spuren mit laufenden Pfeilen
+  // Tempolinien – je schneller die Stufe, desto mehr Zug im Bild
+  if (scene.rush > 0.05) {
+    ctx.strokeStyle = `rgba(255,255,255,${0.1 + scene.rush * 0.18})`
+    ctx.lineWidth = 2
+    for (let i = 0; i < 14; i++) {
+      const lx = ((i * 97) % 100) / 100
+      const ly = ((i * 37) / 100 + game.scroll * 1.6) % 1
+      const len = 40 + scene.rush * 90
+      ctx.beginPath()
+      ctx.moveTo(lx * width, ly * height)
+      ctx.lineTo(lx * width, ly * height + len)
+      ctx.stroke()
+    }
+  }
+
+  // Strecke
   const trackW = width * (LANE_OFFSET * 2 + 0.36)
   const trackX = (width - trackW) / 2
   ctx.fillStyle = 'rgba(8,12,28,0.28)'
@@ -303,15 +406,15 @@ export function draw(
     const gateH = Math.min(gateW * 0.62, height * 0.2)
     const travel = height * RUNNER_Y + gateH
     const centerY = -gateH / 2 + pair.progress * travel
-    // Kurz vor der Figur leuchten die Tore auf – aber die Farbe verrät nie die Lösung
     const glow = Math.max(0, 1 - Math.abs(pair.progress - 1) * 3)
     drawGate(ctx, laneX(-1, width) - gateW / 2, centerY - gateH / 2, gateW, gateH, '#ff3fa4', String(pair.left), glow)
     drawGate(ctx, laneX(1, width) - gateW / 2, centerY - gateH / 2, gateW, gateH, '#00d9ff', String(pair.right), glow)
   }
 
   // Figur
-  const runnerSize = Math.min(width * 0.13, 58)
-  drawRunner(ctx, laneX(game.x, width), height * RUNNER_Y, runnerSize, stage.accent, t)
+  const runnerSize = Math.min(width * 0.14, 62)
+  const tilt = Math.max(-0.4, Math.min(0.4, (game.lane - game.x) * 0.55))
+  drawRunner(ctx, laneX(game.x, width), height * RUNNER_Y, runnerSize, stage.accent, t, tilt, scene, game.combo)
 
   // Partikel
   for (const p of scene.particles) {
@@ -337,6 +440,23 @@ export function draw(
     ctx.fill()
   }
   ctx.globalAlpha = 1
+
+  // Es wird eng: roter Puls am Rand
+  if (scene.danger > 0.02) {
+    const pulse = 0.55 + Math.sin(t * 7) * 0.45
+    const edge = ctx.createRadialGradient(
+      width / 2,
+      height / 2,
+      Math.min(width, height) * 0.25,
+      width / 2,
+      height / 2,
+      Math.max(width, height) * 0.75,
+    )
+    edge.addColorStop(0, 'rgba(255,0,60,0)')
+    edge.addColorStop(1, `rgba(255,0,60,${0.55 * scene.danger * pulse})`)
+    ctx.fillStyle = edge
+    ctx.fillRect(-20, -20, width + 40, height + 40)
+  }
 
   if (scene.flash) {
     ctx.fillStyle = `rgba(${scene.flash.r},${scene.flash.g},${scene.flash.b},${scene.flash.life * 0.28})`

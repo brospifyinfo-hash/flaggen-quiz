@@ -134,6 +134,21 @@ export const STAGES: Stage[] = [
 /** Punktestand zu Beginn – bei 0 ist Schluss */
 export const START_SCORE = 100
 
+/**
+ * Je weiter oben man steht, desto teurer wird ein Fehler: Zusätzlich zum Grundwert
+ * der Stufe geht dieser Anteil des Vorsprungs verloren. Am Anfang kostet ein Fehler
+ * also wenig, bei 2.000 Punkten reißt einer ein richtiges Loch.
+ */
+export const RISK_SHARE = 0.18
+
+/** Brenzlig wird es, wenn nur noch so viele Fehler drin sind */
+export const DANGER_LEFT = 2
+
+/** So viel schneller werden die Tore im Lauf eines Spiels – zusätzlich zur Stufe */
+export const SPEED_RAMP = 0.22
+/** Nach so vielen Sekunden ist die volle Beschleunigung erreicht */
+export const SPEED_RAMP_TIME = 800
+
 /** Combo-Stufen: ab dieser Combo gilt dieser Punktefaktor */
 const COMBO_STEPS: { from: number; factor: number }[] = [
   { from: 21, factor: 2 },

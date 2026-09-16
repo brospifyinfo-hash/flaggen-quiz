@@ -1,16 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { IconClose, IconPlay } from '../components/Icons'
-import {
-  EMPTY_MATH_STATS,
-  STAGES,
-  START_SCORE,
-  XP_HIGHSCORE_BONUS,
-  stageAt,
-} from '../games/mathRunner/config'
+import { EMPTY_MATH_STATS, STAGES, START_SCORE, XP_HIGHSCORE_BONUS, stageAt } from '../games/mathRunner/config'
 import {
   createGame,
   endGame,
   pauseGame,
+  penaltyFor,
   resumeGame,
   startGame,
   steer,
@@ -26,6 +21,7 @@ import {
   flash,
   floatText,
   laneX,
+  mood,
   shake,
   updateScene,
 } from '../games/mathRunner/render'
@@ -55,8 +51,7 @@ const clock = (seconds: number) => {
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
-const lessMotion =
-  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+const lessMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export function MathRunnerScreen({ data }: { data: SaveData }) {
   const stats = data.mathRunner ?? EMPTY_MATH_STATS
@@ -68,8 +63,9 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
   const scene = useRef(createScene())
   const canvas = useRef<HTMLCanvasElement>(null)
   const stage = useRef<HTMLDivElement>(null)
+  const root = useRef<HTMLElement>(null)
   const size = useRef({ w: 320, h: 480 })
-  const shown = useRef({ score: 0, combo: -1, stage: -1, time: -1, pair: -1, lane: 0 })
+  const shown = useRef({ score: 0, combo: -1, stage: -1, time: -1, pair: -1, lane: 0, risk: -1, danger: false })
   const best = useRef(stats.highScore)
 
   const scoreOut = useRef<HTMLSpanElement>(null)
@@ -78,30 +74,57 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
   const timeOut = useRef<HTMLSpanElement>(null)
   const taskOut = useRef<HTMLParagraphElement>(null)
   const laneOut = useRef<HTMLDivElement>(null)
+  const riskOut = useRef<HTMLSpanElement>(null)
 
-  // ---------- Spielende ----------
-  const finish = useRef(() => {})
-  finish.current = () => {
+  // ---------- Fortschritt sichern ----------
+  // Wird bei jedem Ausstieg gerufen: Spielende, Beenden, Neustart, App verlassen.
+  // Gezählt wird immer nur die Differenz, damit nichts doppelt in den Speicher wandert.
+  const saved = useRef({ game: null as Game | null, xp: 0, correct: 0, wrong: 0, counted: false })
+  const bank = useRef((): { record: boolean; xp: number } => ({ record: false, xp: 0 }))
+  bank.current = () => {
     const current = game.current
-    endGame(current)
-    // Jeder Lauf startet bei 100 – ein Rekord ist es erst, wenn wirklich Punkte dazukamen
+    const mark = saved.current
+    if (mark.game !== current) {
+      mark.game = current
+      mark.xp = 0
+      mark.correct = 0
+      mark.wrong = 0
+      mark.counted = false
+    }
+    if (current.correct + current.wrong === 0) return { record: false, xp: 0 }
+
     const record = current.peak > Math.max(best.current, START_SCORE)
-    const xp = current.xp + (record ? XP_HIGHSCORE_BONUS : 0)
+    const total = current.xp + (record ? XP_HIGHSCORE_BONUS : 0)
+    const gainXp = Math.max(0, total - mark.xp)
+    const gainCorrect = current.correct - mark.correct
+    const gainWrong = current.wrong - mark.wrong
+    const countRun = !mark.counted
+    mark.xp = total
+    mark.correct = current.correct
+    mark.wrong = current.wrong
+    mark.counted = true
 
     setState((save) => {
       const before = save.mathRunner ?? EMPTY_MATH_STATS
       const next: MathRunnerStats = {
-        highScore: Math.max(before.highScore, current.peak),
+        highScore: Math.max(before.highScore, current.peak > START_SCORE ? current.peak : 0),
         bestCombo: Math.max(before.bestCombo, current.bestCombo),
         bestTime: Math.max(before.bestTime, current.time),
         bestStage: Math.max(before.bestStage, current.maxStage),
-        runs: before.runs + 1,
-        correct: before.correct + current.correct,
-        wrong: before.wrong + current.wrong,
+        runs: before.runs + (countRun ? 1 : 0),
+        correct: before.correct + gainCorrect,
+        wrong: before.wrong + gainWrong,
       }
-      return awardXP({ ...save, mathRunner: next }, xp)
+      return awardXP({ ...save, mathRunner: next }, gainXp)
     })
+    return { record, xp: total }
+  }
 
+  const finish = useRef(() => {})
+  finish.current = () => {
+    const current = game.current
+    endGame(current)
+    const { record, xp } = bank.current()
     setResult({
       score: current.peak,
       correct: current.correct,
@@ -127,22 +150,24 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
     const accent = stageAt(current.stage).accent
 
     if (event.type === 'correct') {
-      burst(scene.current, x, y, accent, lessMotion ? 6 : 18)
-      floatText(scene.current, x, y - 40, `+${event.gained}`, '#ffffff')
+      burst(scene.current, x, y, accent, lessMotion ? 6 : 20)
+      floatText(scene.current, x, y - 44, `+${event.gained}`, '#ffffff')
       flash(scene.current, accent)
+      mood(scene.current, 'happy')
       haptic(event.combo > 0 && event.combo % 5 === 0 ? 'celebrate' : 'success')
       playCue('correct')
     } else if (event.type === 'wrong') {
-      burst(scene.current, x, y, '#ff3b5c', lessMotion ? 6 : 16)
-      floatText(scene.current, x, y - 40, `−${event.lost}`, '#ff8a9c')
+      burst(scene.current, x, y, '#ff3b5c', lessMotion ? 6 : 18)
+      floatText(scene.current, x, y - 44, `−${event.lost}`, '#ff8a9c')
       flash(scene.current, '#ff2d55')
-      shake(scene.current, lessMotion ? 0.3 : 1)
+      shake(scene.current, lessMotion ? 0.3 : 1.1)
+      mood(scene.current, 'hurt')
       haptic('error')
       playCue('wrong')
     } else if (event.type === 'celebrate') {
       if (!lessMotion) {
         for (const color of ['#ff3fa4', '#00d9ff', '#ffd23f', '#7bff3f']) {
-          burst(scene.current, view.w / 2, view.h * 0.45, color, 14, 1.5)
+          burst(scene.current, view.w / 2, view.h * 0.45, color, 16, 1.6)
         }
       }
       floatText(scene.current, view.w / 2, view.h * 0.4, `COMBO ${event.combo}!`, '#ffe14d')
@@ -153,6 +178,10 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
       flash(scene.current, stageAt(event.stage).accent)
       haptic('strong')
       playCue('level')
+    } else if (event.type === 'danger') {
+      floatText(scene.current, view.w / 2, view.h * 0.5, 'GEFAHR!', '#ff5f7a')
+      haptic('strong')
+      playCue('danger')
     } else if (event.type === 'over') {
       finish.current()
     }
@@ -220,6 +249,15 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
         view.time = seconds
         timeOut.current.textContent = clock(seconds)
       }
+      const risk = penaltyFor(current)
+      if (riskOut.current && view.risk !== risk) {
+        view.risk = risk
+        riskOut.current.textContent = `−${risk.toLocaleString('de-DE')}`
+      }
+      if (root.current && view.danger !== current.danger) {
+        view.danger = current.danger
+        root.current.classList.toggle('is-danger', current.danger)
+      }
       if (laneOut.current && view.lane !== current.lane) {
         view.lane = current.lane
         laneOut.current.dataset.side = current.lane < 0 ? 'links' : 'rechts'
@@ -269,7 +307,6 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
     }
     const up = (event: PointerEvent) => {
       if (active && !moved) {
-        // kurzes Tippen auf eine Seite lenkt ebenfalls
         const rect = box.getBoundingClientRect()
         turn(event.clientX - rect.left < rect.width / 2 ? -1 : 1)
       }
@@ -298,12 +335,14 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
   useEffect(() => {
     if (phase !== 'countdown') return
     setCountdown(3)
+    playCue('count')
     let value = 3
     let go = 0
     const timer = window.setInterval(() => {
       value -= 1
       setCountdown(value)
       haptic(value > 0 ? 'tick' : 'strong')
+      playCue(value > 0 ? 'count' : 'go')
       if (value <= 0) {
         window.clearInterval(timer)
         go = window.setTimeout(() => {
@@ -318,28 +357,36 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
     }
   }, [phase])
 
-  // ---------- App verlassen: sofort anhalten ----------
+  // ---------- App verlassen: anhalten und sichern ----------
   useEffect(() => {
     const hide = () => {
-      if (document.hidden && game.current.phase === 'running') {
+      if (!document.hidden) return
+      if (game.current.phase === 'running') {
         pauseGame(game.current)
         setPhase('paused')
       }
+      bank.current()
     }
     document.addEventListener('visibilitychange', hide)
+    window.addEventListener('pagehide', hide)
     return () => {
       document.removeEventListener('visibilitychange', hide)
+      window.removeEventListener('pagehide', hide)
+      // auch beim Wegnavigieren zählt der Lauf
+      bank.current()
       closeSound()
     }
   }, [])
 
   const begin = () => {
+    bank.current()
     initSound()
     haptic('soft')
     game.current = createGame()
     scene.current = createScene()
-    shown.current = { score: 0, combo: -1, stage: -1, time: -1, pair: -1, lane: 0 }
+    shown.current = { score: 0, combo: -1, stage: -1, time: -1, pair: -1, lane: 0, risk: -1, danger: false }
     best.current = (data.mathRunner ?? EMPTY_MATH_STATS).highScore
+    root.current?.classList.remove('is-danger')
     setResult(null)
     setPhase('countdown')
   }
@@ -362,17 +409,23 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
 
   const leave = () => {
     haptic('soft')
+    bank.current()
     goBack({ name: 'home' })
   }
 
   const stageName = (index: number) => STAGES[Math.min(STAGES.length - 1, Math.max(0, index))].name
 
   return (
-    <main className="mr">
+    <main className="mr" ref={root}>
       <div className="mr-bar">
-        <button className="mr-icon" aria-label="Pause" onClick={pause} disabled={phase !== 'running'}>
-          ⏸
-        </button>
+        <div className="mr-left">
+          <button className="mr-icon" aria-label="Pause" onClick={pause} disabled={phase !== 'running'}>
+            ⏸
+          </button>
+          <span className="mr-risk" ref={riskOut} title="So viel kostet ein Fehler gerade">
+            −15
+          </span>
+        </div>
         <div className="mr-score">
           <span ref={scoreOut}>100</span>
           <small>SCORE</small>
@@ -407,7 +460,8 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
             <div className="mr-card">
               <p className="mr-logo">🧮 MATH RUNNER</p>
               <p className="mr-hint">
-                Wisch nach links oder rechts und lauf durch das Tor mit dem <strong>richtigen Ergebnis</strong>.
+                Wisch nach links oder rechts und lauf durch das Tor mit dem <strong>richtigen Ergebnis</strong>. Je
+                weiter oben du stehst, desto teurer wird ein Fehler.
               </p>
               <div className="mr-records">
                 <div>

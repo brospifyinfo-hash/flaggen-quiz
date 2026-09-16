@@ -2543,6 +2543,13 @@ svg {
   gap: 8px;
 }
 
+.mr-left {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  min-width: 84px;
+}
+
 .mr-icon {
   display: grid;
   place-items: center;
@@ -2551,6 +2558,35 @@ svg {
   border-radius: 13px;
   background: rgb(255 255 255 / 0.12);
   font-size: 17px;
+}
+
+/* Zeigt, was ein Fehler gerade kostet – der Wert waechst mit dem Vorsprung */
+.mr-risk {
+  color: #ff8a9c;
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.mr.is-danger .mr-risk,
+.mr.is-danger .mr-score span {
+  color: #ff5f7a;
+  animation: mr-throb 0.8s ease-in-out infinite;
+}
+
+.mr.is-danger .mr-stage {
+  box-shadow: 0 0 0 2px rgb(255 60 100 / 0.65);
+}
+
+@keyframes mr-throb {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
 }
 
 .mr-icon:disabled {
