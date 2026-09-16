@@ -163,6 +163,26 @@ const api = async (url: string) => {
   return response.json() as Promise<any>
 }
 
+const decode = (text: string) =>
+  text
+    .replaceAll('&amp;', '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#039;', "'")
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+
+/** Wikimedia liefert Urheber oft doppelt oder mit Dateinamen davor */
+export function tidyAuthor(raw: string): string {
+  let author = decode(raw).replace(/\s+/g, ' ').trim()
+  author = author.replace(/^[^:]+\.(jpg|jpeg|png|webp|tif|tiff):\s*/i, '')
+  if (author.length % 2 === 0 && author.slice(0, author.length / 2) === author.slice(author.length / 2)) {
+    author = author.slice(0, author.length / 2)
+  }
+  if (/^unknown author$/i.test(author)) author = 'unbekannt'
+  if (author.length > 70) author = author.slice(0, 67).trimEnd() + '…'
+  return author || 'unbekannt'
+}
+
 const clean = (html: string | undefined) =>
   (html ?? '')
     .replace(/<[^>]*>/g, '')
@@ -201,7 +221,7 @@ for (const [title, role] of PEOPLE) {
     const image = info?.query?.pages?.[0]?.imageinfo?.[0]
     const meta = image?.extmetadata ?? {}
     const license = clean(meta.LicenseShortName?.value) || clean(meta.License?.value)
-    const author = clean(meta.Artist?.value) || 'unbekannt'
+    const author = tidyAuthor(clean(meta.Artist?.value))
     if (!image?.thumburl || !FREE_LICENSE.test(license)) {
       skipped.push(`${title}: Lizenz „${license || 'unbekannt'}“ nicht frei`)
       continue
@@ -219,7 +239,7 @@ for (const [title, role] of PEOPLE) {
       id,
       name: title.replace(/\s*\(.*?\)\s*$/, ''),
       role,
-      credit: { author, license, source: image.descriptionurl ?? '' },
+      credit: { author, license: decode(license), source: image.descriptionurl ?? '' },
     })
     process.stdout.write('.')
   } catch (error) {

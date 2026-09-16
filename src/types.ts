@@ -70,12 +70,21 @@ export interface QuestionOption {
   label: string
 }
 
-/** Eingabe statt fester Antworten, z. B. der Zeitstrahl bei Geschichte */
-export interface QuestionInput {
+/** Zeitstrahl: die Antwort ist eine Jahreszahl zwischen min und max */
+export interface TimelineInput {
   kind: 'timeline'
   min: number
   max: number
 }
+
+/** Karte: die Antwort ist ein Punkt. view ist der Ausschnitt als SVG-viewBox. */
+export interface MapInput {
+  kind: 'map'
+  view: string
+}
+
+/** Eingabe statt fester Antworten, z. B. der Zeitstrahl bei Geschichte */
+export type QuestionInput = TimelineInput | MapInput
 
 /** Eine Frage aus einem beliebigen Spielmodus – muss als JSON speicherbar sein */
 export interface ModeQuestion {

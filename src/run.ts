@@ -19,9 +19,15 @@ function makeQuestion(data: SaveData, mode: string, recentKeys: string[], recent
 
 /** Prüft, ob die Antwort zur Frage passt – Knopf oder freie Eingabe wie der Zeitstrahl */
 function isValidAnswer(question: ModeQuestion, answer: string): boolean {
-  if (question.input) {
+  const input = question.input
+  if (input?.kind === 'timeline') {
     const value = Number(answer)
-    return Number.isFinite(value) && value >= question.input.min && value <= question.input.max
+    return Number.isFinite(value) && value >= input.min && value <= input.max
+  }
+  // Karte: "x,y,Ländercode" – der Code bleibt leer, wenn ins Meer getippt wurde
+  if (input?.kind === 'map') {
+    const [x, y, ...rest] = answer.split(',')
+    return rest.length === 1 && Number.isFinite(Number(x)) && Number.isFinite(Number(y)) && x !== '' && y !== ''
   }
   return question.options.some((option) => option.id === answer)
 }

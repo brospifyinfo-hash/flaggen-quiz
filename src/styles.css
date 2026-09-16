@@ -2336,3 +2336,81 @@ svg {
   font-size: 13px;
   font-weight: 700;
 }
+
+/* Weltkarte */
+
+.map-board {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.map-frame {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 200px;
+  border-radius: 18px;
+  background: var(--desk);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  overflow: hidden;
+  animation: fade-in 0.25s ease both;
+}
+
+.map-frame.is-static {
+  flex: 1 1 0;
+  min-height: 170px;
+  margin-bottom: 4px;
+}
+
+.map-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.map-sea {
+  fill: var(--desk);
+}
+
+.map-country {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 0.6;
+  stroke-linejoin: round;
+}
+
+.map-country.is-target {
+  fill: var(--good);
+  stroke: var(--good-strong);
+  stroke-width: 1.2;
+}
+
+.map-pin {
+  fill: none;
+  stroke: var(--primary);
+  paint-order: stroke;
+}
+
+.map-pin.is-done {
+  stroke: var(--bad);
+}
+
+.map-goal {
+  fill: none;
+  stroke: var(--good-strong);
+}
+
+.map-link {
+  stroke: var(--bad);
+  stroke-dasharray: 3 3;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+
+.map-board .btn[aria-disabled='true'] {
+  opacity: 0.6;
+}

@@ -3,7 +3,7 @@ import { EVENTS, TIMELINE_MAX, TIMELINE_MIN, formatYear, type HistoryEvent } fro
 import { haptic } from '../haptics'
 import { accuracyOf, modeProgress, xpForAnswer } from '../progression'
 import { shuffle } from '../quiz'
-import type { Judgement, ModeProgress, ModeQuestion, QuestionInput } from '../types'
+import type { Judgement, ModeProgress, ModeQuestion, QuestionInput, TimelineInput } from '../types'
 import type { QuizMode } from './registry'
 
 export const HISTORY_MODE_ID = 'geschichte'
@@ -24,7 +24,7 @@ const toleranceFor = (year: number) =>
   year < -500 ? 100 : year < 500 ? 60 : year < 1500 ? 30 : year < 1800 ? 15 : year < 1900 ? 8 : year < 1960 ? 4 : 2
 
 /** Ausschnitt um das Ereignis – die Lösung liegt zufällig darin, nie in der Mitte festgenagelt */
-function windowFor(year: number): QuestionInput {
+function windowFor(year: number): TimelineInput {
   const offset = EDGE + Math.floor(Math.random() * (SPAN - EDGE * 2))
   let min = year - offset
   let max = min + SPAN
@@ -65,8 +65,8 @@ const averageError = (progress: ModeProgress) => {
 const plural = (years: number) => (years === 1 ? 'Jahr' : 'Jahre')
 
 const positionIn = (year: number, input?: QuestionInput) => {
-  const min = input?.min ?? TIMELINE_MIN
-  const max = input?.max ?? TIMELINE_MAX
+  const min = input?.kind === 'timeline' ? input.min : TIMELINE_MIN
+  const max = input?.kind === 'timeline' ? input.max : TIMELINE_MAX
   const clamped = Math.min(max, Math.max(min, year))
   return Math.min(96, Math.max(4, ((clamped - min) / (max - min)) * 100))
 }
@@ -189,7 +189,7 @@ export const historyMode: QuizMode = {
 
   // Zeitstrahl statt Antwortknöpfen
   renderInput: (question, picked, submit) =>
-    question.data.kind === 'year' && picked === null && question.input ? (
+    question.data.kind === 'year' && picked === null && question.input?.kind === 'timeline' ? (
       <Timeline input={question.input} onSubmit={submit} />
     ) : null,
 
@@ -241,7 +241,7 @@ function EventCard({ id, big = false }: { id: string; big?: boolean }) {
   )
 }
 
-function Timeline({ input, onSubmit }: { input: QuestionInput; onSubmit: (answer: string) => void }) {
+function Timeline({ input, onSubmit }: { input: TimelineInput; onSubmit: (answer: string) => void }) {
   const [year, setYear] = useState(() => Math.round((input.min + input.max) / 2))
 
   const change = (value: number) => {

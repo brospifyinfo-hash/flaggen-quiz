@@ -44,7 +44,7 @@ export const PEOPLE: Person[] = [
     "name": "Charles Darwin",
     "role": "Naturforscher, Evolutionstheorie",
     "credit": {
-      "author": "Charles_Darwin_seated.jpg: Henry Maull (1829–1914) and John Fox (1832–1907) (Maull &amp; Fox) [3] derivative work: Beao",
+      "author": "Henry Maull (1829–1914) and John Fox (1832–1907) (Maull & Fox) [3]…",
       "license": "Public domain",
       "source": "https://commons.wikimedia.org/wiki/File:Charles_Darwin_seated_crop.jpg"
     }
@@ -104,7 +104,7 @@ export const PEOPLE: Person[] = [
     "name": "Alan Turing",
     "role": "Mathematiker, Vater der Informatik",
     "credit": {
-      "author": "Unknown authorUnknown author",
+      "author": "unbekannt",
       "license": "Public domain",
       "source": "https://commons.wikimedia.org/wiki/File:Alan_Turing_az_1930-as_%C3%A9vekben.jpg"
     }
@@ -154,7 +154,7 @@ export const PEOPLE: Person[] = [
     "name": "Carl Benz",
     "role": "Erfinder des Automobils",
     "credit": {
-      "author": "Unknown authorUnknown author",
+      "author": "unbekannt",
       "license": "Public domain",
       "source": "https://commons.wikimedia.org/wiki/File:Carl_Benz_c._1889.jpg"
     }
@@ -404,7 +404,7 @@ export const PEOPLE: Person[] = [
     "name": "Nelson Mandela",
     "role": "Erster schwarzer Präsident Südafrikas",
     "credit": {
-      "author": "Kingkongphoto &amp; www.celebrity-photos.com from Laurel",
+      "author": "Kingkongphoto & www.celebrity-photos.com from Laurel",
       "license": "CC BY-SA 2.0",
       "source": "https://commons.wikimedia.org/wiki/File:Nelson_Mandela_1994_(2).jpg"
     }
@@ -424,7 +424,7 @@ export const PEOPLE: Person[] = [
     "name": "Rosa Parks",
     "role": "Bürgerrechtlerin aus den USA",
     "credit": {
-      "author": "John Mathew Smith &amp; www.celebrity-photos.com from Laurel Maryland, USA",
+      "author": "John Mathew Smith & www.celebrity-photos.com from Laurel Maryland, USA",
       "license": "CC BY-SA 2.0",
       "source": "https://commons.wikimedia.org/wiki/File:Rosa_Parks_1997.jpg"
     }
@@ -724,7 +724,7 @@ export const PEOPLE: Person[] = [
     "name": "Michael Schumacher",
     "role": "Formel-1-Weltmeister",
     "credit": {
-      "author": "Original: Aécio Neves – Wellington Pedro/Imprensa MG / Derivative work: F1fans, FMSky",
+      "author": "Original: Aécio Neves – Wellington Pedro/Imprensa MG / Derivative w…",
       "license": "CC BY 2.0",
       "source": "https://commons.wikimedia.org/wiki/File:Michael_Schumacher,_September_2005.jpg"
     }
@@ -764,7 +764,7 @@ export const PEOPLE: Person[] = [
     "name": "Steffi Graf",
     "role": "Tennisspielerin, Golden Slam",
     "credit": {
-      "author": "Steffi_Graf_in_Hamburg.jpg: Mark Henckel from Hamburg-Altona, Deutschland (http://sommer-in-hamburg.de/) derivative work: César",
+      "author": "Mark Henckel from Hamburg-Altona, Deutschland (http://sommer-in-ham…",
       "license": "CC BY-SA 2.0",
       "source": "https://commons.wikimedia.org/wiki/File:Steffi_Graf_in_Hamburg_2010_(cropped).jpg"
     }
@@ -814,7 +814,7 @@ export const PEOPLE: Person[] = [
     "name": "Elvis Presley",
     "role": "King of Rock ’n’ Roll",
     "credit": {
-      "author": "Ollie Atkins, chief White House photographer at the time. See ARC record.",
+      "author": "Ollie Atkins, chief White House photographer at the time. See ARC r…",
       "license": "Public domain",
       "source": "https://commons.wikimedia.org/wiki/File:Elvis_Presley_1970.jpg"
     }
@@ -1094,7 +1094,7 @@ export const PEOPLE: Person[] = [
     "name": "Neil Armstrong",
     "role": "Erster Mensch auf dem Mond",
     "credit": {
-      "author": "Unknown authorUnknown author",
+      "author": "unbekannt",
       "license": "Public domain",
       "source": "https://commons.wikimedia.org/wiki/File:Neil_Armstrong_pose.jpg"
     }
@@ -1104,7 +1104,7 @@ export const PEOPLE: Person[] = [
     "name": "Juri Alexejewitsch Gagarin",
     "role": "Erster Mensch im All",
     "credit": {
-      "author": "Arto Jousi / /Suomen valokuvataiteen museo / Alma Media / Uuden Suomen kokoelma",
+      "author": "Arto Jousi / /Suomen valokuvataiteen museo / Alma Media / Uuden Suo…",
       "license": "Public domain",
       "source": "https://commons.wikimedia.org/wiki/File:Yuri-Gagarin-1961-Helsinki-crop.jpg"
     }

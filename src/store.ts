@@ -113,7 +113,9 @@ function isOptions(value: unknown): value is QuestionOption[] {
 }
 
 function isInput(value: unknown): value is QuestionInput {
-  return isObject(value) && value.kind === 'timeline' && typeof value.min === 'number' && typeof value.max === 'number'
+  if (!isObject(value)) return false
+  if (value.kind === 'timeline') return typeof value.min === 'number' && typeof value.max === 'number'
+  return value.kind === 'map' && typeof value.view === 'string'
 }
 
 function isModeQuestion(value: unknown): value is ModeQuestion {
