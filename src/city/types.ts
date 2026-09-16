@@ -1,7 +1,8 @@
 // Der Spielstand der Stadt. Eigene Datei, eigene Version – die Stadt soll über Jahre
 // wachsen können, ohne dass alte Stände unlesbar werden.
 
-export const CITY_VERSION = 1
+// Version 2: Wege sind keine Bauwerke mehr, sondern ein eigenes Straßennetz.
+export const CITY_VERSION = 2
 
 /** Eine Kachel ist der kleinste Bauplatz. Gebäude belegen ein Rechteck aus Kacheln. */
 export interface Placed {
@@ -30,6 +31,8 @@ export interface CityState {
   coins: number
   materials: number
   buildings: Placed[]
+  /** Straßennetz: Kachel "x:y" → Straßenart. Als Karte, damit Nachbarn schnell gefunden werden. */
+  roads: Record<string, string>
   nextId: number
   foundedAt: number
 }

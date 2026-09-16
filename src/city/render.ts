@@ -1,8 +1,8 @@
 // Zeichnet die Stadt als kleines Diorama: schräge Sicht, Schatten, Fassaden mit Fenstern,
 // Dächer, Bäume. Alles in ein Canvas, damit auch große Städte flüssig bleiben.
-import { buildingDef, footprint, type Look } from './catalog'
+import { buildingDef, footprint, roadDef, type Look } from './catalog'
 import { TILE_H, TILE_W, tileNoise, toScreen } from './iso'
-import { tilesOf } from './state'
+import { nextExpansion, roadAt, tilesOf } from './state'
 import type { CityState, Placed } from './types'
 
 export interface Camera {
@@ -20,8 +20,17 @@ export interface Ghost {
   ok: boolean
 }
 
+export interface Paint {
+  /** Kacheln als "x:y" */
+  tiles: string[]
+  type: string
+  /** true beim Pflastern, false beim Aufnehmen */
+  adding: boolean
+}
+
 export interface DrawOptions {
   ghost?: Ghost | null
+  paint?: Paint | null
   selected?: string | null
   buildMode?: boolean
   /** Sekunden, für ruhige Animationen */
@@ -249,6 +258,42 @@ function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, options: Dr
     fountain(ctx, placed.x, placed.y, look, time)
     return
   }
+  if (look.kind === 'wasser') {
+    // Wasserfläche mit ruhiger Bewegung
+    const inner = 0.16
+    const a = toScreen(placed.x + inner, placed.y + inner)
+    const b = toScreen(placed.x + w - inner, placed.y + inner)
+    const c = toScreen(placed.x + w - inner, placed.y + h - inner)
+    const d = toScreen(placed.x + inner, placed.y + h - inner)
+    quad(ctx, a, b, c, d, look.roof)
+    ctx.save()
+    ctx.strokeStyle = look.accent
+    ctx.lineWidth = 2
+    ctx.globalAlpha = 0.7
+    const mid = toScreen(placed.x + w / 2, placed.y + h / 2)
+    ctx.beginPath()
+    ctx.moveTo(mid.sx - 14, mid.sy + Math.sin(time * 2) * 2)
+    ctx.lineTo(mid.sx + 14, mid.sy - Math.sin(time * 2) * 2)
+    ctx.stroke()
+    ctx.restore()
+    return
+  }
+  if (look.kind === 'statue') {
+    const sockel = box(ctx, placed.x + 0.25, placed.y + 0.25, 0.5, 0.5, TILE_H * 0.35, look, 0)
+    const mitte = { sx: (sockel.n.sx + sockel.s.sx) / 2, sy: (sockel.n.sy + sockel.s.sy) / 2 }
+    ctx.fillStyle = shade(look.wall, 22)
+    ctx.beginPath()
+    ctx.moveTo(mitte.sx - 6, mitte.sy)
+    ctx.lineTo(mitte.sx + 6, mitte.sy)
+    ctx.lineTo(mitte.sx + 3, mitte.sy - 26)
+    ctx.lineTo(mitte.sx - 3, mitte.sy - 26)
+    ctx.closePath()
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(mitte.sx, mitte.sy - 31, 5, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
   if (look.kind === 'flach') return
 
   if (look.kind === 'haus') {
@@ -293,6 +338,83 @@ function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, options: Dr
     const d = toScreen(placed.x + inset, placed.y + h - inset)
     const up = heightPx + 9
     quad(ctx, lift(a, up), lift(b, up), lift(c, up), lift(d, up), shade(look.accent, 20))
+  }
+}
+
+/**
+ * Straßen. Gezeichnet wird in drei Durchgängen über alle Kacheln: erst die Kanten,
+ * dann die Fahrbahn, dann die Markierung. Sonst übermalt der Nachbar die Kante.
+ */
+function drawRoads(ctx: CanvasRenderingContext2D, city: CityState): void {
+  const entries = Object.entries(city.roads)
+  if (entries.length === 0) return
+
+  const enden = (x: number, y: number) => {
+    const list: { sx: number; sy: number }[] = []
+    if (roadAt(city, x, y - 1)) list.push(toScreen(x + 0.5, y))
+    if (roadAt(city, x + 1, y)) list.push(toScreen(x + 1, y + 0.5))
+    if (roadAt(city, x, y + 1)) list.push(toScreen(x + 0.5, y + 1))
+    if (roadAt(city, x - 1, y)) list.push(toScreen(x, y + 0.5))
+    return list
+  }
+
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  for (const pass of [0, 1, 2]) {
+    for (const [key, type] of entries) {
+      const def = roadDef(type)
+      if (!def) continue
+      if (pass === 2 && !def.marking) continue
+      const [x, y] = key.split(':').map(Number)
+      const center = toScreen(x + 0.5, y + 0.5)
+      const ziele = enden(x, y)
+
+      ctx.strokeStyle = pass === 0 ? def.edge : pass === 1 ? def.surface : (def.marking as string)
+      ctx.lineWidth = def.width * TILE_H * (pass === 0 ? 1.45 : pass === 1 ? 1 : 0.14)
+      ctx.setLineDash(pass === 2 ? [7, 7] : [])
+
+      if (ziele.length === 0) {
+        // einzelne Kachel: kleiner Fleck
+        ctx.beginPath()
+        ctx.moveTo(center.sx - 7, center.sy)
+        ctx.lineTo(center.sx + 7, center.sy)
+        ctx.stroke()
+        continue
+      }
+      // Bei Markierungen nur die durchgehende Richtung streifen
+      const striche = pass === 2 && ziele.length !== 2 ? [] : ziele
+      for (const ziel of striche) {
+        ctx.beginPath()
+        ctx.moveTo(center.sx, center.sy)
+        ctx.lineTo(ziel.sx, ziel.sy)
+        ctx.stroke()
+      }
+    }
+  }
+  ctx.setLineDash([])
+  ctx.restore()
+
+  // Alleen bekommen Bäume auf den Schultern
+  for (const [key, type] of entries) {
+    const def = roadDef(type)
+    if (!def?.trees) continue
+    const [x, y] = key.split(':').map(Number)
+    const frei = [
+      { da: roadAt(city, x, y - 1), at: [x + 0.5, y + 0.12] },
+      { da: roadAt(city, x, y + 1), at: [x + 0.5, y + 0.88] },
+    ]
+    for (const seite of frei) {
+      if (seite.da) continue
+      tree(
+        ctx,
+        seite.at[0] - 0.5,
+        seite.at[1] - 0.5,
+        { kind: 'baum', height: 0.5, wall: '#5c4630', roof: '#46b972', accent: '#2f9e5c' },
+        0.25,
+      )
+    }
   }
 }
 
@@ -355,6 +477,29 @@ function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: b
   ctx.lineTo(w.sx, w.sy)
   ctx.closePath()
   ctx.stroke()
+
+  // Was noch kommt: der Umriss des nächsten Gebiets, damit man sieht, dass es weitergeht
+  const step = nextExpansion(city)
+  if (step) {
+    const shift = Math.floor((step.land - size) / 2)
+    const a = toScreen(-shift, -shift)
+    const b = toScreen(size + shift, -shift)
+    const c = toScreen(size + shift, size + shift)
+    const d = toScreen(-shift, size + shift)
+    ctx.save()
+    ctx.setLineDash([10, 10])
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(a.sx, a.sy)
+    ctx.lineTo(b.sx, b.sy)
+    ctx.lineTo(c.sx, c.sy)
+    ctx.lineTo(d.sx, d.sy)
+    ctx.closePath()
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.restore()
+  }
 }
 
 function outline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
@@ -393,6 +538,31 @@ export function drawCity(
   ctx.translate(-camera.x, -camera.y)
 
   drawGround(ctx, city, options.buildMode === true)
+  drawRoads(ctx, city)
+
+  // Vorschau beim Straßenziehen
+  const paint = options.paint
+  if (paint && paint.tiles.length > 0) {
+    const def = roadDef(paint.type)
+    ctx.save()
+    ctx.globalAlpha = 0.6
+    ctx.fillStyle = paint.adding ? (def?.surface ?? '#ffffff') : '#ff5f7a'
+    for (const key of paint.tiles) {
+      const [x, y] = key.split(':').map(Number)
+      const a = toScreen(x, y)
+      const b = toScreen(x + 1, y)
+      const c = toScreen(x + 1, y + 1)
+      const d = toScreen(x, y + 1)
+      ctx.beginPath()
+      ctx.moveTo(a.sx, a.sy)
+      ctx.lineTo(b.sx, b.sy)
+      ctx.lineTo(c.sx, c.sy)
+      ctx.lineTo(d.sx, d.sy)
+      ctx.closePath()
+      ctx.fill()
+    }
+    ctx.restore()
+  }
 
   // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst
   const sorted = [...city.buildings].sort((a, b) => a.x + a.y - (b.x + b.y))

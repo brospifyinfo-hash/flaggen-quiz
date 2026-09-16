@@ -3,6 +3,67 @@
 
 export type Category = 'wohnen' | 'handel' | 'bildung' | 'natur' | 'wege'
 
+/** Straßen liegen nicht als Bauwerk auf der Kachel, sondern als eigenes Netz darunter. */
+export interface RoadDef {
+  id: string
+  name: string
+  emoji: string
+  /** Preis je Kachel */
+  coins: number
+  materials: number
+  note: string
+  /** Breite als Anteil der Kachelhöhe */
+  width: number
+  surface: string
+  edge: string
+  /** Mittelstreifen, wenn vorhanden */
+  marking?: string
+  /** Bäume am Rand */
+  trees?: boolean
+}
+
+export const ROADS: RoadDef[] = [
+  {
+    id: 'weg',
+    name: 'Fußweg',
+    emoji: '🚶',
+    coins: 12,
+    materials: 0,
+    note: 'Schmal, für Spaziergänge',
+    width: 0.4,
+    surface: '#d9d2c4',
+    edge: '#b7ae9d',
+  },
+  {
+    id: 'strasse',
+    name: 'Straße',
+    emoji: '🛣️',
+    coins: 35,
+    materials: 1,
+    note: 'Verbindet die Stadt',
+    width: 0.62,
+    surface: '#474c59',
+    edge: '#cdc9bf',
+    marking: '#e9e3d0',
+  },
+  {
+    id: 'allee',
+    name: 'Allee',
+    emoji: '🌳',
+    coins: 85,
+    materials: 2,
+    note: 'Breit, mit Bäumen am Rand',
+    width: 0.8,
+    surface: '#3e434d',
+    edge: '#d3cfc4',
+    marking: '#ffd23f',
+    trees: true,
+  },
+]
+
+const ROAD_BY_ID = new Map(ROADS.map((entry) => [entry.id, entry]))
+export const roadDef = (id: string): RoadDef | undefined => ROAD_BY_ID.get(id)
+
 export interface CategoryInfo {
   id: Category
   name: string
@@ -20,7 +81,7 @@ export const CATEGORIES: CategoryInfo[] = [
 /** Zeichenrezept: Der Renderer baut daraus den Körper des Gebäudes. */
 export interface Look {
   /** Grundform */
-  kind: 'haus' | 'block' | 'laden' | 'baum' | 'flach' | 'park' | 'brunnen' | 'schule'
+  kind: 'haus' | 'block' | 'laden' | 'baum' | 'flach' | 'park' | 'brunnen' | 'schule' | 'wasser' | 'statue'
   /** Höhe in Kachelhöhen */
   height: number
   wall: string
@@ -224,6 +285,102 @@ export const BUILDINGS: BuildingDef[] = [
     look: { kind: 'brunnen', height: 0.3, wall: '#cfd8e3', roof: '#7fc7e8', accent: '#4a9fd0' },
   },
 
+  {
+    id: 'teich',
+    name: 'Teich',
+    category: 'natur',
+    emoji: '💧',
+    size: [2, 1],
+    coins: 420,
+    materials: 2,
+    effects: { happiness: 9, environment: 10 },
+    note: 'Wasser tut jeder Stadt gut',
+    look: { kind: 'wasser', height: 0.1, wall: '#3f7fb5', roof: '#6fb7e0', accent: '#9fd8f2' },
+  },
+  {
+    id: 'statue',
+    name: 'Statue',
+    category: 'natur',
+    emoji: '🗿',
+    size: [1, 1],
+    coins: 340,
+    materials: 3,
+    effects: { happiness: 7 },
+    needsLevel: 3,
+    note: 'Ein Denkmal für die Stadt',
+    look: { kind: 'statue', height: 0.9, wall: '#c8c2b4', roof: '#a8a294', accent: '#8d8577' },
+  },
+
+  // ---------- Handel und Bildung, größer ----------
+  {
+    id: 'restaurant',
+    name: 'Restaurant',
+    category: 'handel',
+    emoji: '🍽️',
+    size: [2, 1],
+    coins: 980,
+    materials: 13,
+    effects: { income: 68, jobs: 14, happiness: 6 },
+    needsLevel: 4,
+    note: 'Wo die Stadt abends hingeht',
+    look: { kind: 'laden', height: 1.35, wall: '#f6ddc0', roof: '#9c3f52', accent: '#732b3c', floors: 2 },
+  },
+  {
+    id: 'hotel',
+    name: 'Hotel',
+    category: 'handel',
+    emoji: '🏨',
+    size: [2, 2],
+    coins: 2400,
+    materials: 34,
+    effects: { income: 160, jobs: 30, happiness: 4, capacity: 6 },
+    needsLevel: 7,
+    note: 'Gäste bringen Geld in die Stadt',
+    look: { kind: 'block', height: 3.2, wall: '#f0e4d2', roof: '#b06a3a', accent: '#7f4a26', floors: 6 },
+    upgrades: [{ coins: 3600, materials: 48, effects: { income: 240, jobs: 44, happiness: 6, capacity: 10 } }],
+  },
+  {
+    id: 'stadthaus',
+    name: 'Stadthaus',
+    category: 'wohnen',
+    emoji: '🏘️',
+    size: [1, 1],
+    coins: 620,
+    materials: 9,
+    effects: { capacity: 22, happiness: 1 },
+    needsLevel: 4,
+    note: 'Schmal, hoch, viele Nachbarn',
+    look: { kind: 'haus', height: 2.2, wall: '#e9dcc6', roof: '#6b5a8c', accent: '#4c3f68', floors: 4 },
+    upgrades: [{ coins: 980, materials: 14, effects: { capacity: 32, happiness: 2 } }],
+  },
+  {
+    id: 'villa',
+    name: 'Villa',
+    category: 'wohnen',
+    emoji: '🏰',
+    size: [2, 2],
+    coins: 1900,
+    materials: 26,
+    effects: { capacity: 14, happiness: 12 },
+    needsLevel: 6,
+    note: 'Wenig Platz, viel Ansehen',
+    look: { kind: 'haus', height: 1.9, wall: '#fdf3e0', roof: '#37606b', accent: '#24454e', floors: 2 },
+  },
+  {
+    id: 'universitaet',
+    name: 'Universität',
+    category: 'bildung',
+    emoji: '🎓',
+    size: [2, 2],
+    coins: 4200,
+    materials: 62,
+    effects: { education: 44, jobs: 38, happiness: 8, income: 60, capacity: 12 },
+    needsLevel: 10,
+    note: 'Das Herz einer klugen Stadt',
+    look: { kind: 'schule', height: 2.4, wall: '#f2e3cb', roof: '#8c4a3f', accent: '#5f2f28', floors: 3 },
+    upgrades: [{ coins: 6800, materials: 90, effects: { education: 72, jobs: 60, happiness: 12, income: 110, capacity: 18 } }],
+  },
+
   // ---------- Wege ----------
   {
     id: 'platz',
@@ -236,18 +393,6 @@ export const BUILDINGS: BuildingDef[] = [
     effects: { happiness: 1 },
     note: 'Fläche zum Verbinden und Gestalten',
     look: { kind: 'flach', height: 0.08, wall: '#cfc6b8', roof: '#bdb3a4', accent: '#a79c8c' },
-  },
-  {
-    id: 'weg',
-    name: 'Fußweg',
-    category: 'wege',
-    emoji: '🚶',
-    size: [1, 1],
-    coins: 20,
-    materials: 0,
-    effects: {},
-    note: 'Schmaler Weg für Fußgänger',
-    look: { kind: 'flach', height: 0.06, wall: '#d9d2c4', roof: '#c9c1b2', accent: '#b3a996' },
   },
 ]
 

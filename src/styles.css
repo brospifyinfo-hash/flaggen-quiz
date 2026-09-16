@@ -2848,6 +2848,11 @@ svg {
   opacity: 0.55;
 }
 
+.city-card.is-on {
+  background: rgb(47 158 92 / 0.28);
+  box-shadow: inset 0 0 0 2px #2f9e5c;
+}
+
 .city-card-emoji {
   flex: none;
   width: 42px;
