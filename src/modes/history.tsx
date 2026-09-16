@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { EVENTS, TIMELINE_MAX, TIMELINE_MIN, formatYear, type HistoryEvent } from '../data/history'
+import { haptic } from '../haptics'
 import { accuracyOf, modeProgress, xpForAnswer } from '../progression'
 import { shuffle } from '../quiz'
-import type { Judgement, ModeProgress, ModeQuestion } from '../types'
+import type { Judgement, ModeProgress, ModeQuestion, QuestionInput } from '../types'
 import type { QuizMode } from './registry'
 
 export const HISTORY_MODE_ID = 'geschichte'
@@ -11,12 +12,32 @@ export const HISTORY_MODE_ID = 'geschichte'
 const MIN_ORDER_GAP = 20
 /** Anteil der Reihenfolge-Fragen */
 const ORDER_SHARE = 0.25
+/** Der Zeitstrahl zeigt pro Frage diesen Ausschnitt */
+const SPAN = 300
+/** So weit bleibt die Lösung mindestens vom Rand entfernt */
+const EDGE = 25
 
 const BY_ID = new Map(EVENTS.map((event) => [event.id, event]))
 
 /** Wie nah man am richtigen Jahr sein muss, damit die Antwort als richtig zählt */
 const toleranceFor = (year: number) =>
   year < -500 ? 100 : year < 500 ? 60 : year < 1500 ? 30 : year < 1800 ? 15 : year < 1900 ? 8 : year < 1960 ? 4 : 2
+
+/** Ausschnitt um das Ereignis – die Lösung liegt zufällig darin, nie in der Mitte festgenagelt */
+function windowFor(year: number): QuestionInput {
+  const offset = EDGE + Math.floor(Math.random() * (SPAN - EDGE * 2))
+  let min = year - offset
+  let max = min + SPAN
+  if (max > TIMELINE_MAX) {
+    max = TIMELINE_MAX
+    min = max - SPAN
+  }
+  if (min < TIMELINE_MIN) {
+    min = TIMELINE_MIN
+    max = min + SPAN
+  }
+  return { kind: 'timeline', min, max }
+}
 
 const pickEvent = (recent: Set<string>): HistoryEvent => {
   const pool = EVENTS.filter((event) => !recent.has(event.id))
@@ -32,7 +53,7 @@ function timelineQuestion(event: HistoryEvent): ModeQuestion {
     data: { kind: 'year', event: event.id },
     options: [],
     correctId: String(event.year),
-    input: { kind: 'timeline', min: TIMELINE_MIN, max: TIMELINE_MAX },
+    input: windowFor(event.year),
   }
 }
 
@@ -42,9 +63,13 @@ const averageError = (progress: ModeProgress) => {
 }
 
 const plural = (years: number) => (years === 1 ? 'Jahr' : 'Jahre')
-const clampYear = (year: number) => Math.min(TIMELINE_MAX, Math.max(TIMELINE_MIN, year))
-const positionOf = (year: number) =>
-  Math.min(97, Math.max(3, ((clampYear(year) - TIMELINE_MIN) / (TIMELINE_MAX - TIMELINE_MIN)) * 100))
+
+const positionIn = (year: number, input?: QuestionInput) => {
+  const min = input?.min ?? TIMELINE_MIN
+  const max = input?.max ?? TIMELINE_MAX
+  const clamped = Math.min(max, Math.max(min, year))
+  return Math.min(96, Math.max(4, ((clamped - min) / (max - min)) * 100))
+}
 
 export const historyMode: QuizMode = {
   id: HISTORY_MODE_ID,
@@ -164,7 +189,9 @@ export const historyMode: QuizMode = {
 
   // Zeitstrahl statt Antwortknöpfen
   renderInput: (question, picked, submit) =>
-    question.data.kind === 'year' && picked === null ? <Timeline onSubmit={submit} /> : null,
+    question.data.kind === 'year' && picked === null && question.input ? (
+      <Timeline input={question.input} onSubmit={submit} />
+    ) : null,
 
   renderFeedback: (question, picked) => {
     if (question.data.kind === 'order') {
@@ -189,8 +216,10 @@ export const historyMode: QuizMode = {
     return (
       <>
         <div className="timeline-marks">
-          {!hit && <span className="timeline-mark is-guess" style={{ left: `${positionOf(guess)}%` }} />}
-          <span className="timeline-mark is-truth" style={{ left: `${positionOf(event.year)}%` }} />
+          {!hit && (
+            <span className="timeline-mark is-guess" style={{ left: `${positionIn(guess, question.input)}%` }} />
+          )}
+          <span className="timeline-mark is-truth" style={{ left: `${positionIn(event.year, question.input)}%` }} />
         </div>
         <p className="timeline-legend">
           <span className="is-guess">Dein Tipp: {formatYear(guess)}</span>
@@ -212,9 +241,14 @@ function EventCard({ id, big = false }: { id: string; big?: boolean }) {
   )
 }
 
-function Timeline({ onSubmit }: { onSubmit: (answer: string) => void }) {
-  const [year, setYear] = useState(1500)
-  const step = (delta: number) => setYear((current) => clampYear(current + delta))
+function Timeline({ input, onSubmit }: { input: QuestionInput; onSubmit: (answer: string) => void }) {
+  const [year, setYear] = useState(() => Math.round((input.min + input.max) / 2))
+
+  const change = (value: number) => {
+    const next = Math.min(input.max, Math.max(input.min, value))
+    if (next !== year) haptic('tick', { minGap: 45 })
+    setYear(next)
+  }
 
   return (
     <div className="timeline">
@@ -225,25 +259,31 @@ function Timeline({ onSubmit }: { onSubmit: (answer: string) => void }) {
       <input
         className="timeline-range"
         type="range"
-        min={TIMELINE_MIN}
-        max={TIMELINE_MAX}
+        min={input.min}
+        max={input.max}
         step={1}
         value={year}
         aria-label="Jahr auf dem Zeitstrahl wählen"
-        onChange={(event) => setYear(Number(event.target.value))}
+        onChange={(event) => change(Number(event.target.value))}
       />
       <div className="timeline-scale">
-        <span>{formatYear(TIMELINE_MIN)}</span>
-        <span>{TIMELINE_MAX}</span>
+        <span>{formatYear(input.min)}</span>
+        <span>{formatYear(input.max)}</span>
       </div>
       <div className="timeline-fine">
-        {[-100, -10, -1, 1, 10, 100].map((delta) => (
-          <button key={delta} className="timeline-step" onClick={() => step(delta)}>
+        {[-10, -1, 1, 10].map((delta) => (
+          <button key={delta} className="timeline-step" onClick={() => change(year + delta)}>
             {delta > 0 ? `+${delta}` : `−${Math.abs(delta)}`}
           </button>
         ))}
       </div>
-      <button className="btn btn-primary" onClick={() => onSubmit(String(year))}>
+      <button
+        className="btn btn-primary"
+        onClick={() => {
+          haptic('strong')
+          onSubmit(String(year))
+        }}
+      >
         Antwort abgeben
       </button>
     </div>

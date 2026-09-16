@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { Confetti } from '../components/Confetti'
 import { Flag } from '../components/Flag'
 import { ProgressRing } from '../components/ProgressRing'
 import { countryName, discardSession, getContinent, nextContinent, startSession } from '../quiz'
 import { goBack, navigate } from '../router'
+import { haptic } from '../haptics'
 import { setState } from '../store'
 import type { Mode, RoundResult } from '../types'
 
@@ -14,7 +16,12 @@ export function ResultScreen({ result }: { result: RoundResult }) {
   const share = correct / total
   const [emoji, title, subtitle] = headline(result, continent.name, share)
 
+  useEffect(() => {
+    haptic(passed || share === 1 ? 'celebrate' : 'soft')
+  }, [passed, share])
+
   const play = (nextMode: Mode) => {
+    haptic('soft')
     setState((data) => startSession(discardSession(data, id, nextMode), id, nextMode))
     navigate({ name: 'quiz', id, mode: nextMode }, { replace: true })
   }

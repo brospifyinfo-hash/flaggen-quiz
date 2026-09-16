@@ -1,9 +1,11 @@
+import { useEffect } from 'react'
 import { Confetti } from '../components/Confetti'
 import { RankCrest } from '../components/RankCrest'
 import { getMode } from '../modes/registry'
 import { achievementById, modeProgress, rankById } from '../progression'
 import { goBack, navigate } from '../router'
 import { RANDOM, startRun } from '../run'
+import { haptic } from '../haptics'
 import { setState } from '../store'
 import type { RunResult, SaveData } from '../types'
 
@@ -22,7 +24,12 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
   const achievements = result.achievements.map(achievementById).filter((entry) => entry !== undefined)
   const newRank = result.rankUp ? rankById(result.rankUp) : null
 
+  useEffect(() => {
+    haptic(records.length > 0 || newRank ? 'celebrate' : 'soft')
+  }, [records.length, newRank])
+
   const again = () => {
+    haptic('soft')
     setState((current) => startRun(current, result.mode))
     navigate({ name: 'run' }, { replace: true })
   }

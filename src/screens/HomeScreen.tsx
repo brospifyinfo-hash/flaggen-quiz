@@ -1,4 +1,5 @@
 import { IconChevron, IconPlay, IconSettings } from '../components/Icons'
+import { haptic } from '../haptics'
 import { RankCrest } from '../components/RankCrest'
 import { allModes, getMode } from '../modes/registry'
 import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, rankFor, totalAnswered } from '../progression'
@@ -14,6 +15,7 @@ export function HomeScreen({ data }: { data: SaveData }) {
   const runMode = run ? (run.mode === RANDOM ? null : getMode(run.mode)) : null
 
   const begin = (mode: string) => {
+    haptic('soft')
     setState((current) => startRun(endRun(current), mode))
     navigate({ name: 'run' })
   }

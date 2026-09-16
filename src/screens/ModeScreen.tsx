@@ -1,4 +1,5 @@
 import { IconBack, IconPlay } from '../components/Icons'
+import { haptic } from '../haptics'
 import { getMode } from '../modes/registry'
 import { modeProgress } from '../progression'
 import { goBack, navigate } from '../router'
@@ -14,6 +15,7 @@ export function ModeScreen({ data, id }: { data: SaveData; id: string }) {
   const mastery = Math.round(mode.mastery(data) * 100)
 
   const begin = () => {
+    haptic('soft')
     setState((current) => startRun(endRun(current), id))
     navigate({ name: 'run' })
   }

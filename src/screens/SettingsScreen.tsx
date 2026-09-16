@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { IconBack, IconCheck, IconDownload, IconTrash } from '../components/Icons'
-import { canVibrate } from '../haptics'
+import { haptic, hapticSupport } from '../haptics'
 import { promptInstall, usePwaStatus } from '../pwa'
 import { goBack } from '../router'
 import { isStorageWorking, resetProgress, setState } from '../store'
@@ -9,6 +9,12 @@ import type { SaveData } from '../types'
 
 const isIos =
   /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+const HAPTIC_NOTE: Record<typeof hapticSupport, string> = {
+  vibration: 'Kurzes Feedback bei Antworten, Combos und am Zeitstrahl.',
+  ios: 'Auf dem iPhone läuft das über die System-Haptik. Sie muss unter Einstellungen → Töne & Haptik → Systemhaptik eingeschaltet sein.',
+  none: 'Dein Browser kann kein fühlbares Feedback geben.',
+}
 
 export function SettingsScreen({ data }: { data: SaveData }) {
   const pwa = usePwaStatus()
@@ -23,25 +29,35 @@ export function SettingsScreen({ data }: { data: SaveData }) {
         <h1>Einstellungen</h1>
       </header>
 
-      {canVibrate && (
-        <section className="list">
-          <div className="row">
-            <span className="row-label">
-              <strong>Vibration</strong>
-              <span>Kurzes Feedback bei jeder Antwort</span>
-            </span>
-            <button
-              className="switch"
-              role="switch"
-              aria-checked={data.settings.haptics}
-              aria-label="Vibration"
-              onClick={() =>
-                setState((current) => ({ ...current, settings: { ...current.settings, haptics: !current.settings.haptics } }))
-              }
-            />
+      <section className="list">
+        <div className="row">
+          <span className="row-label">
+            <strong>Vibration</strong>
+            <span>{HAPTIC_NOTE[hapticSupport]}</span>
+          </span>
+          <button
+            className="switch"
+            role="switch"
+            aria-checked={data.settings.haptics}
+            aria-label="Vibration"
+            disabled={hapticSupport === 'none'}
+            onClick={() => {
+              setState((current) => ({
+                ...current,
+                settings: { ...current.settings, haptics: !current.settings.haptics },
+              }))
+              haptic('success')
+            }}
+          />
+        </div>
+        {hapticSupport !== 'none' && (
+          <div className="row row-stack">
+            <button className="btn btn-secondary" onClick={() => haptic('celebrate')}>
+              Vibration testen
+            </button>
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       <h2 className="section-title">Speicher & Offline</h2>
       <section className="list">
@@ -61,7 +77,7 @@ export function SettingsScreen({ data }: { data: SaveData }) {
         <div className="row">
           <span className="row-label">
             <strong>Offline spielen</strong>
-            <span>Alle Flaggen liegen auf dem Gerät</span>
+            <span>Alle Flaggen und Fragen liegen auf dem Gerät</span>
           </span>
           {pwa.offlineReady ? (
             <span className="status">
@@ -84,9 +100,7 @@ export function SettingsScreen({ data }: { data: SaveData }) {
           <h2 className="section-title">Als App nutzen</h2>
           <section className="list">
             <div className="row row-stack">
-              <p>
-                Leg das Quiz auf deinen Home-Bildschirm. Es startet dann wie eine App – im Vollbild und ohne Internet.
-              </p>
+              <p>Leg das Quiz auf deinen Home-Bildschirm. Es startet dann wie eine App – im Vollbild und ohne Internet.</p>
               {pwa.canInstall ? (
                 <button className="btn btn-primary" onClick={() => promptInstall()}>
                   <IconDownload /> App installieren
@@ -109,7 +123,7 @@ export function SettingsScreen({ data }: { data: SaveData }) {
       <h2 className="section-title">Zurücksetzen</h2>
       <section className="list">
         <div className="row row-stack">
-          <p>Löscht alle Ergebnisse, gelernten Flaggen und freigeschalteten Kontinente auf diesem Gerät.</p>
+          <p>Löscht alle Ergebnisse, Ränge, XP und gelernten Flaggen auf diesem Gerät.</p>
           <button className="btn btn-danger-outline" onClick={() => setConfirmReset(true)}>
             <IconTrash /> Fortschritt zurücksetzen
           </button>
@@ -120,7 +134,7 @@ export function SettingsScreen({ data }: { data: SaveData }) {
         <ConfirmDialog
           danger
           title="Fortschritt wirklich löschen?"
-          text="Alle Ergebnisse, gelernten Flaggen und freigeschalteten Kontinente werden gelöscht. Das lässt sich nicht rückgängig machen."
+          text="Alle Ergebnisse, Ränge, XP und gelernten Flaggen werden gelöscht. Das lässt sich nicht rückgängig machen."
           confirmLabel="Ja, alles löschen"
           onCancel={() => setConfirmReset(false)}
           onConfirm={() => {

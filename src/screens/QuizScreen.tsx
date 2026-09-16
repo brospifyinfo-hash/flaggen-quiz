@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Flag } from '../components/Flag'
 import { IconCheck, IconClose, IconCross } from '../components/Icons'
-import { vibrate } from '../haptics'
+import { haptic } from '../haptics'
 import { requestPersistentStorage } from '../pwa'
 import { answerQuestion, countryName, getContinent, nextQuestion, sessionKey } from '../quiz'
 import { goBack, navigate } from '../router'
@@ -48,11 +48,11 @@ export function QuizScreen({ session }: { session: Session }) {
     setState((data) => answerQuestion(data, id, mode, code))
     requestPersistentStorage()
     if (code === current.code) {
-      vibrate(15)
+      haptic('success')
       setAutoNext(true)
       timer.current = window.setTimeout(goNext, AUTO_NEXT_MS)
     } else {
-      vibrate([40, 70, 40])
+      haptic('error')
     }
   }
 
@@ -147,6 +147,7 @@ function FeedbackSheet({ question, mode, firstTestMistake, onNext }: SheetProps)
 
   const handleNext = () => {
     if (performance.now() - shownAt.current < SHEET_TAP_GUARD_MS) return
+    haptic('tick')
     onNext()
   }
 

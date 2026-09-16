@@ -16,6 +16,7 @@ import {
   sessionKey,
   startSession,
 } from '../quiz'
+import { haptic } from '../haptics'
 import { goBack, navigate } from '../router'
 import { setState } from '../store'
 import type { Mode, SaveData } from '../types'
@@ -32,6 +33,7 @@ export function ContinentScreen({ data, id }: { data: SaveData; id: ContinentId 
   const missing = stats.total - stats.seen
 
   const start = (mode: Mode) => {
+    haptic('soft')
     setState((current) => startSession(discardSession(current, id, mode), id, mode))
     navigate({ name: 'quiz', id, mode })
   }

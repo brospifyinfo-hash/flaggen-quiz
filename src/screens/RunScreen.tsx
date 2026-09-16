@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { IconCheck, IconClose, IconCross } from '../components/Icons'
-import { vibrate } from '../haptics'
+import { haptic } from '../haptics'
 import { getMode } from '../modes/registry'
 import { requestPersistentStorage } from '../pwa'
 import { goBack, navigate } from '../router'
@@ -38,19 +38,21 @@ export function RunScreen({ run }: { run: Run }) {
     setState((data) => answerRun(data, answer))
     requestPersistentStorage()
     const judgement = getState().run?.judged
+    const combo = getState().run?.combo ?? 0
     if (judgement?.correct) {
-      vibrate(15)
+      haptic(combo > 0 && combo % 5 === 0 ? 'celebrate' : 'success')
       // Bei Zeitstrahl-Fragen bleibt die Erklärung stehen, sonst läuft es automatisch weiter
       if (!question.input) {
         setAutoNext(true)
         timer.current = window.setTimeout(goNext, question.quickNext ? AUTO_NEXT_QUICK_MS : AUTO_NEXT_MS)
       }
     } else {
-      vibrate([40, 70, 40])
+      haptic('error')
     }
   }
 
   const finish = () => {
+    haptic('soft')
     window.clearTimeout(timer.current)
     const hadQuestions = run.answered > 0
     setState((data) => endRun(data))
@@ -162,6 +164,7 @@ function RunFeedback({ question, picked, judged, onNext }: FeedbackProps) {
 
   const handleNext = () => {
     if (performance.now() - shownAt.current < SHEET_TAP_GUARD_MS) return
+    haptic('tick')
     onNext()
   }
 
