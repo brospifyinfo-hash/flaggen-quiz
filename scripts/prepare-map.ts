@@ -17,8 +17,8 @@ const WIDTH = 1000
 const HEIGHT = 500
 /** Ein Land, dessen Umriss breiter ist, wird am Datumsgrenze zerschnitten – dann zählt nur der Mittelpunkt */
 const SAFE_WIDTH = WIDTH * 0.42
-/** Breite geteilt durch Höhe der Kontinent-Ausschnitte */
-const VIEW_ASPECT = 1.35
+/** Breite geteilt durch Höhe der Kontinent-Ausschnitte – hochkant, wie ein Handy */
+const VIEW_ASPECT = 0.85
 
 /** Namen aus Natural Earth, die nicht zu unseren Ländernamen passen */
 const OVERRIDES: Record<string, string> = {

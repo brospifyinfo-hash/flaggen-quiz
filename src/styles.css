@@ -2343,24 +2343,39 @@ svg {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px;
   min-height: 0;
 }
 
+/* Eigene Farben: die Oberflächen der App sind sich zu ähnlich, um Land von Meer zu trennen */
 .map-frame {
+  --map-sea: #cfe0f2;
+  --map-land: #ffffff;
+  --map-line: #93a8c6;
   display: grid;
-  flex: 1 1 auto;
-  min-height: 200px;
+  flex: 0 1 auto;
+  width: 100%;
+  min-height: 160px;
+  max-height: 100%;
+  aspect-ratio: 0.85;
   border-radius: 18px;
-  background: var(--desk);
+  background: var(--map-sea);
   box-shadow: inset 0 0 0 1px var(--line-strong);
   overflow: hidden;
   animation: fade-in 0.25s ease both;
 }
 
+@media (prefers-color-scheme: dark) {
+  .map-frame {
+    --map-sea: #101d35;
+    --map-land: #38456b;
+    --map-line: #5a6893;
+  }
+}
+
 .map-frame.is-static {
-  flex: 1 1 0;
-  min-height: 170px;
+  max-height: 42vh;
   margin-bottom: 4px;
 }
 
@@ -2373,12 +2388,12 @@ svg {
 }
 
 .map-sea {
-  fill: var(--desk);
+  fill: var(--map-sea);
 }
 
 .map-country {
-  fill: var(--surface);
-  stroke: var(--line-strong);
+  fill: var(--map-land);
+  stroke: var(--map-line);
   stroke-width: 0.6;
   stroke-linejoin: round;
 }

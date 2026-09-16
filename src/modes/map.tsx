@@ -1,4 +1,4 @@
-import { useState, type PointerEvent, type ReactNode } from 'react'
+import { useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { CONTINENTS, COUNTRIES, type ContinentId } from '../data/countries'
 import { CONTINENT_VIEWS, MAP_DX, MAP_DY, MAP_HEIGHT, MAP_SCALE, MAP_WIDTH, SHAPES, type CountryShape } from '../data/map'
 import { haptic } from '../haptics'
@@ -250,12 +250,18 @@ function MapCanvas({
 }: {
   view: string
   highlight?: string
-  onTap?: (event: PointerEvent<SVGSVGElement>) => void
+  onTap?: (event: MouseEvent<SVGSVGElement>) => void
   children?: ReactNode
 }) {
   const target = highlight ? BY_CODE.get(highlight) : undefined
   return (
-    <svg className="map-svg" viewBox={view} preserveAspectRatio="xMidYMid meet" onPointerDown={onTap}>
+    <svg
+      className="map-svg"
+      viewBox={view}
+      preserveAspectRatio="xMidYMid meet"
+      onPointerDown={onTap}
+      onClick={onTap}
+    >
       <rect className="map-sea" x={0} y={0} width={MAP_WIDTH} height={MAP_HEIGHT} />
       {BASE_PATHS}
       {target && <path className="map-country is-target" d={target.d} data-code={target.code} />}
@@ -273,6 +279,7 @@ interface BoardProps {
 
 function MapBoard({ question, view, picked, submit }: BoardProps) {
   const [spot, setSpot] = useState<Spot | null>(null)
+  const lastPointer = useRef(0)
   const answered = picked !== null
   const shown = answered ? parseSpot(picked) : spot
   const target = BY_CODE.get(question.data.code)
@@ -280,7 +287,10 @@ function MapBoard({ question, view, picked, submit }: BoardProps) {
   // Markierungen sollen bei jedem Ausschnitt gleich groß wirken
   const unit = width / 100
 
-  const tap = (event: PointerEvent<SVGSVGElement>) => {
+  // Der Klick ist nur der Notnagel, falls kein pointerdown ankommt – und nie zusätzlich dazu
+  const tap = (event: MouseEvent<SVGSVGElement>) => {
+    if (event.type === 'click' && performance.now() - lastPointer.current < 700) return
+    if (event.type === 'pointerdown') lastPointer.current = performance.now()
     const svg = event.currentTarget
     const matrix = svg.getScreenCTM()
     if (!matrix) return
