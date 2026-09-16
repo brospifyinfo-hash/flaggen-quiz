@@ -13,6 +13,8 @@ export function routeToHash(route: Route): string {
       return '#/einstellungen'
     case 'specific':
       return '#/waehlen'
+    case 'mathRunner':
+      return '#/math'
     case 'run':
       return '#/run'
     case 'runResult':
@@ -36,6 +38,7 @@ export function hashToRoute(hash: string): Route | null {
   if (!first) return { name: 'home' }
   if (first === 'einstellungen') return { name: 'settings' }
   if (first === 'waehlen') return { name: 'specific' }
+  if (first === 'math') return { name: 'mathRunner' }
   if (first === 'run') return second === 'ergebnis' ? { name: 'runResult' } : { name: 'run' }
 
   if (first === 'm') {
@@ -63,6 +66,7 @@ export function isRoute(value: unknown): value is Route {
     case 'home':
     case 'settings':
     case 'specific':
+    case 'mathRunner':
     case 'run':
     case 'runResult':
       return true
@@ -85,6 +89,7 @@ export function parentsOf(route: Route): Route[] {
       return []
     case 'settings':
     case 'specific':
+    case 'mathRunner':
     case 'run':
     case 'runResult':
       return [{ name: 'home' }]

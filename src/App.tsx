@@ -5,6 +5,7 @@ import { navigate } from './router'
 import { routeToHash } from './routes'
 import { ContinentScreen } from './screens/ContinentScreen'
 import { HomeScreen } from './screens/HomeScreen'
+import { MathRunnerScreen } from './screens/MathRunnerScreen'
 import { ModeScreen } from './screens/ModeScreen'
 import { QuizScreen } from './screens/QuizScreen'
 import { ResultScreen } from './screens/ResultScreen'
@@ -22,6 +23,7 @@ function resolveRoute(data: SaveData): Route {
     case 'home':
     case 'settings':
     case 'specific':
+    case 'mathRunner':
       return route
     case 'mode':
       return getMode(route.id) ? route : { name: 'specific' }
@@ -67,6 +69,8 @@ export function App() {
       return <HomeScreen data={data} />
     case 'settings':
       return <SettingsScreen data={data} />
+    case 'mathRunner':
+      return <MathRunnerScreen data={data} />
     case 'specific':
       return <SpecificScreen data={data} />
     case 'mode':

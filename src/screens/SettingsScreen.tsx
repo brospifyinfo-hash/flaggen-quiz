@@ -57,6 +57,25 @@ export function SettingsScreen({ data }: { data: SaveData }) {
             </button>
           </div>
         )}
+        <div className="row">
+          <span className="row-label">
+            <strong>Ton</strong>
+            <span>Kurze Töne im Math Runner</span>
+          </span>
+          <button
+            className="switch"
+            role="switch"
+            aria-checked={data.settings.sound}
+            aria-label="Ton"
+            onClick={() => {
+              setState((current) => ({
+                ...current,
+                settings: { ...current.settings, sound: !current.settings.sound },
+              }))
+              haptic('success')
+            }}
+          />
+        </div>
       </section>
 
       <h2 className="section-title">Speicher & Offline</h2>

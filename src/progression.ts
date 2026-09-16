@@ -14,6 +14,16 @@ export function xpForAnswer(comboBefore: number): number {
   return XP_BASE + Math.min(comboBefore, XP_COMBO_CAP) * XP_PER_COMBO
 }
 
+/**
+ * XP aus Spielen außerhalb der Quiz-Runs, z. B. dem Math Runner.
+ * Es gibt bewusst nur diesen einen XP-Topf – kein zweites System daneben.
+ */
+export function awardXP(data: SaveData, amount: number, now = Date.now()): SaveData {
+  const gained = Math.max(0, Math.round(amount))
+  if (gained === 0) return data
+  return checkAchievements({ ...data, xp: data.xp + gained }, now).data
+}
+
 /** Level 2 ab 100 XP, jede weitere Stufe kostet 100 XP mehr als die vorige */
 export function levelFor(xp: number) {
   let level = 1
@@ -131,6 +141,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'alle-kontinente', emoji: '🌍', title: 'Weltmeister', text: 'Bestehe alle Abschlusstests', reached: (d) => CONTINENTS.every((c) => d.progress[c.id]?.passed) },
   { id: 'hl-combo-20', emoji: '📈', title: 'Zahlenmensch', text: '20 Higher-or-Lower-Fragen in Folge richtig', reached: (d) => modeProgress(d, 'higher-lower').bestCombo >= 20 },
   { id: 'geschichte-100', emoji: '⏳', title: 'Zeitreisender', text: '100 historische Ereignisse beantwortet', reached: (d) => modeProgress(d, 'geschichte').answered >= 100 },
+  { id: 'math-1000', emoji: '🧮', title: 'Kopfrechner', text: '1.000 Punkte im Math Runner', reached: (d) => (d.mathRunner?.highScore ?? 0) >= 1000 },
+  { id: 'math-expert', emoji: '🚀', title: 'Rechenrakete', text: 'Erreiche EXPERT im Math Runner', reached: (d) => (d.mathRunner?.bestStage ?? 0) >= 3 },
 ]
 
 export const achievementById = (id: string) => ACHIEVEMENTS.find((a) => a.id === id)

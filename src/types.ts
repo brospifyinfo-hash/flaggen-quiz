@@ -173,11 +173,28 @@ export interface ModeProgress {
   extra?: Record<string, number>
 }
 
+// ---------- Math Runner ----------
+
+/** Bestleistungen des Math Runners – bleiben auf dem Gerät */
+export interface MathRunnerStats {
+  /** höchster Punktestand, der je erreicht wurde */
+  highScore: number
+  bestCombo: number
+  /** längster Lauf in Sekunden */
+  bestTime: number
+  /** höchste erreichte Schwierigkeitsstufe */
+  bestStage: number
+  runs: number
+  correct: number
+  wrong: number
+}
+
 // ---------- Navigation und Speicherstand ----------
 
 export type Route =
   | { name: 'home' }
   | { name: 'settings' }
+  | { name: 'mathRunner' }
   | { name: 'specific' }
   | { name: 'mode'; id: string }
   | { name: 'run' }
@@ -202,9 +219,11 @@ export interface SaveData {
   achievements: Record<string, number>
   /** Lernstand je Modus und Thema, z. B. je Person */
   learn?: Record<string, Record<string, CountryStat>>
+  /** Bestleistungen des Math Runners */
+  mathRunner?: MathRunnerStats
   run: Run | null
   lastRun: RunResult | null
   route: Route
-  settings: { haptics: boolean }
+  settings: { haptics: boolean; sound: boolean }
   updatedAt: number
 }

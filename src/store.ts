@@ -6,6 +6,7 @@ import { isContinentId, isCountry, sessionKey } from './quiz'
 import { isRoute } from './routes'
 import type {
   CountryStat,
+  MathRunnerStats,
   Mistake,
   Mode,
   ModeProgress,
@@ -35,7 +36,7 @@ export function createFresh(): SaveData {
     run: null,
     lastRun: null,
     route: { name: 'home' },
-    settings: { haptics: true },
+    settings: { haptics: true, sound: true },
     updatedAt: Date.now(),
   }
 }
@@ -200,6 +201,19 @@ function readModeProgress(value: unknown): ModeProgress | null {
   }
 }
 
+function readMath(value: unknown): MathRunnerStats | undefined {
+  if (!isObject(value)) return undefined
+  return {
+    highScore: count(value.highScore),
+    bestCombo: count(value.bestCombo),
+    bestTime: count(value.bestTime),
+    bestStage: count(value.bestStage),
+    runs: count(value.runs),
+    correct: count(value.correct),
+    wrong: count(value.wrong),
+  }
+}
+
 /** null, wenn es kein bekannter Spielstand ist. Version 1 (nur Flaggen) wird mitübernommen. */
 function sanitize(input: unknown): SaveData | null {
   if (!isObject(input)) return null
@@ -277,6 +291,8 @@ function sanitize(input: unknown): SaveData | null {
     }
   }
 
+  const mathRunner = readMath(input.mathRunner)
+
   return {
     version: 2,
     stats,
@@ -287,10 +303,14 @@ function sanitize(input: unknown): SaveData | null {
     modes,
     achievements,
     learn,
+    ...(mathRunner ? { mathRunner } : {}),
     run: isRun(input.run) ? input.run : null,
     lastRun: isRunResult(input.lastRun) ? input.lastRun : null,
     route: isRoute(input.route) ? input.route : { name: 'home' },
-    settings: { haptics: !(isObject(input.settings) && input.settings.haptics === false) },
+    settings: {
+      haptics: !(isObject(input.settings) && input.settings.haptics === false),
+      sound: !(isObject(input.settings) && input.settings.sound === false),
+    },
     updatedAt: count(input.updatedAt),
   }
 }
@@ -363,6 +383,8 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     learn[modeId] = merged
   }
 
+  const mathRunner = mergeMath(current.mathRunner, older.mathRunner)
+
   return {
     ...current,
     stats,
@@ -370,11 +392,26 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     modes,
     achievements,
     learn,
+    ...(mathRunner ? { mathRunner } : {}),
     xp: Math.max(current.xp, older.xp),
     sessions: Object.keys(current.sessions).length > 0 ? current.sessions : older.sessions,
     lastResult: current.lastResult ?? older.lastResult,
     run: current.run ?? older.run,
     lastRun: current.lastRun ?? older.lastRun,
+  }
+}
+
+/** Bestleistungen des Math Runners: immer der bessere Wert gewinnt, Summen werden addiert */
+function mergeMath(a?: MathRunnerStats, b?: MathRunnerStats): MathRunnerStats | undefined {
+  if (!a || !b) return a ?? b
+  return {
+    highScore: Math.max(a.highScore, b.highScore),
+    bestCombo: Math.max(a.bestCombo, b.bestCombo),
+    bestTime: Math.max(a.bestTime, b.bestTime),
+    bestStage: Math.max(a.bestStage, b.bestStage),
+    runs: Math.max(a.runs, b.runs),
+    correct: Math.max(a.correct, b.correct),
+    wrong: Math.max(a.wrong, b.wrong),
   }
 }
 

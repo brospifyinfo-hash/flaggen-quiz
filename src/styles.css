@@ -2461,3 +2461,387 @@ svg {
 .map-board .btn[aria-disabled='true'] {
   opacity: 0.6;
 }
+
+/* ================= Math Runner ================= */
+
+/* Der Einstieg auf der Startseite */
+.mr-launch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #ff3fa4, #7b2ff7 55%, #00d9ff);
+  color: #fff;
+  box-shadow: 0 6px 0 rgb(0 0 0 / 0.22);
+  text-align: left;
+}
+
+.mr-launch:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 rgb(0 0 0 / 0.22);
+}
+
+.mr-launch-emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.mr-launch-body {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.mr-launch-body strong {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.mr-launch-body span {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.mr-launch-score {
+  display: grid;
+  justify-items: end;
+  font-size: 19px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.mr-launch-score small {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+}
+
+/* Das Spiel selbst: eigene, bewusst knallige Welt */
+.mr {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 6px) 10px calc(var(--safe-bottom) + 8px);
+  background: #080c1c;
+  color: #fff;
+  overscroll-behavior: none;
+}
+
+.mr-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mr-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: rgb(255 255 255 / 0.12);
+  font-size: 17px;
+}
+
+.mr-icon:disabled {
+  opacity: 0.3;
+}
+
+.mr-score {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.mr-score span {
+  font-size: 30px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.mr-score small {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: rgb(255 255 255 / 0.55);
+}
+
+.mr-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 84px;
+}
+
+.mr-combo {
+  font-size: 17px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.2s ease;
+}
+
+.mr-combo.is-hot {
+  color: #ffd23f;
+  text-shadow: 0 0 14px rgb(255 210 63 / 0.7);
+}
+
+.mr-meta {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgb(255 255 255 / 0.6);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Die Pfeile zeigen jederzeit, auf welcher Seite die Figur läuft */
+.mr-taskrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mr-arrow {
+  flex: none;
+  width: 26px;
+  font-size: 20px;
+  line-height: 1;
+  text-align: center;
+  color: rgb(255 255 255 / 0.25);
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.mr-taskrow[data-side='links'] .mr-arrow-left,
+.mr-taskrow[data-side='rechts'] .mr-arrow-right {
+  color: #ffd23f;
+  transform: scale(1.35);
+}
+
+/* Die Aufgabe steht fest an einer Stelle und wird nie von Effekten verdeckt */
+.mr-task {
+  flex: 1;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.14);
+  font-size: clamp(22px, 7.5vw, 34px);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.mr-task.is-new {
+  animation: mr-pop 0.3s cubic-bezier(0.2, 0.9, 0.2, 1.2) both;
+}
+
+@keyframes mr-pop {
+  from {
+    transform: scale(0.82);
+    opacity: 0.25;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.mr-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mr-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mr-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgb(6 9 22 / 0.84);
+  animation: fade-in 0.2s ease both;
+}
+
+.mr-overlay-clear {
+  background: rgb(6 9 22 / 0.3);
+}
+
+.mr-card {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+  max-height: 100%;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.mr-logo {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.mr-hint {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgb(255 255 255 / 0.78);
+}
+
+.mr-records {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mr-records div {
+  padding: 10px 4px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.09);
+}
+
+.mr-records strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.mr-records span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.mr-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.mr-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mr-btn:active {
+  transform: translateY(2px);
+}
+
+.mr-btn-go {
+  background: linear-gradient(135deg, #00e0a4, #00b0ff);
+  color: #04121f;
+  box-shadow: 0 4px 0 #0479a8;
+}
+
+.mr-btn-alt {
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.22);
+}
+
+.mr-btn-ghost {
+  min-height: 44px;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.mr-count {
+  font-size: 84px;
+  font-weight: 900;
+  text-shadow: 0 6px 0 rgb(0 0 0 / 0.35);
+  animation: mr-count 0.7s ease both;
+}
+
+@keyframes mr-count {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  40% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.mr-record {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffd23f;
+  animation: mr-pop 0.4s both;
+}
+
+.mr-final {
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(135deg, #ffd23f, #ff3fa4);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.mr-final-label {
+  margin-top: -6px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: rgb(255 255 255 / 0.6);
+}
+
+.mr-table {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.09);
+}
+
+.mr-table div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.mr-table span {
+  color: rgb(255 255 255 / 0.65);
+}

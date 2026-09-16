@@ -81,6 +81,26 @@ export function HomeScreen({ data }: { data: SaveData }) {
         </button>
       </div>
 
+      <button
+        className="mr-launch"
+        onClick={() => {
+          haptic('soft')
+          navigate({ name: 'mathRunner' })
+        }}
+      >
+        <span className="mr-launch-emoji" aria-hidden="true">
+          🧮
+        </span>
+        <span className="mr-launch-body">
+          <strong>MATH RUNNER</strong>
+          <span>Kopfrechnen im Renntempo</span>
+        </span>
+        <span className="mr-launch-score">
+          {(data.mathRunner?.highScore ?? 0).toLocaleString('de-DE')}
+          <small>HIGHSCORE</small>
+        </span>
+      </button>
+
       <h2 className="section-title">Dein Stand</h2>
       <div className="stats stats-2">
         <div className="stat">
