@@ -8,6 +8,7 @@ import {
   footprint,
   maxLevel,
   nextUpgrade,
+  roadDef,
   type Category,
 } from '../city/catalog'
 import { toTile } from '../city/iso'
@@ -56,7 +57,7 @@ import type { SaveData } from '../types'
 
 const EMBLEMS = ['🏙️', '🌆', '🏛️', '🌳', '⚓', '⛰️', '🔭', '🎓', '🚀', '🦉']
 
-type Mode = 'view' | 'build' | 'place' | 'select' | 'road' | 'land' | 'report'
+type Mode = 'view' | 'build' | 'place' | 'select' | 'road' | 'roadPick' | 'land' | 'report'
 
 export function CityScreen({ data }: { data: SaveData }) {
   if (!data.city) return <CitySetup />
@@ -289,10 +290,17 @@ function CityWorld({ data }: { data: SaveData }) {
     const box = wrap.current
     if (!box) return
     const points = new Map<number, { x: number; y: number }>()
-    let moved = 0
+    /** Abstand zum Startpunkt – nicht die gelaufene Strecke, sonst zählt jedes Zittern mit */
+    let far = 0
+    let startX = 0
+    let startY = 0
     let pinch = 0
     let startZoom = 1
     let painting = false
+    /** So weit darf der Finger wandern, damit es ein Tipper bleibt */
+    const TAP = 16
+    /** Ab hier wird geschoben */
+    const PAN = 8
 
     const tileAt = (clientX: number, clientY: number) => {
       const rect = box.getBoundingClientRect()
@@ -347,7 +355,9 @@ function CityWorld({ data }: { data: SaveData }) {
     const down = (event: PointerEvent) => {
       points.set(event.pointerId, { x: event.clientX, y: event.clientY })
       if (points.size === 1) {
-        moved = 0
+        far = 0
+        startX = event.clientX
+        startY = event.clientY
         if (live.current.mode === 'road') {
           painting = true
           stroke.current = []
@@ -372,7 +382,7 @@ function CityWorld({ data }: { data: SaveData }) {
         const [a, b] = [...points.values()]
         const spread = Math.hypot(a.x - b.x, a.y - b.y)
         if (pinch > 0 && spread > 0) camera.current.zoom = Math.max(0.45, Math.min(2.4, (startZoom * spread) / pinch))
-        moved = 999
+        far = 999
         return
       }
 
@@ -383,8 +393,8 @@ function CityWorld({ data }: { data: SaveData }) {
 
       const dx = event.clientX - previous.x
       const dy = event.clientY - previous.y
-      moved += Math.abs(dx) + Math.abs(dy)
-      if (moved < 8) return
+      far = Math.hypot(event.clientX - startX, event.clientY - startY)
+      if (far < PAN) return
       camera.current.x -= dx / camera.current.zoom
       camera.current.y -= dy / camera.current.zoom
       const limit = live.current.city.land * 64
@@ -402,7 +412,7 @@ function CityWorld({ data }: { data: SaveData }) {
         finishStroke()
         return
       }
-      if (!had || moved >= 8) return
+      if (!had || far > TAP) return
 
       const tile = tileAt(event.clientX, event.clientY)
       const state = live.current
@@ -495,7 +505,9 @@ function CityWorld({ data }: { data: SaveData }) {
     } else {
       const type = pick
       setState((current) =>
-        current.city ? { ...current, city: place(current.city, type, ghost.x, ghost.y, ghost.rot) } : current,
+        current.city
+          ? { ...current, city: place(current.city, type, ghost.x, ghost.y, ghost.rot, { levels }) }
+          : current,
       )
     }
     setPick(null)
@@ -721,7 +733,7 @@ function CityWorld({ data }: { data: SaveData }) {
             <button
               className="city-btn"
               onClick={() => {
-                setMode('road')
+                setMode('roadPick')
                 setErase(false)
                 haptic('soft')
               }}
@@ -793,6 +805,30 @@ function CityWorld({ data }: { data: SaveData }) {
         )}
 
         {mode === 'road' && (
+          <div className="city-place">
+            <p className="city-place-text">
+              {erase
+                ? '🧹 Zieh über Straßen, um sie aufzunehmen.'
+                : `${roadDef(roadType)?.emoji ?? ''} ${roadDef(roadType)?.name ?? ''} · 🪙 ${roadDef(roadType)?.coins ?? 0} je Kachel – zieh über die Karte.`}
+            </p>
+            <div className="city-place-row">
+              <button className="city-btn" onClick={() => setMode('roadPick')}>
+                Art wechseln
+              </button>
+              <button
+                className="city-btn city-btn-main"
+                onClick={() => {
+                  setMode('view')
+                  haptic('tick')
+                }}
+              >
+                <IconCheck /> Fertig
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'roadPick' && (
           <div className="city-sheet">
             <div className="city-sheet-head">
               <strong>Straßen ziehen</strong>
@@ -808,6 +844,7 @@ function CityWorld({ data }: { data: SaveData }) {
                     onClick={() => {
                       setRoadType(def.id)
                       setErase(false)
+                      setMode('road')
                       haptic('tick')
                     }}
                   >
@@ -827,7 +864,8 @@ function CityWorld({ data }: { data: SaveData }) {
                 <button
                   className={`city-card${erase ? ' is-on' : ''}`}
                   onClick={() => {
-                    setErase(!erase)
+                    setErase(true)
+                    setMode('road')
                     haptic('tick')
                   }}
                 >
@@ -840,7 +878,8 @@ function CityWorld({ data }: { data: SaveData }) {
               </li>
             </ul>
             <p className="city-hint">
-              Zieh mit dem Finger über die Karte. Mit zwei Fingern zoomst du auch hier.
+              Nach der Wahl schließt sich das Menü, damit du freie Sicht auf die Karte hast. Mit zwei Fingern zoomst du
+              auch beim Ziehen.
             </p>
           </div>
         )}

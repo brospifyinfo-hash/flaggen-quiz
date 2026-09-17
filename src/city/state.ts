@@ -132,8 +132,11 @@ export function canPlace(
 ): PlaceCheck {
   const def = buildingDef(type)
   if (!def) return { ok: false, reason: 'Dieses Bauwerk gibt es nicht.' }
-  const lock = unlockInfo(def, city.level, options.levels ?? {})
-  if (!lock.ok) return { ok: false, reason: `Dafür fehlt dir noch: ${lock.missing.join(', ')}.` }
+  // Was schon steht, darf immer versetzt werden – Freischaltregeln gelten nur fürs Neubauen
+  if (!options.free) {
+    const lock = unlockInfo(def, city.level, options.levels ?? {})
+    if (!lock.ok) return { ok: false, reason: `Dafür fehlt dir noch: ${lock.missing.join(', ')}.` }
+  }
 
   const [w, h] = footprint(def, rot)
   if (x < 0 || y < 0 || x + w > city.land || y + h > city.land) {
@@ -169,10 +172,11 @@ export function place(
   x: number,
   y: number,
   rot: 0 | 1 | 2 | 3,
-  now = Date.now(),
+  options: { now?: number; levels?: Record<string, number> } = {},
 ): CityState {
+  const now = options.now ?? Date.now()
   const def = buildingDef(type)
-  if (!def || !canPlace(city, type, x, y, rot).ok) return city
+  if (!def || !canPlace(city, type, x, y, rot, { levels: options.levels }).ok) return city
   const placed: Placed = { id: `b${city.nextId}`, type, x, y, rot, level: 1, at: now }
   const gebaut: CityState = {
     ...city,
