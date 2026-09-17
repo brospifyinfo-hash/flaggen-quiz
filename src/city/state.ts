@@ -8,7 +8,7 @@ import {
   maxLevel,
   nextUpgrade,
   roadDef,
-  type BuildingDef,
+  unlockInfo,
 } from './catalog'
 import { REQUEST_COINS, REQUEST_MATERIALS, sanitizeRequest } from './requests'
 import {
@@ -128,13 +128,12 @@ export function canPlace(
   x: number,
   y: number,
   rot: 0 | 1 | 2 | 3,
-  options: { ignore?: string; free?: boolean } = {},
+  options: { ignore?: string; free?: boolean; levels?: Record<string, number> } = {},
 ): PlaceCheck {
   const def = buildingDef(type)
   if (!def) return { ok: false, reason: 'Dieses Bauwerk gibt es nicht.' }
-  if (def.needsLevel && city.level < def.needsLevel) {
-    return { ok: false, reason: `Erst ab Stadt-Stufe ${def.needsLevel}.` }
-  }
+  const lock = unlockInfo(def, city.level, options.levels ?? {})
+  if (!lock.ok) return { ok: false, reason: `Dafür fehlt dir noch: ${lock.missing.join(', ')}.` }
 
   const [w, h] = footprint(def, rot)
   if (x < 0 || y < 0 || x + w > city.land || y + h > city.land) {
@@ -571,9 +570,12 @@ export function cityTitle(level: number): string {
   return 'Dorf'
 }
 
-/** Was zur Zeit gebaut werden darf */
-export function available(city: CityState): BuildingDef[] {
-  return BUILDINGS.filter((def) => !def.needsLevel || city.level >= def.needsLevel)
+/** Der Katalog einer Kategorie – gesperrte Bauwerke bleiben sichtbar, mit Begründung */
+export function catalogFor(city: CityState, levels: Record<string, number>, category: string) {
+  return BUILDINGS.filter((def) => def.category === category).map((def) => ({
+    def,
+    lock: unlockInfo(def, city.level, levels),
+  }))
 }
 
 // ---------- Laden geprüfter Daten ----------

@@ -102,7 +102,7 @@ export function answerRun(data: SaveData, answer: string, now = Date.now()): Sav
   }
 
   next = {
-    ...creditXp(next, gained),
+    ...creditXp(next, gained, question.modeId),
     modes: { ...next.modes, [question.modeId]: progress },
     run: updated,
   }

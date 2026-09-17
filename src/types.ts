@@ -225,6 +225,8 @@ export interface SaveData {
   mathRunner?: MathRunnerStats
   /** Die Stadt – eigener Versionsstand, siehe src/city/types.ts */
   city?: CityState
+  /** Wissenspunkte je Fach, siehe src/knowledge.ts */
+  knowledge?: Record<string, number>
   run: Run | null
   lastRun: RunResult | null
   route: Route

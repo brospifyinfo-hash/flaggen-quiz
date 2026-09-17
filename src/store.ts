@@ -295,6 +295,13 @@ function sanitize(input: unknown): SaveData | null {
   const mathRunner = readMath(input.mathRunner)
   const city = sanitizeCity(input.city)
 
+  const knowledge: Record<string, number> = {}
+  if (isObject(input.knowledge)) {
+    for (const [id, value] of Object.entries(input.knowledge)) {
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) knowledge[id] = Math.round(value)
+    }
+  }
+
   return {
     version: 2,
     stats,
@@ -307,6 +314,7 @@ function sanitize(input: unknown): SaveData | null {
     learn,
     ...(mathRunner ? { mathRunner } : {}),
     ...(city ? { city } : {}),
+    ...(Object.keys(knowledge).length > 0 ? { knowledge } : {}),
     run: isRun(input.run) ? input.run : null,
     lastRun: isRunResult(input.lastRun) ? input.lastRun : null,
     route: isRoute(input.route) ? input.route : { name: 'home' },
@@ -389,9 +397,15 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
   const mathRunner = mergeMath(current.mathRunner, older.mathRunner)
   const city = mergeCities(current.city, older.city)
 
+  const knowledge: Record<string, number> = { ...older.knowledge }
+  for (const [id, value] of Object.entries(current.knowledge ?? {})) {
+    knowledge[id] = Math.max(value, knowledge[id] ?? 0)
+  }
+
   return {
     ...current,
     ...(city ? { city } : {}),
+    ...(Object.keys(knowledge).length > 0 ? { knowledge } : {}),
     stats,
     progress,
     modes,

@@ -1,5 +1,6 @@
 // Der Bau-Katalog. Alles ist hier beschrieben – Aussehen, Kosten, Wirkung, Freischaltung.
 // Ein neues Gebäude braucht genau einen Eintrag und keine Änderung am Stadt-Code.
+import { domainById } from '../knowledge'
 
 export type Category = 'wohnen' | 'handel' | 'bildung' | 'natur' | 'wege'
 
@@ -81,7 +82,18 @@ export const CATEGORIES: CategoryInfo[] = [
 /** Zeichenrezept: Der Renderer baut daraus den Körper des Gebäudes. */
 export interface Look {
   /** Grundform */
-  kind: 'haus' | 'block' | 'laden' | 'baum' | 'flach' | 'park' | 'brunnen' | 'schule' | 'wasser' | 'statue'
+  kind:
+    | 'haus'
+    | 'block'
+    | 'laden'
+    | 'baum'
+    | 'flach'
+    | 'park'
+    | 'brunnen'
+    | 'schule'
+    | 'wasser'
+    | 'statue'
+    | 'kuppel'
   /** Höhe in Kachelhöhen */
   height: number
   wall: string
@@ -101,6 +113,12 @@ export interface Effects {
   jobs?: number
 }
 
+/** Ein Wissensgebiet auf einer Mindeststufe */
+export interface Need {
+  domain: string
+  level: number
+}
+
 export interface BuildingDef {
   id: string
   name: string
@@ -113,6 +131,8 @@ export interface BuildingDef {
   effects: Effects
   /** Freischaltung – fehlt sie, ist das Bauwerk von Anfang an verfügbar */
   needsLevel?: number
+  /** Wissensgebiete, die dafür gelernt sein müssen */
+  needs?: Need[]
   /** Kurzbeschreibung in der Bauauswahl */
   note: string
   look: Look
@@ -381,6 +401,82 @@ export const BUILDINGS: BuildingDef[] = [
     upgrades: [{ coins: 6800, materials: 90, effects: { education: 72, jobs: 60, happiness: 12, income: 110, capacity: 18 } }],
   },
 
+  // ---------- Wissen wird sichtbar ----------
+  {
+    id: 'museum',
+    name: 'Museum',
+    category: 'bildung',
+    emoji: '🏛️',
+    size: [2, 2],
+    coins: 2600,
+    materials: 38,
+    effects: { education: 22, happiness: 11, income: 48, jobs: 14 },
+    needsLevel: 6,
+    needs: [{ domain: 'geschichte', level: 3 }],
+    note: 'Wächst aus dem, was du über Geschichte gelernt hast',
+    look: { kind: 'schule', height: 1.9, wall: '#f1e7d3', roof: '#9c7b4f', accent: '#6d5334', floors: 2 },
+    upgrades: [{ coins: 3900, materials: 52, effects: { education: 36, happiness: 16, income: 78, jobs: 22 } }],
+  },
+  {
+    id: 'sternwarte',
+    name: 'Sternwarte',
+    category: 'bildung',
+    emoji: '🔭',
+    size: [1, 1],
+    coins: 2300,
+    materials: 32,
+    effects: { education: 20, happiness: 8, jobs: 6 },
+    needsLevel: 6,
+    needs: [{ domain: 'mathe', level: 3 }],
+    note: 'Für alle, die gern rechnen und nach oben schauen',
+    look: { kind: 'kuppel', height: 1.5, wall: '#e7eef6', roof: '#93a7c0', accent: '#5f7a99' },
+  },
+  {
+    id: 'weltzentrum',
+    name: 'Geografie-Zentrum',
+    category: 'bildung',
+    emoji: '🌍',
+    size: [2, 1],
+    coins: 2400,
+    materials: 34,
+    effects: { education: 20, happiness: 9, income: 40, jobs: 12 },
+    needsLevel: 6,
+    needs: [{ domain: 'geografie', level: 3 }],
+    note: 'Karten, Globen und Länderkunde',
+    look: { kind: 'block', height: 1.7, wall: '#dfeef0', roof: '#2f8f8f', accent: '#1f6b6b', floors: 3 },
+  },
+  {
+    id: 'theater',
+    name: 'Theater',
+    category: 'bildung',
+    emoji: '🎭',
+    size: [2, 2],
+    coins: 2800,
+    materials: 40,
+    effects: { happiness: 20, income: 60, jobs: 18, education: 8 },
+    needsLevel: 7,
+    needs: [{ domain: 'menschen', level: 3 }],
+    note: 'Bühne für die Geschichten der Menschen',
+    look: { kind: 'laden', height: 2, wall: '#f4dcd6', roof: '#8c3b52', accent: '#5e2436', floors: 2 },
+  },
+  {
+    id: 'raumfahrt',
+    name: 'Raumfahrtzentrum',
+    category: 'bildung',
+    emoji: '🚀',
+    size: [2, 2],
+    coins: 9800,
+    materials: 140,
+    effects: { education: 70, happiness: 25, income: 180, jobs: 60 },
+    needsLevel: 15,
+    needs: [
+      { domain: 'mathe', level: 6 },
+      { domain: 'geografie', level: 4 },
+    ],
+    note: 'Das Ziel für eine Stadt, die rechnen kann',
+    look: { kind: 'kuppel', height: 2.6, wall: '#eef3f8', roof: '#6d7f99', accent: '#3f4f66' },
+  },
+
   // ---------- Wege ----------
   {
     id: 'platz',
@@ -399,6 +495,25 @@ export const BUILDINGS: BuildingDef[] = [
 const BY_ID = new Map(BUILDINGS.map((entry) => [entry.id, entry]))
 
 export const buildingDef = (id: string): BuildingDef | undefined => BY_ID.get(id)
+
+/**
+ * Ist dieses Bauwerk freigeschaltet? Die Regeln stehen am Bauwerk selbst,
+ * geprüft wird gegen Stadt-Stufe und Wissensstufen – nichts davon ist fest verdrahtet.
+ */
+export function unlockInfo(
+  def: BuildingDef,
+  cityLevel: number,
+  levels: Record<string, number>,
+): { ok: boolean; missing: string[] } {
+  const missing: string[] = []
+  if (def.needsLevel && cityLevel < def.needsLevel) missing.push(`Stadt-Stufe ${def.needsLevel}`)
+  for (const need of def.needs ?? []) {
+    if ((levels[need.domain] ?? 0) < need.level) {
+      missing.push(`${domainById(need.domain)?.name ?? need.domain} Stufe ${need.level}`)
+    }
+  }
+  return { ok: missing.length === 0, missing }
+}
 
 /** Größe nach Drehung: ungerade Vierteldrehungen tauschen Breite und Tiefe */
 export function footprint(def: BuildingDef, rot: number): [number, number] {

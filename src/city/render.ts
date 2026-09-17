@@ -295,6 +295,27 @@ function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, options: Dr
     ctx.restore()
     return
   }
+  if (look.kind === 'kuppel') {
+    const mitte = { sx: (top.n.sx + top.s.sx) / 2, sy: (top.n.sy + top.s.sy) / 2 }
+    const r = Math.min(w, h) * TILE_W * 0.3
+    ctx.fillStyle = look.roof
+    ctx.beginPath()
+    ctx.ellipse(mitte.sx, mitte.sy + 2, r, r * 0.7, 0, Math.PI, 0)
+    ctx.fill()
+    ctx.fillStyle = shade(look.roof, 22)
+    ctx.beginPath()
+    ctx.ellipse(mitte.sx - r * 0.25, mitte.sy - r * 0.05, r * 0.55, r * 0.4, 0, Math.PI, 0)
+    ctx.fill()
+    // Spalt für das Fernrohr
+    ctx.strokeStyle = look.accent
+    ctx.lineWidth = 3
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(mitte.sx + r * 0.1, mitte.sy - r * 0.62)
+    ctx.lineTo(mitte.sx + r * 0.5, mitte.sy - r * 0.1)
+    ctx.stroke()
+    return
+  }
   if (look.kind === 'statue') {
     const sockel = box(ctx, placed.x + 0.25, placed.y + 0.25, 0.5, 0.5, TILE_H * 0.35, look, 0)
     const mitte = { sx: (sockel.n.sx + sockel.s.sx) / 2, sy: (sockel.n.sy + sockel.s.sy) / 2 }

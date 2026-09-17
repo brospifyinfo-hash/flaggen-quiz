@@ -2,6 +2,7 @@
 // Alle Regeln stehen hier oben und lassen sich einzeln ändern.
 import { grant } from './city/state'
 import { CONTINENTS, COUNTRIES } from './data/countries'
+import { addKnowledge } from './knowledge'
 import { allModes } from './modes/registry'
 import { flagState } from './quiz'
 import type { ModeProgress, SaveData } from './types'
@@ -19,17 +20,18 @@ export function xpForAnswer(comboBefore: number): number {
  * Der einzige Weg, XP zu vergeben: Sie zählen für den Rang und fließen zugleich
  * als Münzen und Material in die Stadt. Jedes Spiel nutzt diese eine Kette.
  */
-export function creditXp(data: SaveData, gained: number): SaveData {
+export function creditXp(data: SaveData, gained: number, modeId?: string): SaveData {
   if (gained <= 0) return data
   const city = data.city ? grant(data.city, gained, Math.floor(gained / 20)) : undefined
-  return { ...data, xp: data.xp + gained, ...(city ? { city } : {}) }
+  const mitXp: SaveData = { ...data, xp: data.xp + gained, ...(city ? { city } : {}) }
+  return addKnowledge(mitXp, modeId, gained)
 }
 
 /** XP aus Spielen außerhalb der Quiz-Runs, z. B. dem Math Runner */
-export function awardXP(data: SaveData, amount: number, now = Date.now()): SaveData {
+export function awardXP(data: SaveData, amount: number, now = Date.now(), modeId?: string): SaveData {
   const gained = Math.max(0, Math.round(amount))
   if (gained === 0) return data
-  return checkAchievements(creditXp(data, gained), now).data
+  return checkAchievements(creditXp(data, gained, modeId), now).data
 }
 
 /** Level 2 ab 100 XP, jede weitere Stufe kostet 100 XP mehr als die vorige */

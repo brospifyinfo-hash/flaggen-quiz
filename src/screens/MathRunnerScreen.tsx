@@ -115,7 +115,7 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
         correct: before.correct + gainCorrect,
         wrong: before.wrong + gainWrong,
       }
-      return awardXP({ ...save, mathRunner: next }, gainXp)
+      return awardXP({ ...save, mathRunner: next }, gainXp, Date.now(), 'mathRunner')
     })
     return { record, xp: total }
   }

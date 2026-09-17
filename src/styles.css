@@ -2853,6 +2853,36 @@ svg {
   box-shadow: inset 0 0 0 2px #2f9e5c;
 }
 
+.city-card.is-locked {
+  opacity: 0.62;
+}
+
+.city-card.is-locked .city-card-body span {
+  color: #ffd23f;
+}
+
+/* Wissensstand je Fach */
+.city-knowledge {
+  display: grid;
+  gap: 10px;
+}
+
+.city-knowledge li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.city-knowledge .bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  margin: 0;
+  background: rgb(255 255 255 / 0.12);
+}
+
 .city-card-emoji {
   flex: none;
   width: 42px;

@@ -13,8 +13,8 @@ import {
 import { toTile } from '../city/iso'
 import { cityFrame, drawCity, type Camera } from '../city/render'
 import {
-  available,
   canPlace,
+  catalogFor,
   cityTitle,
   createCity,
   expand,
@@ -46,6 +46,7 @@ import {
   type CityRequest,
 } from '../city/requests'
 import type { CycleReport } from '../city/types'
+import { DOMAINS, knowledgeLevel, levels as knowledgeLevels, pointsOf } from '../knowledge'
 import { getMode } from '../modes/registry'
 import { creditXp } from '../progression'
 import { haptic } from '../haptics'
@@ -159,6 +160,7 @@ function CityWorld({ data }: { data: SaveData }) {
   const stats = statsOf(city)
   const progress = levelProgress(city)
   const step = nextExpansion(city)
+  const levels = knowledgeLevels(data)
 
   const [mode, setMode] = useState<Mode>('view')
   const [category, setCategory] = useState<Category>('wohnen')
@@ -182,8 +184,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const framed = useRef(false)
   const stroke = useRef<string[]>([])
   const life = useRef<Life | null>(null)
-  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase })
-  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase }
+  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels })
+  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels }
 
   const say = (text: string | null) => {
     setNotice(text)
@@ -260,6 +262,7 @@ function CityWorld({ data }: { data: SaveData }) {
               ok: canPlace(state.city, state.pick, state.ghost.x, state.ghost.y, state.ghost.rot, {
                 ignore: state.movingId ?? undefined,
                 free: state.movingId !== null,
+                levels: state.levels,
               }).ok,
             }
           : null
@@ -453,7 +456,7 @@ function CityWorld({ data }: { data: SaveData }) {
   const startPlacing = (type: string) => {
     const def = buildingDef(type)
     if (!def) return
-    const check = canPlace(city, type, 0, 0, 0)
+    const check = canPlace(city, type, 0, 0, 0, { levels })
     if (check.reason?.startsWith('Dir fehlen')) {
       say(check.reason)
       return
@@ -477,6 +480,7 @@ function CityWorld({ data }: { data: SaveData }) {
     const check = canPlace(city, pick, ghost.x, ghost.y, ghost.rot, {
       ignore: movingId ?? undefined,
       free: movingId !== null,
+      levels,
     })
     if (!check.ok) {
       say(check.reason ?? 'Das geht hier nicht.')
@@ -610,7 +614,7 @@ function CityWorld({ data }: { data: SaveData }) {
     haptic('tick')
   }
 
-  const list = available(city).filter((def) => def.category === category)
+  const list = catalogFor(city, levels, category)
   const expandOk = step ? expansionCheck(city) : null
 
   return (
@@ -758,15 +762,20 @@ function CityWorld({ data }: { data: SaveData }) {
               ))}
             </div>
             <ul className="city-list">
-              {list.map((def) => {
+              {list.map(({ def, lock }) => {
                 const tooPoor = city.coins < def.coins || city.materials < def.materials
                 return (
                   <li key={def.id}>
-                    <button className={`city-card${tooPoor ? ' is-poor' : ''}`} onClick={() => startPlacing(def.id)}>
-                      <span className="city-card-emoji">{def.emoji}</span>
+                    <button
+                      className={`city-card${!lock.ok ? ' is-locked' : tooPoor ? ' is-poor' : ''}`}
+                      onClick={() =>
+                        lock.ok ? startPlacing(def.id) : say(`Dafür fehlt dir noch: ${lock.missing.join(', ')}.`)
+                      }
+                    >
+                      <span className="city-card-emoji">{lock.ok ? def.emoji : '🔒'}</span>
                       <span className="city-card-body">
                         <strong>{def.name}</strong>
-                        <span>{def.note}</span>
+                        <span>{lock.ok ? def.note : lock.missing.join(' · ')}</span>
                       </span>
                       <span className="city-card-cost">
                         🪙 {def.coins}
@@ -776,11 +785,10 @@ function CityWorld({ data }: { data: SaveData }) {
                   </li>
                 )
               })}
-              {list.length === 0 && (
-                <li className="city-empty">Hier gibt es noch nichts. Lass deine Stadt weiter wachsen.</li>
-              )}
             </ul>
-            <p className="city-hint">Gesperrte Bauwerke erscheinen, sobald deine Stadt die nötige Stufe hat.</p>
+            <p className="city-hint">
+              Gesperrtes schaltet sich frei, wenn deine Stadt wächst – oder wenn du im passenden Fach dazulernst.
+            </p>
           </div>
         )}
 
@@ -946,6 +954,29 @@ function CityWorld({ data }: { data: SaveData }) {
                 <li>
                   Zusammen <strong>{incomeBreakdown(city).total}</strong>
                 </li>
+              </ul>
+
+              <p className="city-label-line">🧠 Dein Wissen baut die Stadt</p>
+              <ul className="city-knowledge">
+                {DOMAINS.map((domain) => {
+                  const stand = knowledgeLevel(pointsOf(data, domain.id))
+                  return (
+                    <li key={domain.id}>
+                      <span>
+                        {domain.emoji} {domain.name}
+                      </span>
+                      <strong>Stufe {stand.level}</strong>
+                      <span className="bar">
+                        <span
+                          style={{
+                            width: `${Math.min(100, (stand.into / stand.need) * 100)}%`,
+                            background: domain.color,
+                          }}
+                        />
+                      </span>
+                    </li>
+                  )
+                })}
               </ul>
 
               <p className="city-label-line">
