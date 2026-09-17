@@ -1,7 +1,7 @@
 // Zeichnet die Stadt als kleines Diorama: schräge Sicht, Schatten, Fassaden mit Fenstern,
 // Dächer, Bäume. Alles in ein Canvas, damit auch große Städte flüssig bleiben.
 import { buildingDef, footprint, roadDef, type Look } from './catalog'
-import { TILE_H, TILE_W, tileNoise, toScreen } from './iso'
+import { TILE_H, TILE_W, tileNoise, toScreen, toTile } from './iso'
 import type { Idler, Life, Walker } from './life'
 import { nextExpansion, roadAt, tilesOf } from './state'
 import { themeById, type Theme } from './themes'
@@ -887,6 +887,34 @@ export function cityFrame(city: CityState, view: { w: number; h: number }): Came
   const fit = Math.min(view.w / (right - left + 40), view.h / (bottom - top + 40))
   const zoom = Math.max(1, Math.min(2.4, fit))
   return { x: (left + right) / 2, y: (top + bottom) / 2, zoom }
+}
+
+/**
+ * Welches Bauwerk liegt unter diesem Punkt?
+ *
+ * In der Schrägsicht steht ein Haus über seiner Bodenkachel: Wer auf die Wand tippt,
+ * trifft am Boden die Kachel dahinter. Deshalb wird die sichtbare Höhe mitgeprüft –
+ * der Punkt wird schrittweise nach unten verschoben, bis er auf der Grundfläche landet.
+ * Geprüft wird von vorn nach hinten, damit das nähere Bauwerk gewinnt.
+ */
+export function hitTest(city: CityState, wx: number, wy: number): Placed | null {
+  const vonVorn = [...city.buildings].sort((a, b) => b.x + b.y - (a.x + a.y))
+  for (const placed of vonVorn) {
+    const def = buildingDef(placed.type)
+    if (!def) continue
+    const [w, h] = footprint(def, placed.rot)
+    // Dach und Krone ragen über die Wandhöhe hinaus – aber nur so viel, wie die Bauform hergibt.
+    // Ein flacher Platz darf keine Tipper abfangen, die weit über ihm liegen.
+    const dach = def.look.kind === 'haus' ? 0.5 : def.look.kind === 'baum' ? 0.4 : 0.15
+    const hoehe = TILE_H * (def.look.height + (placed.level - 1) * 0.35 + dach)
+    for (let schritt = 0; schritt <= 6; schritt++) {
+      const tile = toTile(wx, wy + (hoehe * schritt) / 6)
+      const tx = Math.floor(tile.x)
+      const ty = Math.floor(tile.y)
+      if (tx >= placed.x && tx < placed.x + w && ty >= placed.y && ty < placed.y + h) return placed
+    }
+  }
+  return null
 }
 
 /** Mittelpunkt der Stadt in Weltkoordinaten */

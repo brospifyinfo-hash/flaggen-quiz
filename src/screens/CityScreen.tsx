@@ -12,7 +12,7 @@ import {
   type Category,
 } from '../city/catalog'
 import { toTile } from '../city/iso'
-import { cityFrame, drawCity, type Camera } from '../city/render'
+import { cityFrame, drawCity, hitTest, type Camera } from '../city/render'
 import {
   canPlace,
   catalogFor,
@@ -307,11 +307,18 @@ function CityWorld({ data }: { data: SaveData }) {
     /** Ab hier wird geschoben */
     const PAN = 8
 
-    const tileAt = (clientX: number, clientY: number) => {
+    /** Punkt auf dem Bildschirm → Punkt in der Weltzeichnung */
+    const worldAt = (clientX: number, clientY: number) => {
       const rect = box.getBoundingClientRect()
       const cam = camera.current
-      const wx = (clientX - rect.left - size.current.w / 2) / cam.zoom + cam.x
-      const wy = (clientY - rect.top - size.current.h / 2) / cam.zoom + cam.y
+      return {
+        wx: (clientX - rect.left - size.current.w / 2) / cam.zoom + cam.x,
+        wy: (clientY - rect.top - size.current.h / 2) / cam.zoom + cam.y,
+      }
+    }
+
+    const tileAt = (clientX: number, clientY: number) => {
+      const { wx, wy } = worldAt(clientX, clientY)
       const tile = toTile(wx, wy)
       return { x: Math.floor(tile.x), y: Math.floor(tile.y) }
     }
@@ -437,14 +444,9 @@ function CityWorld({ data }: { data: SaveData }) {
         return
       }
 
-      const hit = [...state.city.buildings]
-        .sort((a, b) => b.x + b.y - (a.x + a.y))
-        .find((placed) => {
-          const def = buildingDef(placed.type)
-          if (!def) return false
-          const [w, h] = footprint(def, placed.rot)
-          return tile.x >= placed.x && tile.x < placed.x + w && tile.y >= placed.y && tile.y < placed.y + h
-        })
+      // Trifft die sichtbare Gestalt, nicht nur die Bodenkachel
+      const punkt = worldAt(event.clientX, event.clientY)
+      const hit = hitTest(state.city, punkt.wx, punkt.wy)
       if (hit) {
         setSelected(hit.id)
         setMode('select')
