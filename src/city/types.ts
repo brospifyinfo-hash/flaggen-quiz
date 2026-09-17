@@ -2,7 +2,9 @@
 // wachsen können, ohne dass alte Stände unlesbar werden.
 
 // Version 2: Wege sind keine Bauwerke mehr, sondern ein eigenes Straßennetz.
-export const CITY_VERSION = 2
+// Version 3: Die Einwohnerzahl wird nicht mehr gerechnet, sondern gelebt – Menschen
+//            ziehen zu und weg, und die Stadt verdient in Zyklen.
+export const CITY_VERSION = 3
 
 /** Eine Kachel ist der kleinste Bauplatz. Gebäude belegen ein Rechteck aus Kacheln. */
 export interface Placed {
@@ -33,8 +35,27 @@ export interface CityState {
   buildings: Placed[]
   /** Straßennetz: Kachel "x:y" → Straßenart. Als Karte, damit Nachbarn schnell gefunden werden. */
   roads: Record<string, string>
+  /** Menschen, die wirklich hier wohnen – höchstens so viele wie Wohnraum da ist */
+  population: number
+  /** Zeitpunkt des letzten Wirtschaftszyklus */
+  lastTick: number
   nextId: number
   foundedAt: number
+}
+
+/** Ein Posten in der Aufschlüsselung von Stimmung oder Einnahmen */
+export interface Part {
+  label: string
+  value: number
+}
+
+/** Was seit dem letzten Besuch passiert ist */
+export interface CycleReport {
+  cycles: number
+  coins: number
+  movedIn: number
+  movedOut: number
+  income: Part[]
 }
 
 /** Was die Stadt gerade leistet – wird aus den Gebäuden gerechnet, nie gespeichert */

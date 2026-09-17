@@ -10,7 +10,23 @@ import {
   roadDef,
   type BuildingDef,
 } from './catalog'
-import { CITY_VERSION, type CityState, type CityStats, type Placed } from './types'
+import {
+  CITY_VERSION,
+  type CityState,
+  type CityStats,
+  type CycleReport,
+  type Part,
+  type Placed,
+} from './types'
+
+/** So lange dauert ein Wirtschaftszyklus */
+export const CYCLE_MS = 3 * 60 * 60 * 1000
+/** So viele Zyklen werden höchstens nachgeholt – niemand soll tagelang Ertrag stapeln */
+export const MAX_CYCLES = 8
+/** Ab dieser Stimmung ziehen Menschen zu */
+export const MOVE_IN_MOOD = 55
+/** Darunter ziehen sie weg */
+export const MOVE_OUT_MOOD = 35
 
 /** Kantenlänge des Startgebiets in Kacheln */
 export const START_LAND = 12
@@ -47,6 +63,8 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
     materials: START_MATERIALS,
     buildings: [],
     roads: {},
+    population: 0,
+    lastTick: now,
     nextId: 1,
     foundedAt: now,
   }
@@ -75,6 +93,8 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
     if (!def) continue
     city.buildings.push({ id: `b${city.nextId++}`, type, x, y, rot: 0, level: 1, at: now })
   }
+  // In der Startsiedlung wohnt von Anfang an jemand
+  city.population = statsOf(city).capacity
   city.level = levelOf(statsOf(city))
   return city
 }
@@ -151,12 +171,20 @@ export function place(
   const def = buildingDef(type)
   if (!def || !canPlace(city, type, x, y, rot).ok) return city
   const placed: Placed = { id: `b${city.nextId}`, type, x, y, rot, level: 1, at: now }
-  return withLevel({
+  const gebaut: CityState = {
     ...city,
     coins: city.coins - def.coins,
     materials: city.materials - def.materials,
     buildings: [...city.buildings, placed],
     nextId: city.nextId + 1,
+  }
+
+  // Neuer Wohnraum bleibt nicht leer: ein Teil zieht sofort ein, der Rest mit der Zeit
+  const platz = effectsOf(def, 1).capacity ?? 0
+  const willkommen = platz > 0 && happinessBreakdown(gebaut).total >= 50 ? Math.ceil(platz * 0.35) : 0
+  return withLevel({
+    ...gebaut,
+    population: Math.min(statsOf(gebaut).capacity, gebaut.population + willkommen),
   })
 }
 
@@ -329,43 +357,154 @@ export function grant(city: CityState, coins: number, materials: number): CitySt
   return { ...city, coins: city.coins + plusCoins, materials: city.materials + plusMaterials }
 }
 
-/** Kennzahlen der Stadt – immer aus den Gebäuden gerechnet, nie gespeichert */
-export function statsOf(city: CityState): CityStats {
+/** Summe aller Bauwerkswirkungen */
+function totals(city: CityState) {
   let capacity = 0
-  let happiness = 0
+  let happy = 0
   let education = 0
   let environment = 0
   let income = 0
   let jobs = 0
-
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
     if (!def) continue
     const effects = effectsOf(def, placed.level)
     capacity += effects.capacity ?? 0
-    happiness += effects.happiness ?? 0
+    happy += effects.happiness ?? 0
     education += effects.education ?? 0
     environment += effects.environment ?? 0
     income += effects.income ?? 0
     jobs += effects.jobs ?? 0
   }
+  return { capacity, happy, education, environment, income, jobs }
+}
 
-  // In Phase 1 wohnt jeder, der Platz findet. Zu- und Wegzug kommt später.
-  const population = capacity
-  // Wer arbeiten kann, aber keine Arbeit findet, drückt die Stimmung
-  const missingJobs = Math.max(0, Math.round(population / 4) - jobs)
-  const mood = 70 + happiness - Math.min(25, missingJobs)
+/**
+ * Woraus sich die Stimmung zusammensetzt. Diese eine Rechnung gilt überall –
+ * die Anzeige zeigt genau die Posten, mit denen das Spiel rechnet.
+ */
+export function happinessBreakdown(city: CityState): { total: number; parts: Part[] } {
+  const sums = totals(city)
+  const parts: Part[] = [{ label: 'Grundstimmung', value: 60 }]
 
+  if (sums.happy !== 0) parts.push({ label: 'Bauwerke und Grün', value: sums.happy })
+
+  const schulen = Math.min(12, Math.round(sums.education / 2))
+  if (schulen > 0) parts.push({ label: 'Bildung', value: schulen })
+
+  const ohneArbeit = Math.max(0, Math.round(city.population / 4) - sums.jobs)
+  if (ohneArbeit > 0) parts.push({ label: 'Fehlende Arbeit', value: -Math.min(25, ohneArbeit) })
+
+  const eng = city.population - Math.round(sums.capacity * 0.95)
+  if (eng > 0) parts.push({ label: 'Enge Wohnungen', value: -Math.min(20, Math.round(eng / 2) + 4) })
+
+  const wege = Object.keys(city.roads).length
+  const noetig = Math.ceil(city.population / 25)
+  if (city.population > 0) {
+    parts.push(
+      wege >= noetig
+        ? { label: 'Gute Wege', value: 4 }
+        : { label: 'Zu wenige Wege', value: -Math.min(15, (noetig - wege) * 3) },
+    )
+  }
+
+  const total = Math.max(0, Math.min(100, parts.reduce((sum, part) => sum + part.value, 0)))
+  return { total, parts }
+}
+
+/** Woraus die Einnahmen eines Zyklus bestehen */
+export function incomeBreakdown(city: CityState): { total: number; parts: Part[] } {
+  const sums = totals(city)
+  const mood = happinessBreakdown(city).total
+  const steuern = Math.round(city.population * 3 * (mood / 100))
+  const unterhalt = city.buildings.length + Math.ceil(Object.keys(city.roads).length / 2)
+
+  const parts: Part[] = []
+  if (sums.income > 0) parts.push({ label: 'Handel', value: sums.income })
+  if (steuern > 0) parts.push({ label: 'Steuern', value: steuern })
+  if (unterhalt > 0) parts.push({ label: 'Unterhalt', value: -unterhalt })
+
+  return { total: Math.max(0, sums.income + steuern - unterhalt), parts }
+}
+
+/** Was die Bürger gerade stört – daraus werden freiwillige Ziele */
+export function problemsOf(city: CityState): string[] {
+  const sums = totals(city)
+  const list: string[] = []
+  if (city.population > 0 && Math.round(city.population / 4) > sums.jobs) {
+    list.push('🏪 Uns fehlen Arbeitsplätze. Läden und Werkstätten helfen.')
+  }
+  if (city.population >= Math.round(sums.capacity * 0.95) && sums.capacity > 0) {
+    list.push('🏠 Es gibt keine freien Wohnungen mehr.')
+  }
+  if (sums.education === 0 && city.population >= 20) {
+    list.push('🎓 Die Kinder brauchen eine Schule.')
+  }
+  if (sums.environment < 10 && city.population >= 20) {
+    list.push('🌳 Die Stadt braucht mehr Grün.')
+  }
+  const wege = Object.keys(city.roads).length
+  if (city.population > 0 && wege < Math.ceil(city.population / 25)) {
+    list.push('🛣️ Wir kommen schlecht durch die Stadt. Mehr Straßen!')
+  }
+  return list
+}
+
+/** Kennzahlen der Stadt */
+export function statsOf(city: CityState): CityStats {
+  const sums = totals(city)
   return {
-    population,
-    capacity,
-    happiness: Math.max(0, Math.min(100, Math.round(mood))),
-    education,
-    environment: Math.max(0, Math.min(100, 50 + environment)),
-    income,
-    jobs,
+    population: city.population,
+    capacity: sums.capacity,
+    happiness: happinessBreakdown(city).total,
+    education: sums.education,
+    environment: Math.max(0, Math.min(100, 50 + sums.environment)),
+    income: incomeBreakdown(city).total,
+    jobs: sums.jobs,
     buildings: city.buildings.length,
   }
+}
+
+/**
+ * Holt die Zyklen seit dem letzten Besuch nach: Einnahmen, Zuzug, Wegzug.
+ * Es wird höchstens ein Tag nachgeholt – Wegbleiben soll sich nicht lohnen.
+ */
+export function runCycles(city: CityState, now = Date.now()): { city: CityState; report: CycleReport | null } {
+  const last = city.lastTick > 0 ? city.lastTick : now
+  const elapsed = now - last
+  if (elapsed < CYCLE_MS) return { city: city.lastTick > 0 ? city : { ...city, lastTick: now }, report: null }
+
+  const cycles = Math.min(MAX_CYCLES, Math.floor(elapsed / CYCLE_MS))
+  let next: CityState = { ...city }
+  let coins = 0
+  let movedIn = 0
+  let movedOut = 0
+
+  for (let i = 0; i < cycles; i++) {
+    const income = incomeBreakdown(next)
+    coins += income.total
+    const mood = happinessBreakdown(next).total
+    const sums = totals(next)
+
+    let population = next.population
+    if (mood >= MOVE_IN_MOOD && population < sums.capacity) {
+      const zuzug = Math.min(
+        sums.capacity - population,
+        Math.max(1, Math.round(sums.capacity * 0.08 * ((mood - 40) / 60))),
+      )
+      population += zuzug
+      movedIn += zuzug
+    } else if (mood < MOVE_OUT_MOOD && population > 0) {
+      const wegzug = Math.min(population, Math.max(1, Math.round(population * 0.06)))
+      population -= wegzug
+      movedOut += wegzug
+    }
+    next = { ...next, population, coins: next.coins + income.total }
+  }
+
+  // Alles, was über den Deckel hinausgeht, verfällt
+  next.lastTick = elapsed > MAX_CYCLES * CYCLE_MS ? now : last + cycles * CYCLE_MS
+  return { city: withLevel(next), report: { cycles, coins, movedIn, movedOut, income: incomeBreakdown(next).parts } }
 }
 
 /** Stadt-Stufe: wächst mit Einwohnern, Bauwerken und Bildung */
@@ -483,9 +622,16 @@ export function sanitizeCity(input: unknown): CityState | null {
     buildings,
     // Straßen unter Bauwerken kann es nach einer Migration geben – die weichen
     roads: Object.fromEntries(Object.entries(roads).filter(([key]) => !taken.has(key))),
+    population: 0,
+    lastTick: Math.max(0, int(raw.lastTick)),
     nextId: Math.max(buildings.length + 1, int(raw.nextId, 1)),
     foundedAt: int(raw.foundedAt),
   }
+
+  // Version 2 und älter kannten keine Einwohnerzahl: Dort wohnte jeder, der Platz fand.
+  const platz = statsOf(city).capacity
+  const gemeldet = typeof raw.population === 'number' ? Math.max(0, int(raw.population)) : platz
+  city.population = Math.min(platz, gemeldet)
   return withLevel(city)
 }
 

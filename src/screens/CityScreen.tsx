@@ -19,18 +19,23 @@ import {
   createCity,
   expand,
   expansionCheck,
+  happinessBreakdown,
+  incomeBreakdown,
   levelProgress,
   moveTo,
   nextExpansion,
   pave,
   paveCost,
   place,
+  problemsOf,
   remove,
   roadKey,
   statsOf,
   unpave,
   upgrade,
 } from '../city/state'
+import { runCycles } from '../city/state'
+import type { CycleReport } from '../city/types'
 import { haptic } from '../haptics'
 import { goBack } from '../router'
 import { setState } from '../store'
@@ -38,7 +43,7 @@ import type { SaveData } from '../types'
 
 const EMBLEMS = ['🏙️', '🌆', '🏛️', '🌳', '⚓', '⛰️', '🔭', '🎓', '🚀', '🦉']
 
-type Mode = 'view' | 'build' | 'place' | 'select' | 'road' | 'land'
+type Mode = 'view' | 'build' | 'place' | 'select' | 'road' | 'land' | 'report'
 
 export function CityScreen({ data }: { data: SaveData }) {
   if (!data.city) return <CitySetup />
@@ -152,6 +157,7 @@ function CityWorld({ data }: { data: SaveData }) {
   const [notice, setNotice] = useState<string | null>(null)
   const [roadType, setRoadType] = useState('strasse')
   const [erase, setErase] = useState(false)
+  const [cycle, setCycle] = useState<CycleReport | null>(null)
 
   const canvas = useRef<HTMLCanvasElement>(null)
   const wrap = useRef<HTMLDivElement>(null)
@@ -166,6 +172,21 @@ function CityWorld({ data }: { data: SaveData }) {
     setNotice(text)
     if (text) haptic('error')
   }
+
+  // ---------- Was in der Zwischenzeit passiert ist ----------
+  useEffect(() => {
+    let report: CycleReport | null = null
+    setState((current) => {
+      if (!current.city) return current
+      const result = runCycles(current.city)
+      report = result.report
+      return { ...current, city: result.city }
+    })
+    if (report) {
+      setCycle(report)
+      haptic('success')
+    }
+  }, [])
 
   // ---------- Zeichnen ----------
   useEffect(() => {
@@ -707,6 +728,96 @@ function CityWorld({ data }: { data: SaveData }) {
           </div>
         )}
 
+        {cycle && (
+          <div className="city-detail">
+            <div className="city-detail-head">
+              <span className="city-card-emoji">🕒</span>
+              <span className="city-card-body">
+                <strong>Während du weg warst</strong>
+                <span>
+                  {cycle.cycles} {cycle.cycles === 1 ? 'Zyklus' : 'Zyklen'} à 3 Stunden
+                </span>
+              </span>
+            </div>
+            <ul className="city-effects">
+              {cycle.income.map((part) => (
+                <li key={part.label}>
+                  {part.label} <strong>{part.value > 0 ? `+${part.value}` : part.value}</strong>
+                </li>
+              ))}
+            </ul>
+            <p className="city-summary">
+              🪙 <strong>+{cycle.coins.toLocaleString('de-DE')}</strong> Münzen
+              {cycle.movedIn > 0 && (
+                <>
+                  {' · '}👥 <strong>+{cycle.movedIn}</strong> zugezogen
+                </>
+              )}
+              {cycle.movedOut > 0 && (
+                <>
+                  {' · '}👋 <strong>−{cycle.movedOut}</strong> weggezogen
+                </>
+              )}
+            </p>
+            {cycle.movedOut > 0 && (
+              <p className="city-hint">
+                Bürger ziehen weg, solange die Stimmung unter 35 % liegt. Parks, Arbeit und Wohnraum holen sie zurück.
+              </p>
+            )}
+            <div className="city-place-row">
+              <button className="city-btn city-btn-main" onClick={() => setCycle(null)}>
+                <IconCheck /> Weiter
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'report' && !cycle && (
+          <div className="city-sheet">
+            <div className="city-sheet-head">
+              <strong>Stadtbericht</strong>
+              <button className="city-close" aria-label="Schließen" onClick={() => setMode('view')}>
+                <IconClose />
+              </button>
+            </div>
+            <div className="city-list">
+              <p className="city-label-line">😊 Stimmung {stats.happiness} %</p>
+              <ul className="city-effects">
+                {happinessBreakdown(city).parts.map((part) => (
+                  <li key={part.label}>
+                    {part.label} <strong>{part.value > 0 ? `+${part.value}` : part.value}</strong>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="city-label-line">🪙 Einnahmen je Zyklus</p>
+              <ul className="city-effects">
+                {incomeBreakdown(city).parts.map((part) => (
+                  <li key={part.label}>
+                    {part.label} <strong>{part.value > 0 ? `+${part.value}` : part.value}</strong>
+                  </li>
+                ))}
+                <li>
+                  Zusammen <strong>{incomeBreakdown(city).total}</strong>
+                </li>
+              </ul>
+
+              <p className="city-label-line">
+                👥 {stats.population.toLocaleString('de-DE')} von {stats.capacity.toLocaleString('de-DE')} Plätzen belegt
+              </p>
+              {problemsOf(city).length > 0 ? (
+                <ul className="city-problems">
+                  {problemsOf(city).map((text) => (
+                    <li key={text}>{text}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="city-hint">In deiner Stadt läuft gerade alles rund.</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {mode === 'place' && pick && (
           <div className="city-place">
             <p className="city-place-text">
@@ -773,15 +884,15 @@ function CityWorld({ data }: { data: SaveData }) {
         )}
       </div>
 
-      <div className="city-foot">
+      <button className="city-foot" onClick={() => setMode(mode === 'report' ? 'view' : 'report')}>
         <span className="bar">
           <span style={{ width: `${Math.min(100, (progress.into / progress.need) * 100)}%` }} />
         </span>
         <span className="city-foot-text">
-          😊 {stats.happiness}% · 🎓 {stats.education} · 🌳 {stats.environment}% · 🛣️{' '}
+          😊 {stats.happiness}% · 🪙 {stats.income}/Zyklus · 🎓 {stats.education} · 🛣️{' '}
           {Object.keys(city.roads).length} · 🏗️ {stats.buildings}
         </span>
-      </div>
+      </button>
     </main>
   )
 }
