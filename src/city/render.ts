@@ -4,6 +4,7 @@ import { buildingDef, footprint, roadDef, type Look } from './catalog'
 import { TILE_H, TILE_W, tileNoise, toScreen } from './iso'
 import type { Idler, Life, Walker } from './life'
 import { nextExpansion, roadAt, tilesOf } from './state'
+import { themeById, type Theme } from './themes'
 import type { CityState, Placed } from './types'
 
 export interface Camera {
@@ -227,7 +228,7 @@ function park(ctx: CanvasRenderingContext2D, placed: Placed, w: number, h: numbe
   }
 }
 
-function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, options: DrawOptions): void {
+function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, options: DrawOptions, theme: Theme): void {
   const def = buildingDef(placed.type)
   if (!def) return
   const [w, h] = footprint(def, placed.rot)
@@ -258,7 +259,18 @@ function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, options: Dr
   const rise = placed.at > 0 && age >= 0 && age < 600 ? Math.max(0.08, age / 600) : 1
 
   if (look.kind === 'baum') {
-    tree(ctx, placed.x, placed.y, look, tileNoise(placed.x, placed.y))
+    // Bäume tragen die Farben des Stadtthemas
+    tree(
+      ctx,
+      placed.x,
+      placed.y,
+      { ...look, wall: theme.tree[0], accent: theme.tree[1], roof: theme.tree[2] },
+      tileNoise(placed.x, placed.y),
+    )
+    return
+  }
+  if (['bank', 'laterne', 'blumen', 'hecke', 'felsen', 'fahne'].includes(look.kind)) {
+    drawTrinket(ctx, placed, look, time)
     return
   }
   if (look.kind === 'park') {
@@ -383,7 +395,7 @@ function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, options: Dr
  * Straßen. Gezeichnet wird in drei Durchgängen über alle Kacheln: erst die Kanten,
  * dann die Fahrbahn, dann die Markierung. Sonst übermalt der Nachbar die Kante.
  */
-function drawRoads(ctx: CanvasRenderingContext2D, city: CityState): void {
+function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme: Theme): void {
   const entries = Object.entries(city.roads)
   if (entries.length === 0) return
 
@@ -449,11 +461,87 @@ function drawRoads(ctx: CanvasRenderingContext2D, city: CityState): void {
         ctx,
         seite.at[0] - 0.5,
         seite.at[1] - 0.5,
-        { kind: 'baum', height: 0.5, wall: '#5c4630', roof: '#46b972', accent: '#2f9e5c' },
+        { kind: 'baum', height: 0.5, wall: theme.tree[0], roof: theme.tree[2], accent: theme.tree[1] },
         0.25,
       )
     }
   }
+}
+
+/** Kleiner Schmuck: Bank, Laterne, Blumen, Hecke, Felsen, Fahne */
+function drawTrinket(ctx: CanvasRenderingContext2D, placed: Placed, look: Look, t: number): void {
+  const p = toScreen(placed.x + 0.5, placed.y + 0.5)
+
+  if (look.kind === 'bank') {
+    ctx.fillStyle = look.wall
+    ctx.fillRect(p.sx - 10, p.sy - 6, 20, 3)
+    ctx.fillRect(p.sx - 10, p.sy - 12, 20, 3)
+    ctx.fillStyle = look.accent
+    ctx.fillRect(p.sx - 9, p.sy - 6, 2, 6)
+    ctx.fillRect(p.sx + 7, p.sy - 6, 2, 6)
+    return
+  }
+  if (look.kind === 'laterne') {
+    ctx.fillStyle = look.wall
+    ctx.fillRect(p.sx - 1.5, p.sy - 26, 3, 26)
+    ctx.save()
+    ctx.globalAlpha = 0.22 + Math.sin(t * 1.8) * 0.06
+    ctx.fillStyle = look.accent
+    ctx.beginPath()
+    ctx.arc(p.sx, p.sy - 28, 12, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+    ctx.fillStyle = look.roof
+    ctx.beginPath()
+    ctx.arc(p.sx, p.sy - 28, 4.5, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  if (look.kind === 'blumen') {
+    ctx.fillStyle = look.wall
+    ctx.beginPath()
+    ctx.ellipse(p.sx, p.sy - 2, 14, 8, 0, 0, Math.PI * 2)
+    ctx.fill()
+    for (let i = 0; i < 6; i++) {
+      const winkel = (i / 6) * Math.PI * 2
+      ctx.fillStyle = i % 2 === 0 ? look.roof : look.accent
+      ctx.beginPath()
+      ctx.arc(p.sx + Math.cos(winkel) * 7, p.sy - 3 + Math.sin(winkel) * 4, 2.4, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    return
+  }
+  if (look.kind === 'hecke') {
+    ctx.fillStyle = look.accent
+    roundedPath(ctx, p.sx - 15, p.sy - 12, 30, 12, 5)
+    ctx.fill()
+    ctx.fillStyle = look.roof
+    roundedPath(ctx, p.sx - 15, p.sy - 15, 30, 8, 5)
+    ctx.fill()
+    return
+  }
+  if (look.kind === 'felsen') {
+    ctx.fillStyle = look.accent
+    ctx.beginPath()
+    ctx.ellipse(p.sx - 4, p.sy - 4, 9, 6, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = look.roof
+    ctx.beginPath()
+    ctx.ellipse(p.sx + 4, p.sy - 6, 7, 5, 0, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  // Fahnenmast
+  ctx.fillStyle = look.wall
+  ctx.fillRect(p.sx - 1.5, p.sy - 34, 3, 34)
+  const weht = Math.sin(t * 3) * 3
+  ctx.fillStyle = look.roof
+  ctx.beginPath()
+  ctx.moveTo(p.sx + 1, p.sy - 34)
+  ctx.lineTo(p.sx + 18, p.sy - 30 + weht)
+  ctx.lineTo(p.sx + 1, p.sy - 24)
+  ctx.closePath()
+  ctx.fill()
 }
 
 /** Wo eine Figur gerade steht, in Kachelkoordinaten */
@@ -549,7 +637,7 @@ function drawBubble(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string
 }
 
 /** Boden, Gitter und Rand des freigeschalteten Gebiets */
-function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean): void {
+function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean, theme: Theme): void {
   const size = city.land
   const n = toScreen(0, 0)
   const e = toScreen(size, 0)
@@ -558,12 +646,12 @@ function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: b
 
   // Erdschicht als Dicke unter der Wiese
   const depth = 26
-  quad(ctx, e, s, lift(s, -depth), lift(e, -depth), '#6b5136')
-  quad(ctx, s, w, lift(w, -depth), lift(s, -depth), '#57402b')
+  quad(ctx, e, s, lift(s, -depth), lift(e, -depth), theme.soil[0])
+  quad(ctx, s, w, lift(w, -depth), lift(s, -depth), theme.soil[1])
 
   const grass = ctx.createLinearGradient(n.sx, n.sy, s.sx, s.sy)
-  grass.addColorStop(0, '#7fc86a')
-  grass.addColorStop(1, '#4f9f57')
+  grass.addColorStop(0, theme.ground[0])
+  grass.addColorStop(1, theme.ground[1])
   quad(ctx, n, e, s, w, grass)
 
   // Kachelrauschen – die Wiese soll nicht wie Farbe aus der Dose aussehen
@@ -598,7 +686,7 @@ function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: b
     }
   }
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)'
+  ctx.strokeStyle = theme.edge
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(n.sx, n.sy)
@@ -656,9 +744,10 @@ export function drawCity(
   view: { w: number; h: number },
   options: DrawOptions = {},
 ): void {
+  const theme = themeById(city.theme)
   const sky = ctx.createLinearGradient(0, 0, 0, view.h)
-  sky.addColorStop(0, '#1b2a4a')
-  sky.addColorStop(1, '#0d1526')
+  sky.addColorStop(0, theme.sky[0])
+  sky.addColorStop(1, theme.sky[1])
   ctx.fillStyle = sky
   ctx.fillRect(0, 0, view.w, view.h)
 
@@ -667,8 +756,8 @@ export function drawCity(
   ctx.scale(camera.zoom, camera.zoom)
   ctx.translate(-camera.x, -camera.y)
 
-  drawGround(ctx, city, options.buildMode === true)
-  drawRoads(ctx, city)
+  drawGround(ctx, city, options.buildMode === true, theme)
+  drawRoads(ctx, city, theme)
 
   // Vorschau beim Straßenziehen
   const paint = options.paint
@@ -719,7 +808,7 @@ export function drawCity(
   const sorted = [...city.buildings].sort((a, b) => a.x + a.y - (b.x + b.y))
   for (const placed of sorted) {
     bisTiefe(placed.x + placed.y)
-    drawBuilding(ctx, placed, options)
+    drawBuilding(ctx, placed, options, theme)
     if (placed.id === options.selected) {
       const def = buildingDef(placed.type)
       if (def) {
@@ -742,7 +831,12 @@ export function drawCity(
       const [w, h] = footprint(def, ghost.rot)
       ctx.save()
       ctx.globalAlpha = 0.55
-      drawBuilding(ctx, { id: 'ghost', type: ghost.type, x: ghost.x, y: ghost.y, rot: ghost.rot, level: 1, at: 0 }, options)
+      drawBuilding(
+        ctx,
+        { id: 'ghost', type: ghost.type, x: ghost.x, y: ghost.y, rot: ghost.rot, level: 1, at: 0 },
+        options,
+        theme,
+      )
       ctx.restore()
       outline(ctx, ghost.x, ghost.y, w, h, ghost.ok ? '#3ce08a' : '#ff5f7a')
       ctx.save()

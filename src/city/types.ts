@@ -5,7 +5,8 @@
 // Version 3: Die Einwohnerzahl wird nicht mehr gerechnet, sondern gelebt – Menschen
 //            ziehen zu und weg, und die Stadt verdient in Zyklen.
 // Version 4: Bürger bitten um Hilfe.
-export const CITY_VERSION = 4
+// Version 5: Die Stadt hat ein Thema und Schmuck.
+export const CITY_VERSION = 5
 
 /** Eine Kachel ist der kleinste Bauplatz. Gebäude belegen ein Rechteck aus Kacheln. */
 export interface Placed {
@@ -28,6 +29,8 @@ export interface CityState {
   name: string
   motto: string
   emblem: string
+  /** Aussehen der Stadt, siehe src/city/themes.ts */
+  theme: string
   /** Kantenlänge des freigeschalteten Gebiets in Kacheln */
   land: number
   level: number

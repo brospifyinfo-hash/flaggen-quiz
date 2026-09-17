@@ -30,11 +30,14 @@ import {
   place,
   problemsOf,
   remove,
+  rename,
   roadKey,
+  setTheme,
   statsOf,
   unpave,
   upgrade,
 } from '../city/state'
+import { THEMES } from '../city/themes'
 import { runCycles, setRequest, solveRequest } from '../city/state'
 import { createLife, signatureOf, stepLife, type Life } from '../city/life'
 import {
@@ -176,6 +179,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const [shownRequest, setShownRequest] = useState<CityRequest | null>(null)
   const [answer, setAnswer] = useState<string | null>(null)
   const [reward, setReward] = useState<{ coins: number; materials: number } | null>(null)
+  const [newName, setNewName] = useState(city.name)
+  const [newMotto, setNewMotto] = useState(city.motto)
   const request = city.request as CityRequest | null
 
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -1030,6 +1035,74 @@ function CityWorld({ data }: { data: SaveData }) {
               ) : (
                 <p className="city-hint">In deiner Stadt läuft gerade alles rund.</p>
               )}
+
+              <p className="city-label-line">🎨 Aussehen der Stadt</p>
+              <div className="city-themes">
+                {THEMES.map((entry) => (
+                  <button
+                    key={entry.id}
+                    className={`city-theme${city.theme === entry.id ? ' is-on' : ''}`}
+                    onClick={() => {
+                      haptic('tick')
+                      setState((current) => (current.city ? { ...current, city: setTheme(current.city, entry.id) } : current))
+                    }}
+                  >
+                    <span className="city-theme-emoji">{entry.emoji}</span>
+                    <span>{entry.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <p className="city-label-line">✏️ Name, Wahlspruch und Wappen</p>
+              <div className="city-rename">
+                <input
+                  className="city-input"
+                  value={newName}
+                  maxLength={24}
+                  aria-label="Name der Stadt"
+                  onChange={(event) => setNewName(event.target.value)}
+                />
+                <input
+                  className="city-input"
+                  value={newMotto}
+                  maxLength={60}
+                  placeholder="Wahlspruch"
+                  aria-label="Wahlspruch"
+                  onChange={(event) => setNewMotto(event.target.value)}
+                />
+                <div className="city-emblems">
+                  {EMBLEMS.map((entry) => (
+                    <button
+                      key={entry}
+                      className={`city-emblem${entry === city.emblem ? ' is-on' : ''}`}
+                      aria-pressed={entry === city.emblem}
+                      onClick={() => {
+                        haptic('tick')
+                        setState((current) =>
+                          current.city
+                            ? { ...current, city: rename(current.city, newName, newMotto, entry) }
+                            : current,
+                        )
+                      }}
+                    >
+                      {entry}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="city-btn city-btn-main"
+                  onClick={() => {
+                    haptic('success')
+                    setState((current) =>
+                      current.city
+                        ? { ...current, city: rename(current.city, newName, newMotto, current.city.emblem) }
+                        : current,
+                    )
+                  }}
+                >
+                  <IconCheck /> Übernehmen
+                </button>
+              </div>
             </div>
           </div>
         )}

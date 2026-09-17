@@ -11,6 +11,7 @@ import {
   unlockInfo,
 } from './catalog'
 import { REQUEST_COINS, REQUEST_MATERIALS, sanitizeRequest } from './requests'
+import { DEFAULT_THEME, themeById } from './themes'
 import {
   CITY_VERSION,
   type CityState,
@@ -58,6 +59,7 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
     name: name.trim().slice(0, 24) || 'Neustadt',
     motto: motto.trim().slice(0, 60),
     emblem: emblem || '🏙️',
+    theme: DEFAULT_THEME,
     land: START_LAND,
     level: 1,
     coins: START_COINS,
@@ -368,6 +370,19 @@ export function solveRequest(city: CityState): CityState {
   })
 }
 
+/** Aussehen der Stadt wechseln */
+export const setTheme = (city: CityState, id: string): CityState => ({ ...city, theme: themeById(id).id })
+
+/** Stadt umbenennen – Name, Wahlspruch und Wappen lassen sich jederzeit ändern */
+export function rename(city: CityState, name: string, motto: string, emblem: string): CityState {
+  return {
+    ...city,
+    name: name.trim().slice(0, 24) || city.name,
+    motto: motto.trim().slice(0, 60),
+    emblem: emblem.slice(0, 4) || city.emblem,
+  }
+}
+
 /** Eine neue Bitte hinterlegen */
 export function setRequest(city: CityState, request: unknown, now = Date.now()): CityState {
   return { ...city, request, lastRequest: now }
@@ -646,6 +661,7 @@ export function sanitizeCity(input: unknown): CityState | null {
     name: raw.name.slice(0, 24) || 'Neustadt',
     motto: typeof raw.motto === 'string' ? raw.motto.slice(0, 60) : '',
     emblem: typeof raw.emblem === 'string' && raw.emblem ? raw.emblem.slice(0, 4) : '🏙️',
+    theme: themeById(typeof raw.theme === 'string' ? raw.theme : undefined).id,
     land,
     level: 1,
     coins: Math.max(0, int(raw.coins)),

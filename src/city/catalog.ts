@@ -2,7 +2,7 @@
 // Ein neues Gebäude braucht genau einen Eintrag und keine Änderung am Stadt-Code.
 import { domainById } from '../knowledge'
 
-export type Category = 'wohnen' | 'handel' | 'bildung' | 'natur' | 'wege'
+export type Category = 'wohnen' | 'handel' | 'bildung' | 'natur' | 'schmuck' | 'wege'
 
 /** Straßen liegen nicht als Bauwerk auf der Kachel, sondern als eigenes Netz darunter. */
 export interface RoadDef {
@@ -76,6 +76,7 @@ export const CATEGORIES: CategoryInfo[] = [
   { id: 'handel', name: 'Handel', emoji: '🏪' },
   { id: 'bildung', name: 'Bildung', emoji: '🎓' },
   { id: 'natur', name: 'Natur', emoji: '🌳' },
+  { id: 'schmuck', name: 'Schmuck', emoji: '✨' },
   { id: 'wege', name: 'Wege', emoji: '🛣️' },
 ]
 
@@ -94,6 +95,12 @@ export interface Look {
     | 'wasser'
     | 'statue'
     | 'kuppel'
+    | 'bank'
+    | 'laterne'
+    | 'blumen'
+    | 'fahne'
+    | 'felsen'
+    | 'hecke'
   /** Höhe in Kachelhöhen */
   height: number
   wall: string
@@ -475,6 +482,81 @@ export const BUILDINGS: BuildingDef[] = [
     ],
     note: 'Das Ziel für eine Stadt, die rechnen kann',
     look: { kind: 'kuppel', height: 2.6, wall: '#eef3f8', roof: '#6d7f99', accent: '#3f4f66' },
+  },
+
+  // ---------- Schmuck: kleine Dinge, die eine Stadt erst wohnlich machen ----------
+  {
+    id: 'bank',
+    name: 'Bank',
+    category: 'schmuck',
+    emoji: '🪑',
+    size: [1, 1],
+    coins: 60,
+    materials: 1,
+    effects: { happiness: 2 },
+    note: 'Zum Sitzen und Schauen',
+    look: { kind: 'bank', height: 0.2, wall: '#a97b4f', roof: '#8a5f3a', accent: '#6b4a2c' },
+  },
+  {
+    id: 'laterne',
+    name: 'Laterne',
+    category: 'schmuck',
+    emoji: '💡',
+    size: [1, 1],
+    coins: 85,
+    materials: 1,
+    effects: { happiness: 2 },
+    note: 'Licht für den Abend',
+    look: { kind: 'laterne', height: 0.8, wall: '#4a5162', roof: '#ffe9a8', accent: '#ffd23f' },
+  },
+  {
+    id: 'blumen',
+    name: 'Blumenbeet',
+    category: 'schmuck',
+    emoji: '🌸',
+    size: [1, 1],
+    coins: 45,
+    materials: 0,
+    effects: { happiness: 2, environment: 2 },
+    note: 'Ein bisschen Farbe',
+    look: { kind: 'blumen', height: 0.12, wall: '#5aa85f', roof: '#ff7ab5', accent: '#ffd23f' },
+  },
+  {
+    id: 'hecke',
+    name: 'Hecke',
+    category: 'schmuck',
+    emoji: '🌿',
+    size: [1, 1],
+    coins: 35,
+    materials: 0,
+    effects: { environment: 2 },
+    note: 'Grenzt Grundstücke ab',
+    look: { kind: 'hecke', height: 0.3, wall: '#3f8f52', roof: '#4fa862', accent: '#2f6b3f' },
+  },
+  {
+    id: 'felsen',
+    name: 'Felsen',
+    category: 'schmuck',
+    emoji: '🪨',
+    size: [1, 1],
+    coins: 30,
+    materials: 0,
+    effects: { environment: 1 },
+    note: 'Steht einfach da und sieht gut aus',
+    look: { kind: 'felsen', height: 0.3, wall: '#9aa0aa', roof: '#b4bac4', accent: '#7a8089' },
+  },
+  {
+    id: 'fahne',
+    name: 'Fahnenmast',
+    category: 'schmuck',
+    emoji: '🚩',
+    size: [1, 1],
+    coins: 130,
+    materials: 2,
+    effects: { happiness: 3 },
+    needsLevel: 3,
+    note: 'Zeigt Flagge in deiner Stadt',
+    look: { kind: 'fahne', height: 1.1, wall: '#d7dbe2', roof: '#e0623d', accent: '#ffd23f' },
   },
 
   // ---------- Wege ----------

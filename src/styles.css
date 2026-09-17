@@ -2861,6 +2861,59 @@ svg {
   color: #ffd23f;
 }
 
+/* Aussehen der Stadt */
+.city-themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.city-theme {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.09);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.city-theme.is-on {
+  background: rgb(47 158 92 / 0.3);
+  box-shadow: inset 0 0 0 2px #2f9e5c;
+}
+
+.city-theme-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.city-rename {
+  display: grid;
+  gap: 8px;
+}
+
+.city-rename .city-input {
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.16);
+  color: #fff;
+}
+
+.city-rename .city-emblem {
+  width: 40px;
+  height: 40px;
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.16);
+  font-size: 19px;
+}
+
+.city-rename .city-emblem.is-on {
+  background: rgb(47 158 92 / 0.3);
+  box-shadow: inset 0 0 0 2px #2f9e5c;
+}
+
 /* Wissensstand je Fach */
 .city-knowledge {
   display: grid;
