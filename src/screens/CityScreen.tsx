@@ -365,6 +365,10 @@ function CityWorld({ data }: { data: SaveData }) {
     }
 
     const down = (event: PointerEvent) => {
+      // Nur die Leinwand ist Karte. Was darüber liegt – Karten, Leisten, Knöpfe – gehört
+      // der Bedienung. Zählte ein Tipper dort auch als Tipper auf die Wiese, hübe er die
+      // Auswahl auf, die Karte verschwände, und der Knopf wäre fort, bevor sein Klick kommt.
+      if (event.target !== canvas.current) return
       points.set(event.pointerId, { x: event.clientX, y: event.clientY })
       if (points.size === 1) {
         far = 0
@@ -416,6 +420,8 @@ function CityWorld({ data }: { data: SaveData }) {
 
     const up = (event: PointerEvent) => {
       const had = points.delete(event.pointerId)
+      // Diese Berührung hat auf der Bedienung begonnen – die Karte lässt sie in Ruhe.
+      if (!had) return
       if (points.size > 0) {
         pinch = 0
         return
@@ -424,7 +430,7 @@ function CityWorld({ data }: { data: SaveData }) {
         finishStroke()
         return
       }
-      if (!had || far > TAP) return
+      if (far > TAP) return
 
       const tile = tileAt(event.clientX, event.clientY)
       const state = live.current

@@ -292,6 +292,9 @@ export function MathRunnerScreen({ data }: { data: SaveData }) {
     }
 
     const down = (event: PointerEvent) => {
+      // Nur die Leinwand ist Spielfeld. Auf Pause- und Ergebniskarten wird gedrückt,
+      // nicht gelenkt – sonst schwenkt die Figur beim Tippen auf "Weiter" mit.
+      if (event.target !== canvas.current) return
       active = true
       moved = false
       startX = event.clientX
