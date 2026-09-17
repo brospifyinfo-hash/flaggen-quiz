@@ -10,6 +10,7 @@ import {
   roadDef,
   type BuildingDef,
 } from './catalog'
+import { REQUEST_COINS, REQUEST_MATERIALS, sanitizeRequest } from './requests'
 import {
   CITY_VERSION,
   type CityState,
@@ -65,6 +66,9 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
     roads: {},
     population: 0,
     lastTick: now,
+    request: null,
+    helped: 0,
+    lastRequest: 0,
     nextId: 1,
     foundedAt: now,
   }
@@ -349,6 +353,23 @@ export function expand(city: CityState): CityState {
   })
 }
 
+/** Eine Bitte wurde gelöst: Belohnung, Dankbarkeit, Bitte schließen */
+export function solveRequest(city: CityState): CityState {
+  if (!city.request) return city
+  return withLevel({
+    ...city,
+    request: null,
+    helped: city.helped + 1,
+    coins: city.coins + REQUEST_COINS,
+    materials: city.materials + REQUEST_MATERIALS,
+  })
+}
+
+/** Eine neue Bitte hinterlegen */
+export function setRequest(city: CityState, request: unknown, now = Date.now()): CityState {
+  return { ...city, request, lastRequest: now }
+}
+
 /** Münzen und Material aus Spielen */
 export function grant(city: CityState, coins: number, materials: number): CityState {
   const plusCoins = Math.max(0, Math.round(coins))
@@ -407,6 +428,10 @@ export function happinessBreakdown(city: CityState): { total: number; parts: Par
         : { label: 'Zu wenige Wege', value: -Math.min(15, (noetig - wege) * 3) },
     )
   }
+
+  // Wer seinen Nachbarn hilft, merkt es an der Stimmung
+  const dank = Math.min(10, Math.floor(city.helped / 3))
+  if (dank > 0) parts.push({ label: 'Nachbarschaftshilfe', value: dank })
 
   const total = Math.max(0, Math.min(100, parts.reduce((sum, part) => sum + part.value, 0)))
   return { total, parts }
@@ -624,6 +649,9 @@ export function sanitizeCity(input: unknown): CityState | null {
     roads: Object.fromEntries(Object.entries(roads).filter(([key]) => !taken.has(key))),
     population: 0,
     lastTick: Math.max(0, int(raw.lastTick)),
+    request: sanitizeRequest(raw.request),
+    helped: Math.max(0, int(raw.helped)),
+    lastRequest: Math.max(0, int(raw.lastRequest)),
     nextId: Math.max(buildings.length + 1, int(raw.nextId, 1)),
     foundedAt: int(raw.foundedAt),
   }

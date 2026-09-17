@@ -4,7 +4,8 @@
 // Version 2: Wege sind keine Bauwerke mehr, sondern ein eigenes Straßennetz.
 // Version 3: Die Einwohnerzahl wird nicht mehr gerechnet, sondern gelebt – Menschen
 //            ziehen zu und weg, und die Stadt verdient in Zyklen.
-export const CITY_VERSION = 3
+// Version 4: Bürger bitten um Hilfe.
+export const CITY_VERSION = 4
 
 /** Eine Kachel ist der kleinste Bauplatz. Gebäude belegen ein Rechteck aus Kacheln. */
 export interface Placed {
@@ -39,6 +40,12 @@ export interface CityState {
   population: number
   /** Zeitpunkt des letzten Wirtschaftszyklus */
   lastTick: number
+  /** offene Bitte eines Bürgers, siehe src/city/requests.ts */
+  request: unknown
+  /** wie oft schon geholfen wurde */
+  helped: number
+  /** wann zuletzt eine Bitte entstanden ist */
+  lastRequest: number
   nextId: number
   foundedAt: number
 }

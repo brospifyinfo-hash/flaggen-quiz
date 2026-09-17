@@ -2925,6 +2925,95 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+/* Ein Bürger bittet um Hilfe */
+.city-call {
+  position: absolute;
+  right: 10px;
+  bottom: 68px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.96);
+  color: #0d1526;
+  box-shadow: 0 8px 26px rgb(0 0 0 / 0.45);
+  text-align: left;
+  animation: sheet-up 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.city-call:active {
+  transform: translateY(2px);
+}
+
+.city-call-emoji {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.city-call-body {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.city-call-body strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.city-call-body span {
+  color: #5b6478;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.city-call-go {
+  flex: none;
+  padding: 7px 13px;
+  border-radius: 99px;
+  background: #2f9e5c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.city-ask {
+  max-height: 88%;
+}
+
+.city-story {
+  margin-bottom: 10px;
+  color: rgb(255 255 255 / 0.85);
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.city-ask-body {
+  overflow-y: auto;
+}
+
+.city-ask-body .question {
+  color: rgb(255 255 255 / 0.7);
+}
+
+.city-ask-body .flag-stack,
+.city-ask-body .portrait,
+.city-ask-body .events,
+.city-ask-body .map-frame {
+  max-height: 24vh;
+  min-height: 0;
+}
+
+.city-ask-end {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .city-summary {
   margin: 2px 0 8px;
   font-size: 15px;

@@ -34,11 +34,23 @@ import {
   unpave,
   upgrade,
 } from '../city/state'
-import { runCycles } from '../city/state'
+import { runCycles, setRequest, solveRequest } from '../city/state'
+import { createLife, signatureOf, stepLife, type Life } from '../city/life'
+import {
+  REQUEST_COINS,
+  REQUEST_MATERIALS,
+  REQUEST_XP,
+  dueRequest,
+  judgeRequest,
+  makeRequest,
+  type CityRequest,
+} from '../city/requests'
 import type { CycleReport } from '../city/types'
+import { getMode } from '../modes/registry'
+import { creditXp } from '../progression'
 import { haptic } from '../haptics'
 import { goBack } from '../router'
-import { setState } from '../store'
+import { getState, setState } from '../store'
 import type { SaveData } from '../types'
 
 const EMBLEMS = ['🏙️', '🌆', '🏛️', '🌳', '⚓', '⛰️', '🔭', '🎓', '🚀', '🦉']
@@ -158,6 +170,10 @@ function CityWorld({ data }: { data: SaveData }) {
   const [roadType, setRoadType] = useState('strasse')
   const [erase, setErase] = useState(false)
   const [cycle, setCycle] = useState<CycleReport | null>(null)
+  const [shownRequest, setShownRequest] = useState<CityRequest | null>(null)
+  const [answer, setAnswer] = useState<string | null>(null)
+  const [reward, setReward] = useState<{ coins: number; materials: number } | null>(null)
+  const request = city.request as CityRequest | null
 
   const canvas = useRef<HTMLCanvasElement>(null)
   const wrap = useRef<HTMLDivElement>(null)
@@ -165,6 +181,7 @@ function CityWorld({ data }: { data: SaveData }) {
   const camera = useRef<Camera>({ x: 0, y: 0, zoom: 1 })
   const framed = useRef(false)
   const stroke = useRef<string[]>([])
+  const life = useRef<Life | null>(null)
   const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase })
   live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase }
 
@@ -186,6 +203,12 @@ function CityWorld({ data }: { data: SaveData }) {
       setCycle(report)
       haptic('success')
     }
+
+    // Vielleicht wartet jemand mit einer Bitte
+    setState((current) => {
+      const neu = dueRequest(current)
+      return neu && current.city ? { ...current, city: setRequest(current.city, neu) } : current
+    })
   }, [])
 
   // ---------- Zeichnen ----------
@@ -215,9 +238,18 @@ function CityWorld({ data }: { data: SaveData }) {
     observer.observe(box)
 
     let raf = 0
+    let last = performance.now()
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame)
+      const dt = Math.min(0.1, Math.max(0, (now - last) / 1000))
+      last = now
       const state = live.current
+
+      // Leben neu aufsetzen, wenn sich die Stadt verändert hat
+      if (!life.current || life.current.signature !== signatureOf(state.city)) {
+        life.current = createLife(state.city)
+      }
+      stepLife(life.current, state.city, dt)
       const shown =
         state.mode === 'place' && state.pick
           ? {
@@ -231,11 +263,14 @@ function CityWorld({ data }: { data: SaveData }) {
               }).ok,
             }
           : null
+      const bitte = state.city.request as CityRequest | null
       drawCity(ctx, state.city, camera.current, size.current, {
         ghost: shown,
         paint: state.mode === 'road' ? { tiles: stroke.current, type: state.roadType, adding: !state.erase } : null,
         selected: state.selected,
         buildMode: state.mode !== 'view' && state.mode !== 'select',
+        life: life.current,
+        bubble: bitte ? { buildingId: bitte.buildingId, emoji: bitte.citizen.emoji } : null,
         time: now / 1000,
       })
     }
@@ -531,6 +566,50 @@ function CityWorld({ data }: { data: SaveData }) {
     haptic('tick')
   }
 
+  // ---------- Bitten der Bürger ----------
+  const openRequest = () => {
+    if (!request) return
+    setShownRequest(request)
+    setAnswer(null)
+    setMode('view')
+    haptic('soft')
+  }
+
+  const reply = (id: string) => {
+    if (!shownRequest || answer) return
+    setAnswer(id)
+    if (judgeRequest(shownRequest, id)) {
+      haptic('celebrate')
+      const vorher = { coins: city.coins, materials: city.materials }
+      setState((current) =>
+        current.city ? creditXp({ ...current, city: solveRequest(current.city) }, REQUEST_XP) : current,
+      )
+      // Genau das anzeigen, was wirklich ankam – die XP werden ja selbst zu Münzen
+      const jetzt = getState().city
+      if (jetzt) setReward({ coins: jetzt.coins - vorher.coins, materials: jetzt.materials - vorher.materials })
+    } else {
+      haptic('error')
+    }
+  }
+
+  const closeRequest = () => {
+    // Falsch beantwortet? Dann bleibt der Bürger – aber mit einer neuen Frage.
+    if (shownRequest && answer && !judgeRequest(shownRequest, answer)) {
+      setState((current) => {
+        if (!current.city) return current
+        const frisch = makeRequest(current, shownRequest.buildingId)
+        return {
+          ...current,
+          city: setRequest(current.city, frisch ? { ...frisch, citizen: shownRequest.citizen } : null, 0),
+        }
+      })
+    }
+    setShownRequest(null)
+    setAnswer(null)
+    setReward(null)
+    haptic('tick')
+  }
+
   const list = available(city).filter((def) => def.category === category)
   const expandOk = step ? expansionCheck(city) : null
 
@@ -563,7 +642,74 @@ function CityWorld({ data }: { data: SaveData }) {
           </p>
         )}
 
-        {mode === 'view' && (
+        {mode === 'view' && request && !shownRequest && !cycle && (
+          <button className="city-call" onClick={openRequest}>
+            <span className="city-call-emoji" aria-hidden="true">
+              {request.citizen.emoji}
+            </span>
+            <span className="city-call-body">
+              <strong>{request.citizen.name} braucht Hilfe</strong>
+              <span>{request.citizen.role}</span>
+            </span>
+            <span className="city-call-go">Helfen</span>
+          </button>
+        )}
+
+        {shownRequest && (
+          <div className="city-sheet city-ask">
+            <div className="city-detail-head">
+              <span className="city-card-emoji">{shownRequest.citizen.emoji}</span>
+              <span className="city-card-body">
+                <strong>{shownRequest.citizen.name}</strong>
+                <span>{shownRequest.citizen.role}</span>
+              </span>
+              <button className="city-close" aria-label="Schließen" onClick={closeRequest}>
+                <IconClose />
+              </button>
+            </div>
+            {!answer && <p className="city-story">„{shownRequest.story}“</p>}
+            <div className="city-ask-body">
+              {getMode(shownRequest.modeId)?.renderQuestion(shownRequest.question, answer)}
+              <p className="question">{shownRequest.question.prompt}</p>
+              <div className="options">
+                {shownRequest.question.options.map((option) => {
+                  const richtig = option.id === shownRequest.question.correctId
+                  const gewaehlt = option.id === answer
+                  const zustand = !answer ? '' : richtig ? ' is-correct' : gewaehlt ? ' is-wrong' : ' is-dim'
+                  return (
+                    <button
+                      key={option.id}
+                      className={`option${zustand}`}
+                      aria-disabled={answer !== null}
+                      onClick={() => reply(option.id)}
+                    >
+                      <span>{option.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            {answer && (
+              <div className="city-ask-end">
+                {judgeRequest(shownRequest, answer) ? (
+                  <p className="city-summary">
+                    🎉 Danke! 🪙 +{(reward?.coins ?? REQUEST_COINS).toLocaleString('de-DE')} · 🧱 +
+                    {reward?.materials ?? REQUEST_MATERIALS} · ⭐ +{REQUEST_XP} XP
+                  </p>
+                ) : (
+                  <p className="city-summary">
+                    Nicht ganz. {shownRequest.citizen.name} fragt später noch einmal.
+                  </p>
+                )}
+                <button className="city-btn city-btn-main" onClick={closeRequest}>
+                  <IconCheck /> Weiter
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {mode === 'view' && !shownRequest && !cycle && (
           <div className="city-bar">
             <button className="city-btn city-btn-main" onClick={() => setMode('build')}>
               🏗️ Bauen

@@ -2,6 +2,7 @@
 // Dächer, Bäume. Alles in ein Canvas, damit auch große Städte flüssig bleiben.
 import { buildingDef, footprint, roadDef, type Look } from './catalog'
 import { TILE_H, TILE_W, tileNoise, toScreen } from './iso'
+import type { Idler, Life, Walker } from './life'
 import { nextExpansion, roadAt, tilesOf } from './state'
 import type { CityState, Placed } from './types'
 
@@ -33,6 +34,10 @@ export interface DrawOptions {
   paint?: Paint | null
   selected?: string | null
   buildMode?: boolean
+  /** Leben in der Stadt */
+  life?: Life | null
+  /** Sprechblase über einem Bauwerk */
+  bubble?: { buildingId: string; emoji: string } | null
   /** Sekunden, für ruhige Animationen */
   time?: number
 }
@@ -63,6 +68,18 @@ function quad(
   ctx.closePath()
   ctx.fillStyle = fill
   ctx.fill()
+}
+
+/** Rechteck mit runden Ecken – für Figuren, Fahrzeuge und Sprechblasen */
+function roundedPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  const radius = Math.min(r, w / 2, h / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + radius, y)
+  ctx.arcTo(x + w, y, x + w, y + h, radius)
+  ctx.arcTo(x + w, y + h, x, y + h, radius)
+  ctx.arcTo(x, y + h, x, y, radius)
+  ctx.arcTo(x, y, x + w, y, radius)
+  ctx.closePath()
 }
 
 const lift = (p: Point, px: number): Point => ({ sx: p.sx, sy: p.sy - px })
@@ -418,6 +435,98 @@ function drawRoads(ctx: CanvasRenderingContext2D, city: CityState): void {
   }
 }
 
+/** Wo eine Figur gerade steht, in Kachelkoordinaten */
+function walkerAt(walker: Walker): { x: number; y: number } {
+  const x = walker.x + 0.5 + (walker.tx - walker.x) * walker.t
+  const y = walker.y + 0.5 + (walker.ty - walker.y) * walker.t
+  // quer zur Laufrichtung versetzen, damit sich nicht alle auf einer Linie drängen
+  return { x: x + (walker.tx === walker.x ? walker.off : 0), y: y + (walker.ty === walker.y ? walker.off : 0) }
+}
+
+function drawWalker(ctx: CanvasRenderingContext2D, walker: Walker, t: number): void {
+  const at = walkerAt(walker)
+  const p = toScreen(at.x, at.y)
+
+  ctx.save()
+  ctx.globalAlpha = 0.22
+  ctx.fillStyle = '#0b1424'
+  ctx.beginPath()
+  ctx.ellipse(p.sx, p.sy + 1, walker.kind === 'auto' ? 9 : 4, walker.kind === 'auto' ? 5 : 2.4, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+
+  if (walker.kind === 'auto') {
+    ctx.fillStyle = walker.color
+    roundedPath(ctx, p.sx - 9, p.sy - 9, 18, 10, 3)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(20,28,48,0.75)'
+    roundedPath(ctx, p.sx - 5, p.sy - 8, 10, 4, 2)
+    ctx.fill()
+    return
+  }
+
+  const hop = Math.abs(Math.sin(t * 7 + walker.off * 20)) * (walker.kind === 'rad' ? 0.6 : 1.6)
+  if (walker.kind === 'rad') {
+    ctx.strokeStyle = 'rgba(20,28,48,0.8)'
+    ctx.lineWidth = 1.6
+    ctx.beginPath()
+    ctx.arc(p.sx - 3, p.sy - 1.5, 2.4, 0, Math.PI * 2)
+    ctx.arc(p.sx + 3, p.sy - 1.5, 2.4, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.fillStyle = walker.color
+  roundedPath(ctx, p.sx - 2.2, p.sy - 9 - hop, 4.4, 8, 2.2)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(28,20,16,0.85)'
+  ctx.beginPath()
+  ctx.arc(p.sx, p.sy - 10.5 - hop, 2.1, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+/** Sprechblase über einem Bauwerk */
+function drawIdler(ctx: CanvasRenderingContext2D, idler: Idler, t: number): void {
+  const p = toScreen(idler.x, idler.y)
+  const hop = Math.abs(Math.sin(t * 1.5 + idler.phase)) * 1.2
+  ctx.save()
+  ctx.globalAlpha = 0.2
+  ctx.fillStyle = '#0b1424'
+  ctx.beginPath()
+  ctx.ellipse(p.sx, p.sy + 1, 3.4, 2, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+  ctx.fillStyle = idler.color
+  roundedPath(ctx, p.sx - 2, p.sy - 8 - hop, 4, 7, 2)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(28,20,16,0.85)'
+  ctx.beginPath()
+  ctx.arc(p.sx, p.sy - 9.5 - hop, 2, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+function drawBubble(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string, t: number): void {
+  const def = buildingDef(placed.type)
+  if (!def) return
+  const [w, h] = footprint(def, placed.rot)
+  const top = toScreen(placed.x + w / 2, placed.y + h / 2)
+  const hover = Math.sin(t * 2.4) * 3
+  const y = top.sy - TILE_H * (def.look.height + 1.6) - hover
+  ctx.save()
+  ctx.fillStyle = 'rgba(255,255,255,0.95)'
+  roundedPath(ctx, top.sx - 17, y - 17, 34, 30, 12)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(top.sx - 6, y + 12)
+  ctx.lineTo(top.sx + 4, y + 12)
+  ctx.lineTo(top.sx - 1, y + 21)
+  ctx.closePath()
+  ctx.fill()
+  ctx.font = '18px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, top.sx, y - 2)
+  ctx.restore()
+}
+
 /** Boden, Gitter und Rand des freigeschalteten Gebiets */
 function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean): void {
   const size = city.land
@@ -564,9 +673,31 @@ export function drawCity(
     ctx.restore()
   }
 
-  // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst
+  // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst.
+  // Menschen werden nach derselben Tiefe zwischen die Bauwerke gemischt.
+  const zeit = options.time ?? 0
+  const menschen: { depth: number; walker?: Walker; idler?: Idler }[] = []
+  if (options.life) {
+    for (const walker of options.life.walkers) {
+      const at = walkerAt(walker)
+      menschen.push({ depth: at.x + at.y, walker })
+    }
+    for (const idler of options.life.idlers) menschen.push({ depth: idler.x + idler.y, idler })
+    menschen.sort((a, b) => a.depth - b.depth)
+  }
+
+  let naechster = 0
+  const bisTiefe = (tiefe: number) => {
+    while (naechster < menschen.length && menschen[naechster].depth <= tiefe) {
+      const person = menschen[naechster++]
+      if (person.walker) drawWalker(ctx, person.walker, zeit)
+      else if (person.idler) drawIdler(ctx, person.idler, zeit)
+    }
+  }
+
   const sorted = [...city.buildings].sort((a, b) => a.x + a.y - (b.x + b.y))
   for (const placed of sorted) {
+    bisTiefe(placed.x + placed.y)
     drawBuilding(ctx, placed, options)
     if (placed.id === options.selected) {
       const def = buildingDef(placed.type)
@@ -575,6 +706,12 @@ export function drawCity(
         outline(ctx, placed.x, placed.y, w, h, '#ffd23f')
       }
     }
+  }
+  bisTiefe(Number.MAX_SAFE_INTEGER)
+
+  if (options.bubble) {
+    const haus = city.buildings.find((placed) => placed.id === options.bubble?.buildingId)
+    if (haus) drawBubble(ctx, haus, options.bubble.emoji, zeit)
   }
 
   const ghost = options.ghost
