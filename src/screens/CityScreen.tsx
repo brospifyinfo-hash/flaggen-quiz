@@ -247,9 +247,17 @@ function CityWorld({ data }: { data: SaveData }) {
 
     let raf = 0
     let last = performance.now()
+    // Gleitender Mittelwert der Bildzeit. Wird es zäh, fallen die Kleinteile weg;
+    // läuft es wieder rund, kommen sie zurück. Der Abstand dazwischen verhindert,
+    // dass die Stadt bei jedem Bild ihr Aussehen wechselt.
+    let bildzeit = 16
+    let detail = true
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame)
       const dt = Math.min(0.1, Math.max(0, (now - last) / 1000))
+      bildzeit = bildzeit * 0.9 + Math.min(200, now - last) * 0.1
+      if (detail && bildzeit > 34) detail = false
+      else if (!detail && bildzeit < 22) detail = true
       last = now
       const state = live.current
 
@@ -278,6 +286,7 @@ function CityWorld({ data }: { data: SaveData }) {
         paint: state.mode === 'road' ? { tiles: stroke.current, type: state.roadType, adding: !state.erase } : null,
         selected: state.selected,
         buildMode: state.mode !== 'view' && state.mode !== 'select',
+        detail,
         life: life.current,
         bubble: bitte ? { buildingId: bitte.buildingId, emoji: bitte.citizen.emoji } : null,
         time: now / 1000,

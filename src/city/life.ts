@@ -21,6 +21,8 @@ export interface Walker {
   color: string
   /** seitlicher Versatz, damit nicht alle auf derselben Linie laufen */
   off: number
+  /** feste Zufallszahl: Haare, Kleidung, Bauart des Wagens hängen daran */
+  seed: number
 }
 
 export interface Idler {
@@ -29,6 +31,8 @@ export interface Idler {
   color: string
   /** Phase der kleinen Bewegung */
   phase: number
+  /** feste Zufallszahl für das Aussehen */
+  seed: number
 }
 
 export interface Life {
@@ -96,6 +100,7 @@ export function createLife(city: CityState): Life {
         speed: kind === 'auto' ? 0.9 + Math.random() * 0.35 : kind === 'rad' ? 0.6 + Math.random() * 0.2 : 0.34 + Math.random() * 0.14,
         color: kind === 'auto' ? pick(CAR_COLORS) : pick(COLORS),
         off: (Math.random() - 0.5) * 0.3,
+        seed: Math.random() * 1000,
       })
     }
   }
@@ -113,6 +118,7 @@ export function createLife(city: CityState): Life {
         y: tile.y + 0.2 + Math.random() * 0.6,
         color: pick(COLORS),
         phase: Math.random() * Math.PI * 2,
+        seed: Math.random() * 1000,
       })
     }
   }
