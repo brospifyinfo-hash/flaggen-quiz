@@ -2666,7 +2666,7 @@ svg {
 
 .city-notice {
   position: absolute;
-  top: 10px;
+  top: 64px;
   left: 10px;
   right: 10px;
   padding: 10px 12px;
@@ -2689,6 +2689,39 @@ svg {
   bottom: 10px;
   left: 10px;
   right: 10px;
+}
+
+/* Kompass: zeigt, wie weit die Stadt gedreht ist. Antippen dreht zurück nach Norden. */
+.city-compass {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgb(14 22 40 / 0.8);
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 0.16),
+    0 4px 12px rgb(0 0 0 / 0.25);
+  animation: fade-in 0.2s ease both;
+}
+
+.city-compass[hidden] {
+  display: none;
+}
+
+.city-compass:active {
+  transform: scale(0.94);
+}
+
+.city-compass-needle {
+  width: 6px;
+  height: 26px;
+  border-radius: 3px;
+  background: linear-gradient(to bottom, #ff5f7a 0 50%, #f4f7ff 50% 100%);
+  transform: rotate(var(--dreh, 0rad));
 }
 
 .city-btn {

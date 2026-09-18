@@ -1,10 +1,10 @@
 // Zeichnet die Stadt als kleines Diorama: schräge Sicht, Schatten, Fassaden mit Fenstern,
 // Dächer, Bäume. Alles in ein Canvas, damit auch große Städte flüssig bleiben.
 import { buildingDef, footprint, roadDef } from './catalog'
-import { bauHoehe, drawBuilding, tree } from './buildings'
+import { drawBuilding, tree, umrissPunkte, type Seite } from './buildings'
 import { lift, quad, quadPath, roundedPath, type Point } from './draw'
 import { drawIdler, drawWalker, walkerAt } from './figures'
-import { TILE_H, TILE_W, tileNoise, toScreen, toTile } from './iso'
+import { nachRechts, setBlick, TILE_H, TILE_W, tiefe, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
 import type { Idler, Life, Walker } from './life'
 import { nextExpansion, roadAt, tilesOf } from './state'
 import { themeById, type Theme } from './themes'
@@ -46,6 +46,8 @@ export interface DrawOptions {
   time?: number
   /** Kleinteile zeichnen? false, wenn das Gerät sonst ins Stocken gerät */
   detail?: boolean
+  /** Aus welcher Richtung man auf die Stadt schaut, in Vierteldrehungen */
+  blick?: Blick
 }
 
 /**
@@ -220,23 +222,77 @@ function drawBubble(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string
   ctx.restore()
 }
 
+/**
+ * Wie weit vorn ein Bauwerk steht: gemessen an seiner vordersten Kachel, nicht an
+ * der Ecke, an der es verankert ist. Welche Kachel vorn liegt, hängt vom Blick ab.
+ */
+export function vorderTiefe(placed: Placed): number {
+  const def = buildingDef(placed.type)
+  if (!def) return tiefe(placed.x + 0.5, placed.y + 0.5)
+  const [bw, bh] = footprint(def, placed.rot)
+  let vorn = -Infinity
+  for (let dx = 0; dx < bw; dx++) {
+    for (let dy = 0; dy < bh; dy++) vorn = Math.max(vorn, tiefe(placed.x + dx + 0.5, placed.y + dy + 0.5))
+  }
+  return vorn
+}
+
+/**
+ * Auf welcher Seite liegt die Straße? Dorthin kommen Tür, Schaufenster und Markise.
+ * Gezählt werden die Straßenkacheln entlang jeder Seite; ohne Straße bleibt es bei
+ * Osten – so sah es schon immer aus, bevor man die Stadt drehen konnte.
+ */
+export function seiteZurStrasse(city: CityState, placed: Placed): Seite {
+  const def = buildingDef(placed.type)
+  if (!def) return 'o'
+  const [w, h] = footprint(def, placed.rot)
+  const zaehle = (kacheln: [number, number][]) => kacheln.filter(([x, y]) => roadAt(city, x, y)).length
+  const entlangX = (y: number) => Array.from({ length: w }, (_, i) => [placed.x + i, y] as [number, number])
+  const entlangY = (x: number) => Array.from({ length: h }, (_, i) => [x, placed.y + i] as [number, number])
+  const kandidaten: [Seite, number][] = [
+    ['o', zaehle(entlangY(placed.x + w))],
+    ['s', zaehle(entlangX(placed.y + h))],
+    ['n', zaehle(entlangX(placed.y - 1))],
+    ['w', zaehle(entlangY(placed.x - 1))],
+  ]
+  let beste: [Seite, number] = kandidaten[0]
+  for (const k of kandidaten) if (k[1] > beste[1]) beste = k
+  return beste[0]
+}
+
 /** Boden, Gitter und Rand des freigeschalteten Gebiets */
 function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean, theme: Theme): void {
   const size = city.land
-  const n = toScreen(0, 0)
-  const e = toScreen(size, 0)
-  const s = toScreen(size, size)
-  const w = toScreen(0, size)
+  const p0 = toScreen(0, 0)
+  const p1 = toScreen(size, 0)
+  const p2 = toScreen(size, size)
+  const p3 = toScreen(0, size)
 
-  // Erdschicht als Dicke unter der Wiese
+  // Erdschicht als Dicke unter der Wiese – an den Rändern, die zum Betrachter zeigen.
+  // Welche das sind, hängt vom Blickwinkel ab; die nach rechts gewandten sind heller.
   const depth = 26
-  quad(ctx, e, s, lift(s, -depth), lift(e, -depth), theme.soil[0])
-  quad(ctx, s, w, lift(w, -depth), lift(s, -depth), theme.soil[1])
+  const raender: [Point, Point, number, number][] = [
+    [p0, p1, 0, -1],
+    [p1, p2, 1, 0],
+    [p2, p3, 0, 1],
+    [p3, p0, -1, 0],
+  ]
+  for (const [a, b, nx, ny] of raender) {
+    if (!zeigtNachVorn(nx, ny)) continue
+    quad(ctx, a, b, lift(b, -depth), lift(a, -depth), nachRechts(nx, ny) >= 0 ? theme.soil[0] : theme.soil[1])
+  }
 
-  const grass = ctx.createLinearGradient(n.sx, n.sy, s.sx, s.sy)
+  // Wiese mit Verlauf von oben nach unten im Bild
+  const oben = Math.min(p0.sy, p1.sy, p2.sy, p3.sy)
+  const unten = Math.max(p0.sy, p1.sy, p2.sy, p3.sy)
+  const grass = ctx.createLinearGradient(0, oben, 0, unten)
   grass.addColorStop(0, theme.ground[0])
   grass.addColorStop(1, theme.ground[1])
-  quad(ctx, n, e, s, w, grass)
+  quad(ctx, p0, p1, p2, p3, grass)
+  const n = p0
+  const e = p1
+  const s = p2
+  const w = p3
 
   // Kachelrauschen – die Wiese soll nicht wie Farbe aus der Dose aussehen.
   // Die Kacheln werden in drei Helligkeiten sortiert und je Gruppe einmal gefüllt.
@@ -334,6 +390,8 @@ export function drawCity(
   view: { w: number; h: number },
   options: DrawOptions = {},
 ): void {
+  // Zuerst den Blick setzen – alles Weitere rechnet schon aus dieser Richtung
+  setBlick(options.blick ?? 0, city.land)
   const theme = themeById(city.theme)
   const sky = ctx.createLinearGradient(0, 0, 0, view.h)
   sky.addColorStop(0, theme.sky[0])
@@ -383,9 +441,9 @@ export function drawCity(
   if (options.life) {
     for (const walker of options.life.walkers) {
       const at = walkerAt(walker)
-      menschen.push({ depth: at.x + at.y, walker })
+      menschen.push({ depth: tiefe(at.x, at.y), walker })
     }
-    for (const idler of options.life.idlers) menschen.push({ depth: idler.x + idler.y, idler })
+    for (const idler of options.life.idlers) menschen.push({ depth: tiefe(idler.x, idler.y), idler })
     menschen.sort((a, b) => a.depth - b.depth)
   }
 
@@ -398,10 +456,14 @@ export function drawCity(
     }
   }
 
-  const sorted = [...city.buildings].sort((a, b) => a.x + a.y - (b.x + b.y))
+  // Ein Bauwerk verdeckt alles, was hinter seiner vorderen Kante steht. Maßgeblich
+  // ist darum nicht die hintere Ecke, sondern die vordere – sonst laufen Menschen
+  // und Autos durch ein mehrkachliges Haus hindurch, obwohl sie dahinter sind.
+  const vorderkante = (placed: Placed): number => vorderTiefe(placed)
+  const sorted = [...city.buildings].sort((a, b) => vorderkante(a) - vorderkante(b))
   for (const placed of sorted) {
-    bisTiefe(placed.x + placed.y)
-    drawBuilding(ctx, placed, zeit, theme, fein)
+    bisTiefe(vorderkante(placed))
+    drawBuilding(ctx, placed, zeit, theme, fein, seiteZurStrasse(city, placed))
     if (placed.id === options.selected) {
       const def = buildingDef(placed.type)
       if (def) {
@@ -483,30 +545,73 @@ export function cityFrame(city: CityState, view: { w: number; h: number }): Came
   return { x: (left + right) / 2, y: (top + bottom) / 2, zoom }
 }
 
+/** Konvexe Hülle einer Punktwolke (Andrews Verfahren) */
+function huelle(punkte: Point[]): Point[] {
+  const p = [...punkte].sort((a, b) => a.sx - b.sx || a.sy - b.sy)
+  if (p.length < 3) return p
+  const kreuz = (o: Point, a: Point, b: Point) => (a.sx - o.sx) * (b.sy - o.sy) - (a.sy - o.sy) * (b.sx - o.sx)
+  const unten: Point[] = []
+  for (const q of p) {
+    while (unten.length >= 2 && kreuz(unten[unten.length - 2], unten[unten.length - 1], q) <= 0) unten.pop()
+    unten.push(q)
+  }
+  const oben: Point[] = []
+  for (let i = p.length - 1; i >= 0; i--) {
+    const q = p[i]
+    while (oben.length >= 2 && kreuz(oben[oben.length - 2], oben[oben.length - 1], q) <= 0) oben.pop()
+    oben.push(q)
+  }
+  return unten.slice(0, -1).concat(oben.slice(0, -1))
+}
+
+/** Abstand eines Punkts zur Strecke a–b */
+function abstandZurStrecke(p: Point, a: Point, b: Point): number {
+  const dx = b.sx - a.sx
+  const dy = b.sy - a.sy
+  const laenge = dx * dx + dy * dy
+  const t = laenge > 0 ? Math.max(0, Math.min(1, ((p.sx - a.sx) * dx + (p.sy - a.sy) * dy) / laenge)) : 0
+  return Math.hypot(p.sx - (a.sx + t * dx), p.sy - (a.sy + t * dy))
+}
+
+/**
+ * Liegt der Punkt im Umriss – oder so knapp daneben, dass ein Finger es gemeint
+ * haben muss? Fingerkuppen sind breiter als eine Hauskante.
+ */
+function imUmriss(umriss: Point[], p: Point, spielraum: number): boolean {
+  if (umriss.length < 3) return false
+  let plus = false
+  let minus = false
+  for (let i = 0; i < umriss.length; i++) {
+    const a = umriss[i]
+    const b = umriss[(i + 1) % umriss.length]
+    const k = (b.sx - a.sx) * (p.sy - a.sy) - (b.sy - a.sy) * (p.sx - a.sx)
+    if (k > 0) plus = true
+    if (k < 0) minus = true
+  }
+  if (!(plus && minus)) return true
+  for (let i = 0; i < umriss.length; i++) {
+    if (abstandZurStrecke(p, umriss[i], umriss[(i + 1) % umriss.length]) <= spielraum) return true
+  }
+  return false
+}
+
 /**
  * Welches Bauwerk liegt unter diesem Punkt?
  *
- * In der Schrägsicht steht ein Haus über seiner Bodenkachel: Wer auf die Wand tippt,
- * trifft am Boden die Kachel dahinter. Deshalb wird die sichtbare Höhe mitgeprüft –
- * der Punkt wird schrittweise nach unten verschoben, bis er auf der Grundfläche landet.
- * Geprüft wird von vorn nach hinten, damit das nähere Bauwerk gewinnt.
+ * Geprüft wird gegen den sichtbaren Umriss: Grundriss, Wände, First, Turm. Und von
+ * vorn nach hinten, damit das nähere Bauwerk gewinnt – aber nur dort, wo es wirklich
+ * zu sehen ist. Ein Tipper knapp über seinem Dach gehört dem Haus dahinter.
  */
 export function hitTest(city: CityState, wx: number, wy: number): Placed | null {
-  const vonVorn = [...city.buildings].sort((a, b) => b.x + b.y - (a.x + a.y))
+  const vonVorn = [...city.buildings].sort((a, b) => vorderTiefe(b) - vorderTiefe(a))
+  const punkt = { sx: wx, sy: wy }
+  // Zuerst ohne Spielraum: wer genau getroffen ist, gewinnt – auch wenn ein Haus
+  // davor mit seinem Rand knapp danebenliegt
   for (const placed of vonVorn) {
-    const def = buildingDef(placed.type)
-    if (!def) continue
-    const [w, h] = footprint(def, placed.rot)
-    // Dach und Krone ragen über die Wandhöhe hinaus – aber nur so viel, wie die Bauform hergibt.
-    // Ein flacher Platz darf keine Tipper abfangen, die weit über ihm liegen.
-    const dach = def.look.kind === 'haus' ? 0.62 : def.look.kind === 'baum' ? 0.4 : 0.15
-    const hoehe = bauHoehe(def.look, placed.level) + TILE_H * dach
-    for (let schritt = 0; schritt <= 6; schritt++) {
-      const tile = toTile(wx, wy + (hoehe * schritt) / 6)
-      const tx = Math.floor(tile.x)
-      const ty = Math.floor(tile.y)
-      if (tx >= placed.x && tx < placed.x + w && ty >= placed.y && ty < placed.y + h) return placed
-    }
+    if (imUmriss(huelle(umrissPunkte(placed)), punkt, 0)) return placed
+  }
+  for (const placed of vonVorn) {
+    if (imUmriss(huelle(umrissPunkte(placed)), punkt, 5)) return placed
   }
   return null
 }

@@ -6,7 +6,7 @@
 // Zweitens hängt alles Zufällige am Namen des Hauses, damit es sein Aussehen behält.
 import { buildingDef, footprint, type Look } from './catalog'
 import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
-import { TILE_H, TILE_W, tileNoise, toScreen } from './iso'
+import { dirToScreen, nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
 import type { Theme } from './themes'
 import type { Placed } from './types'
 
@@ -163,127 +163,238 @@ function facade(
   }
 }
 
-export type TopBox = { n: Point; e: Point; s: Point; w: Point }
+/**
+ * Die vier Seiten eines Grundrisses, fest an der Karte: n (kleines y), o (großes x),
+ * s (großes y), w (kleines x). Eine Tür bleibt so an ihrer Wand, gleich wie man die
+ * Stadt dreht – sie verschwindet höchstens auf die Rückseite.
+ */
+export type Seite = 'n' | 'o' | 's' | 'w'
 
-/** Baukörper: Deckel plus die beiden Seiten, die man sieht */
+export const SEITEN: Seite[] = ['n', 'o', 's', 'w']
+
+/** Ein Grundriss in Kachelkoordinaten */
+type Grund = { x: number; y: number; w: number; h: number }
+
+/** Außenrichtung jeder Seite auf der Karte */
+const NORMALE: Record<Seite, [number, number]> = { n: [0, -1], o: [1, 0], s: [0, 1], w: [-1, 0] }
+
+/** Die vier Ecken eines Grundrisses, rundherum in fester Reihenfolge, auf gegebener Höhe */
+function umlauf(g: Grund, hoch = 0): [Point, Point, Point, Point] {
+  return [
+    lift(toScreen(g.x, g.y), hoch),
+    lift(toScreen(g.x + g.w, g.y), hoch),
+    lift(toScreen(g.x + g.w, g.y + g.h), hoch),
+    lift(toScreen(g.x, g.y + g.h), hoch),
+  ]
+}
+
+/** Schwerpunkt – die Mitte eines Dachs, gleich wie es gerade im Bild liegt */
+function schwerpunkt(punkte: Point[]): Point {
+  let sx = 0
+  let sy = 0
+  for (const p of punkte) {
+    sx += p.sx
+    sy += p.sy
+  }
+  return { sx: sx / punkte.length, sy: sy / punkte.length }
+}
+
+/**
+ * Eine Wand: ihre beiden Fußpunkte im Bild (links, rechts), ob sie zum Betrachter
+ * zeigt, wie hell sie im Licht von rechts ist, wie weit vorn sie steht und in welche
+ * Richtung "nach draußen" im Bild zeigt – für Markisen, Stufen und Kisten.
+ */
+type Wand = { seite: Seite; a: Point; b: Point; sichtbar: boolean; ton: number; tiefe: number; raus: Point }
+
+function waende(g: Grund, basis = 0): Record<Seite, Wand> {
+  const [p0, p1, p2, p3] = umlauf(g, basis)
+  const kanten: Record<Seite, [Point, Point]> = { n: [p0, p1], o: [p1, p2], s: [p2, p3], w: [p3, p0] }
+  const out = {} as Record<Seite, Wand>
+  for (const seite of SEITEN) {
+    const [nx, ny] = NORMALE[seite]
+    const [k0, k1] = kanten[seite]
+    const [a, b] = k0.sx <= k1.sx ? [k0, k1] : [k1, k0]
+    const r = dirToScreen(nx, ny)
+    const laenge = Math.hypot(r.sx, r.sy) || 1
+    out[seite] = {
+      seite,
+      a,
+      b,
+      sichtbar: zeigtNachVorn(nx, ny),
+      // Licht von rechts: nach rechts gewandte Wände sind heller
+      ton: -35 + 17 * nachRechts(nx, ny),
+      tiefe: (k0.sy + k1.sy) / 2,
+      raus: { sx: r.sx / laenge, sy: r.sy / laenge },
+    }
+  }
+  return out
+}
+
+/** Was ein Baukörper nach dem Zeichnen über sich verrät */
+export type Deckel = {
+  grund: Grund
+  hoehe: number
+  ecken: [Point, Point, Point, Point]
+  mitte: Point
+  waende: Record<Seite, Wand>
+}
+
+/** Baukörper: die Wände, die zum Betrachter zeigen, und der Deckel darauf */
 function box(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
+  g: Grund,
   heightPx: number,
   look: Look,
-  stil: { seed: number; floors: number; fein: boolean; balkon: boolean; licht: string },
-): TopBox {
-  const n = toScreen(x, y)
-  const e = toScreen(x + w, y)
-  const s = toScreen(x + w, y + h)
-  const west = toScreen(x, y + h)
+  stil: { seed: number; floors: number; fein: boolean; balkon: boolean; licht: string; vorn: Seite },
+): Deckel {
+  const alle = waende(g)
+  const sichtbar = SEITEN.map((s) => alle[s])
+    .filter((wand) => wand.sichtbar)
+    .sort((a, b) => a.tiefe - b.tiefe)
 
-  facade(ctx, e, s, heightPx, shade(look.wall, -18), { ...stil, front: true })
-  facade(ctx, s, west, heightPx, shade(look.wall, -52), { ...stil, front: false, balkon: false })
+  for (const wand of sichtbar) {
+    facade(ctx, wand.a, wand.b, heightPx, shade(look.wall, wand.ton), {
+      ...stil,
+      front: wand.seite === stil.vorn,
+      balkon: stil.balkon && wand.seite === stil.vorn,
+    })
+  }
 
-  // Hauskante zwischen den beiden Seiten – ein heller Strich gibt der Ecke Schärfe
-  if (stil.fein && heightPx > 10) {
+  // Hauskante dort, wo zwei sichtbare Wände zusammenstoßen – ein heller Strich gibt der Ecke Schärfe
+  if (stil.fein && heightPx > 10 && sichtbar.length === 2) {
+    const unten = umlauf(g).reduce((a, b) => (b.sy > a.sy ? b : a))
     ctx.strokeStyle = fade('#ffffff', 0.16)
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(s.sx, s.sy)
-    ctx.lineTo(s.sx, s.sy - heightPx)
+    ctx.moveTo(unten.sx, unten.sy)
+    ctx.lineTo(unten.sx, unten.sy - heightPx)
     ctx.stroke()
   }
 
-  quad(ctx, lift(n, heightPx), lift(e, heightPx), lift(s, heightPx), lift(west, heightPx), shade(look.wall, 16))
-  return { n: lift(n, heightPx), e: lift(e, heightPx), s: lift(s, heightPx), w: lift(west, heightPx) }
+  const ecken = umlauf(g, heightPx)
+  quad(ctx, ecken[0], ecken[1], ecken[2], ecken[3], shade(look.wall, 16))
+  return { grund: g, hoehe: heightPx, ecken, mitte: schwerpunkt(ecken), waende: alle }
 }
 
 /**
  * Ein Kasten, der auf einem Dach steht. Anders als box() beginnt er nicht am Boden –
  * sonst zöge er einen Streifen über die Fassade des Hauses, auf dem er sitzt.
  */
-function roofBox(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  basis: number,
-  hoehe: number,
-  farbe: string,
-): TopBox {
-  const n = lift(toScreen(x, y), basis)
-  const e = lift(toScreen(x + w, y), basis)
-  const s = lift(toScreen(x + w, y + h), basis)
-  const west = lift(toScreen(x, y + h), basis)
-  quad(ctx, e, s, lift(s, hoehe), lift(e, hoehe), shade(farbe, -16))
-  quad(ctx, s, west, lift(west, hoehe), lift(s, hoehe), shade(farbe, -38))
-  quad(ctx, lift(n, hoehe), lift(e, hoehe), lift(s, hoehe), lift(west, hoehe), shade(farbe, 16))
-  return { n: lift(n, hoehe), e: lift(e, hoehe), s: lift(s, hoehe), w: lift(west, hoehe) }
+function roofBox(ctx: CanvasRenderingContext2D, g: Grund, basis: number, hoehe: number, farbe: string): Deckel {
+  const alle = waende(g, basis)
+  for (const wand of SEITEN.map((s) => alle[s])
+    .filter((w) => w.sichtbar)
+    .sort((a, b) => a.tiefe - b.tiefe)) {
+    quad(ctx, wand.a, wand.b, lift(wand.b, hoehe), lift(wand.a, hoehe), shade(farbe, wand.ton * 0.8))
+  }
+  const ecken = umlauf(g, basis + hoehe)
+  quad(ctx, ecken[0], ecken[1], ecken[2], ecken[3], shade(farbe, 16))
+  return { grund: g, hoehe: basis + hoehe, ecken, mitte: schwerpunkt(ecken), waende: alle }
 }
 
-/** Satteldach mit First, Überstand und Ziegelreihen */
-function gableRoof(ctx: CanvasRenderingContext2D, top: TopBox, rise: number, color: string, fein: boolean): TopBox {
-  const mitte = { sx: (top.n.sx + top.s.sx) / 2, sy: (top.n.sy + top.s.sy) / 2 }
-  const weit = (p: Point, f: number): Point => ({
-    sx: mitte.sx + (p.sx - mitte.sx) * f,
-    sy: mitte.sy + (p.sy - mitte.sy) * f,
-  })
-  // Überstand: das Dach ragt über die Wand hinaus
-  const n = weit(top.n, 1.12)
-  const e = weit(top.e, 1.12)
-  const s = weit(top.s, 1.12)
-  const w = weit(top.w, 1.12)
+/** Etwas, das auf einer Dachschräge sitzt: Schornstein, Gaube */
+type AufDach = { wx: number; wy: number; malen: (p: Point) => void }
 
-  const first1 = lift(mix(n, w, 0.5), rise)
-  const first2 = lift(mix(e, s, 0.5), rise)
+/**
+ * Satteldach mit First, Überstand und Ziegelreihen. Der First liegt fest auf der
+ * Karte, entlang der längeren Seite – dreht man die Stadt, dreht das Dach mit, statt
+ * bei einem bestimmten Winkel umzuspringen. Die Flächen werden von hinten nach vorn
+ * gemalt; was auf einer Schräge sitzt, kommt direkt nach seiner Schräge dran, damit
+ * die vordere Schräge es verdecken kann.
+ */
+function gableRoof(
+  ctx: CanvasRenderingContext2D,
+  deckel: Deckel,
+  rise: number,
+  color: string,
+  fein: boolean,
+  aufDach: AufDach[] = [],
+): { first: [Point, Point]; punkt: (wx: number, wy: number) => Point } {
+  const u = 0.06
+  const g = deckel.grund
+  const r: Grund = { x: g.x - u, y: g.y - u, w: g.w + 2 * u, h: g.h + 2 * u }
+  const basis = deckel.hoehe
+  const [c0, c1, c2, c3] = umlauf(r, basis)
+  const laengsX = g.w >= g.h
+  const f1 = laengsX
+    ? lift(toScreen(r.x, r.y + r.h / 2), basis + rise)
+    : lift(toScreen(r.x + r.w / 2, r.y), basis + rise)
+  const f2 = laengsX
+    ? lift(toScreen(r.x + r.w, r.y + r.h / 2), basis + rise)
+    : lift(toScreen(r.x + r.w / 2, r.y + r.h), basis + rise)
 
-  // Die beiden Schrägen
-  quad(ctx, n, e, first2, first1, shade(color, 12))
-  quad(ctx, w, s, first2, first1, shade(color, -26))
-  // Giebel an den Schmalseiten
-  ctx.beginPath()
-  ctx.moveTo(n.sx, n.sy)
-  ctx.lineTo(w.sx, w.sy)
-  ctx.lineTo(first1.sx, first1.sy)
-  ctx.closePath()
-  ctx.fillStyle = shade(color, -4)
-  ctx.fill()
-  ctx.beginPath()
-  ctx.moveTo(e.sx, e.sy)
-  ctx.lineTo(s.sx, s.sy)
-  ctx.lineTo(first2.sx, first2.sy)
-  ctx.closePath()
-  ctx.fillStyle = shade(color, -16)
-  ctx.fill()
+  // Höhe der Dachfläche über einem Kartenpunkt: am First am höchsten, an der Traufe am tiefsten
+  const punkt = (wx: number, wy: number): Point => {
+    const abstand = laengsX ? Math.abs(wy - (r.y + r.h / 2)) / (r.h / 2) : Math.abs(wx - (r.x + r.w / 2)) / (r.w / 2)
+    return lift(toScreen(wx, wy), basis + rise * Math.max(0, 1 - abstand))
+  }
 
-  if (fein) {
-    // Ziegelreihen auf beiden Schrägen
-    ctx.strokeStyle = fade('#10131c', 0.18)
-    ctx.lineWidth = 0.9
-    for (const [kanteA, kanteB] of [
-      [n, e],
-      [w, s],
-    ] as [Point, Point][]) {
+  type Schraege = { punkte: [Point, Point, Point, Point]; n: [number, number]; traufe: [Point, Point]; seiteNeg: boolean }
+  const schraegen: Schraege[] = laengsX
+    ? [
+        { punkte: [c0, c1, f2, f1], n: [0, -1], traufe: [c0, c1], seiteNeg: true },
+        { punkte: [c3, c2, f2, f1], n: [0, 1], traufe: [c3, c2], seiteNeg: false },
+      ]
+    : [
+        { punkte: [c0, c3, f2, f1], n: [-1, 0], traufe: [c0, c3], seiteNeg: true },
+        { punkte: [c1, c2, f2, f1], n: [1, 0], traufe: [c1, c2], seiteNeg: false },
+      ]
+  const giebel: { punkte: [Point, Point, Point]; n: [number, number] }[] = laengsX
+    ? [
+        { punkte: [c0, c3, f1], n: [-1, 0] },
+        { punkte: [c1, c2, f2], n: [1, 0] },
+      ]
+    : [
+        { punkte: [c0, c1, f1], n: [0, -1] },
+        { punkte: [c3, c2, f2], n: [0, 1] },
+      ]
+
+  // Die hintere Schräge zuerst, dazu was auf ihr sitzt; dann die vordere
+  schraegen.sort((a, b) => schwerpunkt(a.punkte).sy - schwerpunkt(b.punkte).sy)
+  for (const flaeche of schraegen) {
+    const [p0, p1, p2, p3] = flaeche.punkte
+    quad(ctx, p0, p1, p2, p3, shade(color, -7 + 19 * nachRechts(flaeche.n[0], flaeche.n[1])))
+    if (fein) {
+      ctx.strokeStyle = fade('#10131c', 0.18)
+      ctx.lineWidth = 0.9
+      ctx.beginPath()
       for (let i = 1; i <= 3; i++) {
         const t = i / 4
-        const p0 = mix(kanteA, first1, t)
-        const p1 = mix(kanteB, first2, t)
-        ctx.beginPath()
-        ctx.moveTo(p0.sx, p0.sy)
-        ctx.lineTo(p1.sx, p1.sy)
-        ctx.stroke()
+        const q0 = mix(flaeche.traufe[0], f1, t)
+        const q1 = mix(flaeche.traufe[1], f2, t)
+        ctx.moveTo(q0.sx, q0.sy)
+        ctx.lineTo(q1.sx, q1.sy)
       }
+      ctx.stroke()
     }
+    for (const ding of aufDach) {
+      const aufNeg = laengsX ? ding.wy < r.y + r.h / 2 : ding.wx < r.x + r.w / 2
+      if (aufNeg === flaeche.seiteNeg) ding.malen(punkt(ding.wx, ding.wy))
+    }
+  }
+
+  // Giebel nur, wo sie zum Betrachter zeigen – die hinteren verdeckt das Dach ohnehin
+  for (const g3 of giebel) {
+    if (!zeigtNachVorn(g3.n[0], g3.n[1])) continue
+    ctx.beginPath()
+    ctx.moveTo(g3.punkte[0].sx, g3.punkte[0].sy)
+    ctx.lineTo(g3.punkte[1].sx, g3.punkte[1].sy)
+    ctx.lineTo(g3.punkte[2].sx, g3.punkte[2].sy)
+    ctx.closePath()
+    ctx.fillStyle = shade(color, -10 + 6 * nachRechts(g3.n[0], g3.n[1]))
+    ctx.fill()
+  }
+
+  if (fein) {
     // First als heller Grat
     ctx.strokeStyle = fade('#ffffff', 0.3)
     ctx.lineWidth = 1.6
     ctx.beginPath()
-    ctx.moveTo(first1.sx, first1.sy)
-    ctx.lineTo(first2.sx, first2.sy)
+    ctx.moveTo(f1.sx, f1.sy)
+    ctx.lineTo(f2.sx, f2.sy)
     ctx.stroke()
   }
-  return { n: first1, e: first2, s: first2, w: first1 }
+  return { first: [f1, f2], punkt }
 }
 
 /** Schornstein mit Rauch */
@@ -413,36 +524,44 @@ function fountain(ctx: CanvasRenderingContext2D, x: number, y: number, look: Loo
 }
 
 function park(ctx: CanvasRenderingContext2D, placed: Placed, w: number, h: number, look: Look, fein: boolean): void {
-  const top = box(ctx, placed.x, placed.y, w, h, TILE_H * look.height, look, {
+  const hoch = TILE_H * look.height
+  const deckel = box(ctx, { x: placed.x, y: placed.y, w, h }, hoch, look, {
     seed: hashOf(placed.id),
     floors: 0,
     fein,
     balkon: false,
     licht: 'rgba(255,224,150,0.9)',
+    vorn: 'o',
   })
+  const [k0, k1, k2, k3] = deckel.ecken
   ctx.save()
   ctx.beginPath()
-  ctx.moveTo(top.n.sx, top.n.sy)
-  ctx.lineTo(top.e.sx, top.e.sy)
-  ctx.lineTo(top.s.sx, top.s.sy)
-  ctx.lineTo(top.w.sx, top.w.sy)
+  ctx.moveTo(k0.sx, k0.sy)
+  ctx.lineTo(k1.sx, k1.sy)
+  ctx.lineTo(k2.sx, k2.sy)
+  ctx.lineTo(k3.sx, k3.sy)
   ctx.closePath()
   ctx.clip()
-  // Weg quer durch den Park, mit hellem Kies
+  // Weg quer durch den Park, mit hellem Kies – fest auf der Karte, von West nach Ost
+  const wegA = lift(toScreen(placed.x, placed.y + h / 2), hoch)
+  const wegB = lift(toScreen(placed.x + w, placed.y + h / 2), hoch)
   ctx.strokeStyle = 'rgba(232,222,196,0.85)'
   ctx.lineWidth = 7
   ctx.beginPath()
-  ctx.moveTo(top.w.sx, top.w.sy)
-  ctx.lineTo(top.e.sx, top.e.sy)
+  ctx.moveTo(wegA.sx, wegA.sy)
+  ctx.lineTo(wegB.sx, wegB.sy)
   ctx.stroke()
   if (fein) {
+    // Kanten des Wegs: parallel versetzt, quer zur Wegrichtung im Bild
+    const lang = Math.hypot(wegB.sx - wegA.sx, wegB.sy - wegA.sy) || 1
+    const q = { sx: (-(wegB.sy - wegA.sy) / lang) * 3.5, sy: ((wegB.sx - wegA.sx) / lang) * 3.5 }
     ctx.strokeStyle = 'rgba(160,150,124,0.5)'
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(top.w.sx, top.w.sy - 3.5)
-    ctx.lineTo(top.e.sx, top.e.sy - 3.5)
-    ctx.moveTo(top.w.sx, top.w.sy + 3.5)
-    ctx.lineTo(top.e.sx, top.e.sy + 3.5)
+    ctx.moveTo(wegA.sx + q.sx, wegA.sy + q.sy)
+    ctx.lineTo(wegB.sx + q.sx, wegB.sy + q.sy)
+    ctx.moveTo(wegA.sx - q.sx, wegA.sy - q.sy)
+    ctx.lineTo(wegB.sx - q.sx, wegB.sy - q.sy)
     ctx.stroke()
     // Blumentupfer im Gras
     for (let i = 0; i < w * h * 3; i++) {
@@ -648,10 +767,16 @@ function trinket(ctx: CanvasRenderingContext2D, placed: Placed, look: Look, t: n
   }
 }
 
-/** Tür mit Rahmen, Stufe, Klinke und kleinem Vordach */
-function tuer(ctx: CanvasRenderingContext2D, unten: Point, oben: Point, hoehe: number, look: Look, fein: boolean): void {
-  const a = { sx: unten.sx, sy: unten.sy }
-  const b = { sx: oben.sx, sy: oben.sy }
+/** Tür mit Rahmen, Stufe, Klinke – auf einer Wand, deren Außenrichtung `raus` ist */
+function tuer(
+  ctx: CanvasRenderingContext2D,
+  a: Point,
+  b: Point,
+  hoehe: number,
+  look: Look,
+  fein: boolean,
+  raus: Point,
+): void {
   if (fein) {
     // Rahmen
     quad(ctx, mix(a, b, -0.12), mix(a, b, 1.12), lift(mix(a, b, 1.12), hoehe + 2), lift(mix(a, b, -0.12), hoehe + 2), shade(look.accent, 34))
@@ -673,15 +798,26 @@ function tuer(ctx: CanvasRenderingContext2D, unten: Point, oben: Point, hoehe: n
   ctx.beginPath()
   ctx.arc(klinke.sx, klinke.sy, 1.1, 0, Math.PI * 2)
   ctx.fill()
-  // Stufe davor
-  quad(ctx, mix(a, b, -0.1), mix(a, b, 1.1), { sx: mix(a, b, 1.1).sx + 2, sy: mix(a, b, 1.1).sy + 2.6 }, { sx: mix(a, b, -0.1).sx + 2, sy: mix(a, b, -0.1).sy + 2.6 }, 'rgba(226,226,226,0.55)')
+  // Stufe davor – sie liegt draußen vor der Wand, in welche Richtung die auch zeigt
+  const s0 = mix(a, b, -0.1)
+  const s1 = mix(a, b, 1.1)
+  const vor = { sx: raus.sx * 3, sy: raus.sy * 3 }
+  quad(ctx, s0, s1, { sx: s1.sx + vor.sx, sy: s1.sy + vor.sy }, { sx: s0.sx + vor.sx, sy: s0.sy + vor.sy }, 'rgba(226,226,226,0.55)')
 }
 
 /**
  * Ein Bauwerk. `fein` schaltet die Kleinteile zu – bei weit herausgezoomter Kamera
- * bleiben sie weg, damit auch große Städte flüssig laufen.
+ * bleiben sie weg, damit auch große Städte flüssig laufen. `vorn` ist die Seite, an
+ * der Tür, Schaufenster und Markise sitzen: die zur Straße.
  */
-export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time: number, theme: Theme, fein: boolean): void {
+export function drawBuilding(
+  ctx: CanvasRenderingContext2D,
+  placed: Placed,
+  time: number,
+  theme: Theme,
+  fein: boolean,
+  vorn: Seite = 'o',
+): void {
   const def = buildingDef(placed.type)
   if (!def) return
   const [w, h] = footprint(def, placed.rot)
@@ -689,23 +825,22 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
   const seed = hashOf(placed.id + placed.type)
   const stufe = Math.max(1, placed.level)
 
-  // Schatten
-  const shadow = toScreen(placed.x + 0.18, placed.y + 0.22)
-  ctx.save()
-  ctx.globalAlpha = 0.22
-  ctx.fillStyle = '#0b1424'
-  ctx.beginPath()
-  const n = toScreen(0, 0)
-  const e = toScreen(w, 0)
-  const s = toScreen(w, h)
-  const west = toScreen(0, h)
-  ctx.moveTo(shadow.sx + n.sx, shadow.sy + n.sy)
-  ctx.lineTo(shadow.sx + e.sx, shadow.sy + e.sy)
-  ctx.lineTo(shadow.sx + s.sx, shadow.sy + s.sy)
-  ctx.lineTo(shadow.sx + west.sx, shadow.sy + west.sy)
-  ctx.closePath()
-  ctx.fill()
-  ctx.restore()
+  // Der Baukörper rückt mit jeder Stufe weiter an den Rand seines Grundstücks
+  const ein = einzug(look, stufe)
+  const grund: Grund = { x: placed.x + ein, y: placed.y + ein, w: w - ein * 2, h: h - ein * 2 }
+
+  // Schatten. Er gehört unter den Baukörper, nicht unter die ganze Kachel: Schaute
+  // er ringsum unter dem Haus hervor, sähe es aus, als schwebte es darüber. Der
+  // Versatz liegt im Bild, nicht auf der Karte – aus jeder Blickrichtung fällt er
+  // nach vorn unten und nie hinter das Haus. Flaches bringt eigene Schatten mit.
+  if (!FLACH.has(look.kind)) {
+    const wurf = 1.4 + Math.min(1.6, look.height * 0.5)
+    const [s0, s1, s2, s3] = umlauf(grund).map((p) => ({ sx: p.sx, sy: p.sy + wurf }))
+    ctx.save()
+    ctx.globalAlpha = 0.26
+    quad(ctx, s0, s1, s2, s3, '#0b1424')
+    ctx.restore()
+  }
 
   // Frisch Gebautes wächst kurz aus dem Boden. Wichtig: echte Uhrzeit, nicht die
   // Laufzeit der Seite – sonst bleibt jedes Haus für immer flach.
@@ -732,12 +867,6 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
     return
   }
 
-  // Der Baukörper rückt mit jeder Stufe weiter an den Rand seines Grundstücks
-  const ein = einzug(look, stufe)
-  const bx = placed.x + ein
-  const by = placed.y + ein
-  const bw = w - ein * 2
-  const bh = h - ein * 2
   const heightPx = bauHoehe(look, stufe) * rise
   const licht = 'rgba(255,214,132,0.92)'
   const stil = {
@@ -746,8 +875,11 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
     fein,
     balkon: look.kind === 'block' && stufe >= 2,
     licht,
+    vorn,
   }
-  const top = box(ctx, bx, by, bw, bh, heightPx, look, stil)
+  const deckel = box(ctx, grund, heightPx, look, stil)
+  const mitte = deckel.mitte
+  const front = deckel.waende[vorn]
 
   if (look.kind === 'brunnen') {
     fountain(ctx, placed.x, placed.y, look, time)
@@ -778,8 +910,7 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
     return
   }
   if (look.kind === 'kuppel') {
-    const mitte = { sx: (top.n.sx + top.s.sx) / 2, sy: (top.n.sy + top.s.sy) / 2 }
-    const r = Math.min(bw, bh) * TILE_W * 0.3
+    const r = Math.min(grund.w, grund.h) * TILE_W * 0.3
     ctx.fillStyle = look.roof
     ctx.beginPath()
     ctx.ellipse(mitte.sx, mitte.sy + 2, r, r * 0.7, 0, Math.PI, 0)
@@ -810,15 +941,18 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
     return
   }
   if (look.kind === 'statue') {
-    const sockel = box(ctx, placed.x + 0.25, placed.y + 0.25, 0.5, 0.5, TILE_H * 0.35, look, { ...stil, floors: 0 })
-    const mitte = { sx: (sockel.n.sx + sockel.s.sx) / 2, sy: (sockel.n.sy + sockel.s.sy) / 2 }
+    const sockel = box(ctx, { x: placed.x + 0.25, y: placed.y + 0.25, w: 0.5, h: 0.5 }, TILE_H * 0.35, look, {
+      ...stil,
+      floors: 0,
+    })
+    const oben = sockel.mitte
     ctx.fillStyle = shade(look.wall, 22)
     // Körper
     ctx.beginPath()
-    ctx.moveTo(mitte.sx - 6, mitte.sy)
-    ctx.lineTo(mitte.sx + 6, mitte.sy)
-    ctx.lineTo(mitte.sx + 3, mitte.sy - 26)
-    ctx.lineTo(mitte.sx - 3, mitte.sy - 26)
+    ctx.moveTo(oben.sx - 6, oben.sy)
+    ctx.lineTo(oben.sx + 6, oben.sy)
+    ctx.lineTo(oben.sx + 3, oben.sy - 26)
+    ctx.lineTo(oben.sx - 3, oben.sy - 26)
     ctx.closePath()
     ctx.fill()
     if (fein) {
@@ -827,67 +961,87 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
       ctx.lineWidth = 3
       ctx.lineCap = 'round'
       ctx.beginPath()
-      ctx.moveTo(mitte.sx + 2, mitte.sy - 22)
-      ctx.lineTo(mitte.sx + 9, mitte.sy - 32)
+      ctx.moveTo(oben.sx + 2, oben.sy - 22)
+      ctx.lineTo(oben.sx + 9, oben.sy - 32)
       ctx.stroke()
       ctx.fillStyle = fade('#ffffff', 0.25)
-      ctx.fillRect(mitte.sx - 3, mitte.sy - 26, 2, 26)
+      ctx.fillRect(oben.sx - 3, oben.sy - 26, 2, 26)
     }
     ctx.fillStyle = shade(look.wall, 22)
     ctx.beginPath()
-    ctx.arc(mitte.sx, mitte.sy - 31, 5, 0, Math.PI * 2)
+    ctx.arc(oben.sx, oben.sy - 31, 5, 0, Math.PI * 2)
     ctx.fill()
     return
   }
   if (look.kind === 'flach') return
 
-  const mitte = { sx: (top.n.sx + top.s.sx) / 2, sy: (top.n.sy + top.s.sy) / 2 }
-
   if (look.kind === 'haus') {
-    const dach = gableRoof(ctx, top, TILE_H * (0.5 + (stufe - 1) * 0.12), look.roof, fein)
-    // Tür auf der Vorderseite
-    const doorA = mix(top.e, top.s, 0.42)
-    const doorB = mix(top.e, top.s, 0.58)
-    tuer(
-      ctx,
-      { sx: doorA.sx, sy: doorA.sy + heightPx },
-      { sx: doorB.sx, sy: doorB.sy + heightPx },
-      Math.min(14, heightPx * 0.72),
-      look,
-      fein,
-    )
+    // Schornstein und Gauben sitzen fest auf ihrer Dachseite
+    const g = grund
+    const laengsX = g.w >= g.h
+    const aufDach: AufDach[] = []
     if (fein) {
-      // Schornstein, ab Stufe 2 raucht er
-      const schornOrt = mix(top.n, top.e, 0.72)
-      schornstein(ctx, { sx: schornOrt.sx, sy: schornOrt.sy - 2 }, 9 + stufe * 2, stufe >= 2, time, seed)
-      if (stufe >= 2) gaube(ctx, { sx: mitte.sx + 6, sy: (dach.n.sy + mitte.sy) / 2 + 4 }, look.wall, licht)
-      if (stufe >= 3) {
-        // Dachfenster auf der zweiten Schräge und ein Wetterhahn
-        gaube(ctx, { sx: mitte.sx - 10, sy: (dach.n.sy + mitte.sy) / 2 + 7 }, look.wall, licht)
-        ctx.strokeStyle = '#ffd23f'
-        ctx.lineWidth = 1.4
-        ctx.beginPath()
-        ctx.moveTo(dach.n.sx, dach.n.sy)
-        ctx.lineTo(dach.n.sx, dach.n.sy - 8)
-        ctx.stroke()
-        ctx.fillStyle = '#ffd23f'
-        ctx.beginPath()
-        ctx.moveTo(dach.n.sx, dach.n.sy - 9.5)
-        ctx.lineTo(dach.n.sx + 5, dach.n.sy - 7.5)
-        ctx.lineTo(dach.n.sx, dach.n.sy - 5.5)
-        ctx.closePath()
-        ctx.fill()
+      aufDach.push({
+        wx: g.x + g.w * (laengsX ? 0.72 : 0.28),
+        wy: g.y + g.h * (laengsX ? 0.28 : 0.72),
+        malen: (p) => schornstein(ctx, p, 9 + stufe * 2, stufe >= 2, time, seed),
+      })
+      if (stufe >= 2) {
+        aufDach.push({
+          wx: g.x + g.w * (laengsX ? 0.38 : 0.76),
+          wy: g.y + g.h * (laengsX ? 0.76 : 0.38),
+          malen: (p) => gaube(ctx, p, look.wall, licht),
+        })
       }
+      if (stufe >= 3) {
+        aufDach.push({
+          wx: g.x + g.w * (laengsX ? 0.7 : 0.76),
+          wy: g.y + g.h * (laengsX ? 0.76 : 0.7),
+          malen: (p) => gaube(ctx, p, look.wall, licht),
+        })
+      }
+    }
+    const dach = gableRoof(ctx, deckel, TILE_H * (0.5 + (stufe - 1) * 0.12), look.roof, fein, aufDach)
+    // Tür auf der Straßenseite – nur, wenn man diese Seite gerade sieht
+    if (front.sichtbar) {
+      tuer(
+        ctx,
+        mix(front.a, front.b, 0.42),
+        mix(front.a, front.b, 0.58),
+        Math.min(14, heightPx * 0.72),
+        look,
+        fein,
+        front.raus,
+      )
+    }
+    if (fein && stufe >= 3) {
+      // Wetterhahn auf dem Firstende
+      const spitze = dach.first[0]
+      ctx.strokeStyle = '#ffd23f'
+      ctx.lineWidth = 1.4
+      ctx.beginPath()
+      ctx.moveTo(spitze.sx, spitze.sy)
+      ctx.lineTo(spitze.sx, spitze.sy - 8)
+      ctx.stroke()
+      ctx.fillStyle = '#ffd23f'
+      ctx.beginPath()
+      ctx.moveTo(spitze.sx, spitze.sy - 9.5)
+      ctx.lineTo(spitze.sx + 5, spitze.sy - 7.5)
+      ctx.lineTo(spitze.sx, spitze.sy - 5.5)
+      ctx.closePath()
+      ctx.fill()
     }
     return
   }
 
+  const [d0, d1, d2, d3] = deckel.ecken
+
   if (look.kind === 'laden') {
     // Flachdach mit umlaufender Attika
-    quad(ctx, top.n, top.e, top.s, top.w, shade(look.roof, 0))
+    quad(ctx, d0, d1, d2, d3, shade(look.roof, 0))
     if (fein) {
       const rand = 3
-      const innen = [top.n, top.e, top.s, top.w].map((p) => ({
+      const innen = deckel.ecken.map((p) => ({
         sx: mitte.sx + (p.sx - mitte.sx) * 0.82,
         sy: mitte.sy + (p.sy - mitte.sy) * 0.82,
       })) as [Point, Point, Point, Point]
@@ -898,83 +1052,63 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
       ctx.fillStyle = shade(look.wall, 20)
       ctx.fillRect(mitte.sx - 7, mitte.sy - 11, 12, 2.4)
     }
+    if (!front.sichtbar) return
 
-    // Schaufenster über die ganze Vorderseite
-    const fensterA = mix(top.e, top.s, 0.14)
-    const fensterB = mix(top.e, top.s, 0.86)
-    const unten = heightPx * 0.92
-    quad(
-      ctx,
-      { sx: fensterA.sx, sy: fensterA.sy + unten },
-      { sx: fensterB.sx, sy: fensterB.sy + unten },
-      { sx: fensterB.sx, sy: fensterB.sy + unten - 13 },
-      { sx: fensterA.sx, sy: fensterA.sy + unten - 13 },
-      licht,
-    )
+    // Schaufenster über die ganze Straßenseite
+    const unten = heightPx * 0.08
+    const fensterA = lift(mix(front.a, front.b, 0.14), unten)
+    const fensterB = lift(mix(front.a, front.b, 0.86), unten)
+    quad(ctx, fensterA, fensterB, lift(fensterB, 13), lift(fensterA, 13), licht)
     if (fein) {
       // Waren im Fenster
       for (let i = 0; i < 3; i++) {
         const p = mix(fensterA, fensterB, 0.24 + i * 0.26)
         ctx.fillStyle = ['#ff7ab5', '#7bdcff', '#9dff8b'][i]
-        ctx.fillRect(p.sx - 2, p.sy + unten - 7, 4, 5)
+        ctx.fillRect(p.sx - 2, p.sy - 7, 4, 5)
       }
       ctx.strokeStyle = fade('#2a3348', 0.5)
       ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.moveTo(fensterA.sx, fensterA.sy + unten - 13)
-      ctx.lineTo(fensterB.sx, fensterB.sy + unten - 13)
+      ctx.moveTo(fensterA.sx, fensterA.sy - 13)
+      ctx.lineTo(fensterB.sx, fensterB.sy - 13)
       ctx.stroke()
     }
 
-    // Markise mit Streifen
-    const a = mix(top.e, top.s, 0.12)
-    const b = mix(top.e, top.s, 0.88)
-    const hoeheMarkise = heightPx * 0.42
-    const ecke = 8
-    quad(
-      ctx,
-      { sx: a.sx, sy: a.sy + hoeheMarkise },
-      { sx: b.sx, sy: b.sy + hoeheMarkise },
-      { sx: b.sx + ecke * 0.8, sy: b.sy + hoeheMarkise + ecke },
-      { sx: a.sx + ecke * 0.8, sy: a.sy + hoeheMarkise + ecke },
-      look.accent,
-    )
+    // Markise mit Streifen – sie ragt nach draußen, weg von der Wand
+    const hoeheMarkise = heightPx * 0.58
+    const a = lift(mix(front.a, front.b, 0.12), hoeheMarkise)
+    const b = lift(mix(front.a, front.b, 0.88), hoeheMarkise)
+    const vor = { sx: front.raus.sx * 7, sy: front.raus.sy * 7 + 5 }
+    const weg = (p: Point): Point => ({ sx: p.sx + vor.sx, sy: p.sy + vor.sy })
+    quad(ctx, a, b, weg(b), weg(a), look.accent)
     if (fein) {
       for (let i = 0; i < 5; i += 2) {
-        const t0 = i / 6
-        const t1 = (i + 1) / 6
-        const s0 = mix(a, b, t0)
-        const s1 = mix(a, b, t1)
-        quad(
-          ctx,
-          { sx: s0.sx, sy: s0.sy + hoeheMarkise },
-          { sx: s1.sx, sy: s1.sy + hoeheMarkise },
-          { sx: s1.sx + ecke * 0.8, sy: s1.sy + hoeheMarkise + ecke },
-          { sx: s0.sx + ecke * 0.8, sy: s0.sy + hoeheMarkise + ecke },
-          fade('#ffffff', 0.55),
-        )
+        const s0 = mix(a, b, i / 6)
+        const s1 = mix(a, b, (i + 1) / 6)
+        quad(ctx, s0, s1, weg(s1), weg(s0), fade('#ffffff', 0.55))
       }
       // Schild über der Markise
-      const schild = mix(a, b, 0.5)
+      const schild = lift(mix(a, b, 0.5), 4)
       ctx.fillStyle = shade(look.accent, -34)
-      roundedPath(ctx, schild.sx - 13, schild.sy + hoeheMarkise - 12, 26, 8, 2)
+      roundedPath(ctx, schild.sx - 13, schild.sy - 8, 26, 8, 2)
       ctx.fill()
       ctx.fillStyle = fade('#ffffff', 0.8)
-      for (let i = 0; i < 4; i++) ctx.fillRect(schild.sx - 9 + i * 5, schild.sy + hoeheMarkise - 9, 3, 2.4)
+      for (let i = 0; i < 4; i++) ctx.fillRect(schild.sx - 9 + i * 5, schild.sy - 5, 3, 2.4)
       if (stufe >= 2) {
-        // Kisten neben dem Eingang
-        const kiste = mix(top.s, top.w, 0.2)
+        // Kisten vor dem Laden
+        const kiste = mix(front.a, front.b, 0.86)
+        const ort = { sx: kiste.sx + front.raus.sx * 6, sy: kiste.sy + front.raus.sy * 6 }
         ctx.fillStyle = '#b98a54'
-        ctx.fillRect(kiste.sx - 4, kiste.sy + heightPx - 6, 9, 6)
+        ctx.fillRect(ort.sx - 4, ort.sy - 6, 9, 6)
         ctx.fillStyle = '#8f6a3f'
-        ctx.fillRect(kiste.sx - 4, kiste.sy + heightPx - 6, 9, 1.6)
+        ctx.fillRect(ort.sx - 4, ort.sy - 6, 9, 1.6)
       }
     }
     return
   }
 
   if (look.kind === 'schule') {
-    quad(ctx, top.n, top.e, top.s, top.w, shade(look.roof, -6))
+    quad(ctx, d0, d1, d2, d3, shade(look.roof, -6))
     // Turm in der Mitte
     const turmHoch = 26 + stufe * 4
     ctx.fillStyle = shade(look.wall, 8)
@@ -1007,17 +1141,18 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
       ctx.moveTo(mitte.sx, mitte.sy - turmHoch + 9)
       ctx.lineTo(mitte.sx + Math.cos(std * 12 - Math.PI / 2) * 4.4, mitte.sy - turmHoch + 9 + Math.sin(std * 12 - Math.PI / 2) * 4.4)
       ctx.stroke()
-      // Eingangstreppe
-      const doorA = mix(top.e, top.s, 0.4)
-      const doorB = mix(top.e, top.s, 0.6)
-      tuer(
-        ctx,
-        { sx: doorA.sx, sy: doorA.sy + heightPx },
-        { sx: doorB.sx, sy: doorB.sy + heightPx },
-        Math.min(15, heightPx * 0.6),
-        look,
-        fein,
-      )
+      // Eingang auf der Straßenseite
+      if (front.sichtbar) {
+        tuer(
+          ctx,
+          mix(front.a, front.b, 0.4),
+          mix(front.a, front.b, 0.6),
+          Math.min(15, heightPx * 0.6),
+          look,
+          fein,
+          front.raus,
+        )
+      }
       if (stufe >= 2) {
         // Fahne auf dem Turm
         ctx.strokeStyle = '#e8eef7'
@@ -1041,48 +1176,46 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
   }
 
   // Block: Dachfläche, Attika, Treppenhaus, Technik
-  quad(ctx, top.n, top.e, top.s, top.w, shade(look.roof, 6))
+  quad(ctx, d0, d1, d2, d3, shade(look.roof, 6))
 
   // Attika: ein umlaufender Rand, innen etwas dunkler – das Dach bekommt Tiefe
   const randHoch = 4
-  const innen = [top.n, top.e, top.s, top.w].map((punkt) => ({
+  const innen = deckel.ecken.map((punkt) => ({
     sx: mitte.sx + (punkt.sx - mitte.sx) * 0.88,
     sy: mitte.sy + (punkt.sy - mitte.sy) * 0.88,
   })) as [Point, Point, Point, Point]
-  quad(
-    ctx,
-    lift(top.n, randHoch),
-    lift(top.e, randHoch),
-    lift(top.s, randHoch),
-    lift(top.w, randHoch),
-    shade(look.roof, 18),
-  )
+  quad(ctx, lift(d0, randHoch), lift(d1, randHoch), lift(d2, randHoch), lift(d3, randHoch), shade(look.roof, 18))
   quad(ctx, innen[0], innen[1], innen[2], innen[3], shade(look.roof, -16))
 
   // Treppenhaus: ein kleiner Kasten, der auf dem Dach steht
   const aufbau = 0.24
-  const ax = bx + bw * 0.5 - aufbau
-  const ay = by + bh * 0.5 - aufbau
   const aufbauHoch = 8 + stufe * 2
-  roofBox(ctx, ax, ay, aufbau * 2, aufbau * 2, heightPx + randHoch, aufbauHoch, shade(look.wall, -14))
+  roofBox(
+    ctx,
+    { x: grund.x + grund.w * 0.5 - aufbau, y: grund.y + grund.h * 0.5 - aufbau, w: aufbau * 2, h: aufbau * 2 },
+    heightPx + randHoch,
+    aufbauHoch,
+    shade(look.wall, -14),
+  )
   if (!fein) return
 
-  // Eingang unten
-  const doorA = mix(top.e, top.s, 0.44)
-  const doorB = mix(top.e, top.s, 0.56)
-  tuer(
-    ctx,
-    { sx: doorA.sx, sy: doorA.sy + heightPx },
-    { sx: doorB.sx, sy: doorB.sy + heightPx },
-    Math.min(13, heightPx * 0.34),
-    look,
-    fein,
-  )
+  // Eingang unten, auf der Straßenseite
+  if (front.sichtbar) {
+    tuer(
+      ctx,
+      mix(front.a, front.b, 0.44),
+      mix(front.a, front.b, 0.56),
+      Math.min(13, heightPx * 0.34),
+      look,
+      fein,
+      front.raus,
+    )
+  }
 
   if (stufe >= 2) {
     // Lüftung und Wassertank
-    roofBox(ctx, bx + bw * 0.2, by + bh * 0.62, 0.3, 0.3, heightPx + randHoch, 6, shade(look.wall, -20))
-    roofBox(ctx, bx + bw * 0.62, by + bh * 0.22, 0.26, 0.26, heightPx + randHoch, 9, shade(look.accent, 6))
+    roofBox(ctx, { x: grund.x + grund.w * 0.2, y: grund.y + grund.h * 0.62, w: 0.3, h: 0.3 }, heightPx + randHoch, 6, shade(look.wall, -20))
+    roofBox(ctx, { x: grund.x + grund.w * 0.62, y: grund.y + grund.h * 0.22, w: 0.26, h: 0.26 }, heightPx + randHoch, 9, shade(look.accent, 6))
   }
   if (stufe >= 3) {
     // Antenne mit blinkender Spitze
@@ -1109,4 +1242,68 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, placed: Placed, time
     }
     ctx.stroke()
   }
+}
+
+/**
+ * Der sichtbare Umriss eines Bauwerks im Bild, als Punktwolke: Grundriss am Boden,
+ * Oberkante der Wände, First, Turm oder Antenne. Die konvexe Hülle dieser Punkte ist
+ * die Trefferfläche – genau genug, dass ein Haus keine Tipper abfängt, die sichtbar
+ * dem Haus dahinter gehören. Bei freier Drehung stehen Häuser oft knapp hintereinander.
+ */
+export function umrissPunkte(placed: Placed): Point[] {
+  const def = buildingDef(placed.type)
+  if (!def) return []
+  const [w, h] = footprint(def, placed.rot)
+  const look = def.look
+  const stufe = Math.max(1, placed.level)
+
+  if (look.kind === 'baum') {
+    // Stamm und Krone: gut eine Kachelhöhe hoch, schmaler als die Kachel
+    const k: Grund = { x: placed.x + 0.2, y: placed.y + 0.2, w: 0.6, h: 0.6 }
+    return [...umlauf(k), ...umlauf(k, TILE_H * 1.3)]
+  }
+  if (FLACH.has(look.kind)) {
+    // So hoch, wie das Ding wirklich gezeichnet wird – ein Platz ist kaum höher als
+    // der Boden und darf keine Tipper abfangen, die über ihm liegen
+    const g: Grund = { x: placed.x, y: placed.y, w, h }
+    const HOEHE: Record<string, number> = {
+      laterne: 37,
+      fahne: 37,
+      bank: 14,
+      blumen: 10,
+      hecke: 16,
+      felsen: 13,
+      park: TILE_H * 1.1,
+    }
+    const hoch = HOEHE[look.kind] ?? TILE_H * look.height + 2
+    return [...umlauf(g), ...umlauf(g, hoch)]
+  }
+
+  const ein = einzug(look, stufe)
+  const g: Grund = { x: placed.x + ein, y: placed.y + ein, w: w - ein * 2, h: h - ein * 2 }
+  const hoehe = bauHoehe(look, stufe)
+  const punkte: Point[] = [...umlauf(g), ...umlauf(g, hoehe)]
+  const mitteBoden = toScreen(g.x + g.w / 2, g.y + g.h / 2)
+
+  if (look.kind === 'haus') {
+    // Traufe mit Überstand und die beiden Firstenden – wie in gableRoof
+    const u = 0.06
+    const r: Grund = { x: g.x - u, y: g.y - u, w: g.w + 2 * u, h: g.h + 2 * u }
+    const rise = TILE_H * (0.5 + (stufe - 1) * 0.12)
+    const laengsX = g.w >= g.h
+    const f1 = laengsX ? toScreen(r.x, r.y + r.h / 2) : toScreen(r.x + r.w / 2, r.y)
+    const f2 = laengsX ? toScreen(r.x + r.w, r.y + r.h / 2) : toScreen(r.x + r.w / 2, r.y + r.h)
+    punkte.push(...umlauf(r, hoehe), lift(f1, hoehe + rise), lift(f2, hoehe + rise))
+  } else if (look.kind === 'schule') {
+    punkte.push(lift(mitteBoden, hoehe + 26 + stufe * 4 + 18))
+  } else if (look.kind === 'block') {
+    punkte.push(lift(mitteBoden, hoehe + 4 + 8 + stufe * 2 + (stufe >= 3 ? 26 : 0)))
+  } else if (look.kind === 'kuppel') {
+    punkte.push(lift(mitteBoden, hoehe + Math.min(g.w, g.h) * TILE_W * 0.21))
+  } else if (look.kind === 'statue') {
+    punkte.push(lift(mitteBoden, TILE_H * 0.35 + 36))
+  } else {
+    punkte.push(lift(mitteBoden, hoehe + 6))
+  }
+  return punkte
 }

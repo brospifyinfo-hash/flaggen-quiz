@@ -11,7 +11,7 @@ import {
   roadDef,
   type Category,
 } from '../city/catalog'
-import { toTile } from '../city/iso'
+import { blickJetzt, setBlick, toScreen, toTile, type Blick } from '../city/iso'
 import { cityFrame, drawCity, hitTest, type Camera } from '../city/render'
 import {
   canPlace,
@@ -182,6 +182,11 @@ function CityWorld({ data }: { data: SaveData }) {
   const [newName, setNewName] = useState(city.name)
   const [newMotto, setNewMotto] = useState(city.motto)
   const request = city.request as CityRequest | null
+  /** Blickwinkel im Bogenmaß – bleibt, wenn man die Stadt verlässt und wiederkommt */
+  const winkel = useRef<Blick>(blickJetzt())
+  /** Zurückdrehen nach Norden, wenn der Kompass angetippt wurde */
+  const heimweg = useRef<{ von: Blick; start: number } | null>(null)
+  const kompass = useRef<HTMLButtonElement>(null)
 
   const canvas = useRef<HTMLCanvasElement>(null)
   const wrap = useRef<HTMLDivElement>(null)
@@ -192,6 +197,15 @@ function CityWorld({ data }: { data: SaveData }) {
   const life = useRef<Life | null>(null)
   const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels })
   live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels }
+
+  /** Kompass angetippt: in einer kurzen Bewegung zurück nach Norden */
+  const nachNorden = () => {
+    // den kürzeren Weg nehmen
+    const von = Math.atan2(Math.sin(winkel.current), Math.cos(winkel.current))
+    winkel.current = von
+    heimweg.current = { von, start: performance.now() }
+    haptic('tick')
+  }
 
   const say = (text: string | null) => {
     setNotice(text)
@@ -237,6 +251,7 @@ function CityWorld({ data }: { data: SaveData }) {
       element.style.height = `${size.current.h}px`
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       if (!framed.current) {
+        setBlick(winkel.current, live.current.city.land)
         camera.current = cityFrame(live.current.city, size.current)
         framed.current = true
       }
@@ -260,6 +275,30 @@ function CityWorld({ data }: { data: SaveData }) {
       else if (!detail && bildzeit < 22) detail = true
       last = now
       const state = live.current
+
+      // Zurück nach Norden: der Punkt in der Bildmitte bleibt in der Bildmitte
+      if (heimweg.current) {
+        const t = Math.min(1, (now - heimweg.current.start) / 320)
+        const weich = 1 - (1 - t) ** 3
+        const mitte = toTile(camera.current.x, camera.current.y)
+        winkel.current = heimweg.current.von * (1 - weich)
+        setBlick(winkel.current, state.city.land)
+        const ziel = toScreen(mitte.x, mitte.y)
+        camera.current = { ...camera.current, x: ziel.sx, y: ziel.sy }
+        if (t >= 1) {
+          winkel.current = 0
+          heimweg.current = null
+        }
+      }
+
+      // Kompass: zeigt, wie weit gedreht ist, und verschwindet bei Norden
+      const nadel = kompass.current
+      if (nadel) {
+        const rest = Math.atan2(Math.sin(winkel.current), Math.cos(winkel.current))
+        const zeigen = Math.abs(rest) > 0.03
+        if (nadel.hidden === zeigen) nadel.hidden = !zeigen
+        if (zeigen) nadel.style.setProperty('--dreh', `${rest}rad`)
+      }
 
       // Leben neu aufsetzen, wenn sich die Stadt verändert hat
       if (!life.current || life.current.signature !== signatureOf(state.city)) {
@@ -287,6 +326,7 @@ function CityWorld({ data }: { data: SaveData }) {
         selected: state.selected,
         buildMode: state.mode !== 'view' && state.mode !== 'select',
         detail,
+        blick: winkel.current,
         life: life.current,
         bubble: bitte ? { buildingId: bitte.buildingId, emoji: bitte.citizen.emoji } : null,
         time: now / 1000,
@@ -310,6 +350,10 @@ function CityWorld({ data }: { data: SaveData }) {
     let startY = 0
     let pinch = 0
     let startZoom = 1
+    /** Winkel zwischen den beiden Fingern beim letzten Schritt */
+    let fingerWinkel = 0
+    /** Der Bodenpunkt, der unter den Fingern bleiben soll */
+    let anker = { x: 0, y: 0 }
     let painting = false
     /** So weit darf der Finger wandern, damit es ein Tipper bleibt */
     const TAP = 16
@@ -393,6 +437,11 @@ function CityWorld({ data }: { data: SaveData }) {
         const [a, b] = [...points.values()]
         pinch = Math.hypot(a.x - b.x, a.y - b.y)
         startZoom = camera.current.zoom
+        fingerWinkel = Math.atan2(b.y - a.y, b.x - a.x)
+        // Wer selbst dreht, hält die Rückkehr nach Norden an
+        heimweg.current = null
+        const mitte = worldAt((a.x + b.x) / 2, (a.y + b.y) / 2)
+        anker = toTile(mitte.wx, mitte.wy)
         painting = false
         stroke.current = []
       }
@@ -404,9 +453,25 @@ function CityWorld({ data }: { data: SaveData }) {
       points.set(event.pointerId, { x: event.clientX, y: event.clientY })
 
       if (points.size >= 2) {
+        // Zwei Finger: zoomen, drehen und schieben in einem – wie bei einer Karte.
         const [a, b] = [...points.values()]
         const spread = Math.hypot(a.x - b.x, a.y - b.y)
         if (pinch > 0 && spread > 0) camera.current.zoom = Math.max(0.45, Math.min(2.4, (startZoom * spread) / pinch))
+
+        // Drehung schrittweise aufsummieren, damit der Sprung von +180° auf -180° nichts ausmacht
+        const jetzt = Math.atan2(b.y - a.y, b.x - a.x)
+        const schritt = Math.atan2(Math.sin(jetzt - fingerWinkel), Math.cos(jetzt - fingerWinkel))
+        fingerWinkel = jetzt
+        winkel.current += schritt
+        setBlick(winkel.current, live.current.city.land)
+
+        // Der Bodenpunkt, der beim Aufsetzen unter den Fingern lag, bleibt dort
+        const rect = box.getBoundingClientRect()
+        const ziel = toScreen(anker.x, anker.y)
+        const mx = (a.x + b.x) / 2 - rect.left - size.current.w / 2
+        const my = (a.y + b.y) / 2 - rect.top - size.current.h / 2
+        camera.current.x = ziel.sx - mx / camera.current.zoom
+        camera.current.y = ziel.sy - my / camera.current.zoom
         far = 999
         return
       }
@@ -673,6 +738,16 @@ function CityWorld({ data }: { data: SaveData }) {
 
       <div className="city-stage" ref={wrap}>
         <canvas ref={canvas} className="city-canvas" />
+
+        <button
+          ref={kompass}
+          className="city-compass"
+          onClick={nachNorden}
+          aria-label="Nach Norden ausrichten"
+          hidden
+        >
+          <span className="city-compass-needle" aria-hidden="true" />
+        </button>
 
         {notice && (
           <p className="city-notice" role="status">

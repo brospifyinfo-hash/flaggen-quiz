@@ -1,6 +1,6 @@
 // Werkzeug zum Zeichnen: Farben aufhellen, Vierecke füllen, Kästen auf den Boden
 // stellen. Häuser und Figuren greifen auf dieselben Handgriffe zurück.
-import { TILE_H, TILE_W } from './iso'
+import { dirToScreen } from './iso'
 
 export type Point = { sx: number; sy: number }
 
@@ -108,9 +108,10 @@ export function isoFrame(dx: number, dy: number): { vor: Point; quer: Point } {
   const len = Math.hypot(dx, dy) || 1
   const nx = dx / len
   const ny = dy / len
-  const vor = { sx: (nx - ny) * (TILE_W / 2), sy: (nx + ny) * (TILE_H / 2) }
+  // Richtungen, keine Orte: sie drehen mit dem Blick, wandern aber nicht mit
+  const vor = dirToScreen(nx, ny)
   // 90 Grad gedreht auf dem Boden, nicht auf dem Bildschirm
-  const quer = { sx: (ny + nx) * (TILE_W / 2), sy: (ny - nx) * (TILE_H / 2) }
+  const quer = dirToScreen(ny, -nx)
   const vl = Math.hypot(vor.sx, vor.sy) || 1
   const ql = Math.hypot(quer.sx, quer.sy) || 1
   return { vor: scale(vor, 1 / vl), quer: scale(quer, 1 / ql) }

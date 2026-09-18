@@ -2,7 +2,7 @@
 // Bildpunkten – darum zählt jeder Strich: Beine gehen, Arme schwingen, Räder
 // drehen sich, und ein Auto zeigt dorthin, wo es hinfährt.
 import { bodenSchatten, groundRect, isoFrame, lift, quad, roundedPath, shade, wobble, type Point } from './draw'
-import { toScreen } from './iso'
+import { dirToScreen, toScreen } from './iso'
 import type { Idler, Walker } from './life'
 
 /** Hauttöne – die Stadt ist bunt bewohnt */
@@ -372,7 +372,7 @@ function auto(ctx: CanvasRenderingContext2D, p: Point, walker: Walker, t: number
 export function drawWalker(ctx: CanvasRenderingContext2D, walker: Walker, t: number): void {
   const at = walkerAt(walker)
   const p = toScreen(at.x, at.y)
-  const richtung = toScreen(walker.tx - walker.x, walker.ty - walker.y)
+  const richtung = dirToScreen(walker.tx - walker.x, walker.ty - walker.y)
   const blick = richtung.sx >= 0 ? 1 : -1
 
   if (walker.kind === 'auto') {
