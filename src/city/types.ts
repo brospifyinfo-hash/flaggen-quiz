@@ -6,7 +6,8 @@
 //            ziehen zu und weg, und die Stadt verdient in Zyklen.
 // Version 4: Bürger bitten um Hilfe.
 // Version 5: Die Stadt hat ein Thema und Schmuck.
-export const CITY_VERSION = 5
+// Version 7: Steuern, Zuzug mit eigenem Hausbau, Häuser, die Bürger selbst gebaut haben.
+export const CITY_VERSION = 7
 
 /** Eine Kachel ist der kleinste Bauplatz. Gebäude belegen ein Rechteck aus Kacheln. */
 export interface Placed {
@@ -22,6 +23,8 @@ export interface Placed {
   level: number
   /** wann gebaut – für die Bauanimation */
   at: number
+  /** von zugezogenen Bürgern selbst gebaut, nicht von dir */
+  auto?: boolean
 }
 
 export interface CityState {
@@ -49,6 +52,10 @@ export interface CityState {
   helped: number
   /** wann zuletzt eine Bitte entstanden ist */
   lastRequest: number
+  /** Steuersatz in Prozent, 0 bis 30 */
+  tax: number
+  /** wann zuletzt Bürger von selbst ein Haus gebaut haben */
+  lastGrowth: number
   nextId: number
   foundedAt: number
 }
@@ -66,6 +73,10 @@ export interface CycleReport {
   movedIn: number
   movedOut: number
   income: Part[]
+  /** was Bürger in der Zwischenzeit selbst gebaut haben */
+  gebaut: string[]
+  /** Razzien, neue dunkle Geschäfte und anderes, das man wissen sollte */
+  meldungen: string[]
 }
 
 /** Was die Stadt gerade leistet – wird aus den Gebäuden gerechnet, nie gespeichert */

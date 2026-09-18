@@ -100,3 +100,17 @@ export function tileNoise(x: number, y: number): number {
   const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
   return value - Math.floor(value)
 }
+
+/**
+ * In welche Richtung auf der Karte die Tiefe im Bild zunimmt – als Einheitsvektor.
+ * Was in dieser Richtung weiter liegt, steht im Bild weiter vorn.
+ */
+export function tiefenRichtung(): { x: number; y: number } {
+  const gx = cos + sin
+  const gy = cos - sin
+  const l = Math.hypot(gx, gy) || 1
+  return { x: gx / l, y: gy / l }
+}
+
+/** Kantenlänge des Feldes, um dessen Mitte gerade gedreht wird – zum Zurücksetzen nach Vorschauen */
+export const feldJetzt = (): number => mitte * 2

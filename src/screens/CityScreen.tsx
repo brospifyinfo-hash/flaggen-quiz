@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconBack, IconCheck, IconClose } from '../components/Icons'
 import {
-  CATEGORIES,
   ROADS,
   buildingDef,
   effectsOf,
@@ -15,7 +14,6 @@ import { blickJetzt, setBlick, toScreen, toTile, type Blick } from '../city/iso'
 import { cityFrame, drawCity, hitTest, type Camera } from '../city/render'
 import {
   canPlace,
-  catalogFor,
   cityTitle,
   createCity,
   expand,
@@ -38,8 +36,23 @@ import {
   upgrade,
 } from '../city/state'
 import { THEMES } from '../city/themes'
-import { runCycles, setRequest, solveRequest } from '../city/state'
-import { createLife, signatureOf, stepLife, type Life } from '../city/life'
+import {
+  artikel,
+  dunkelWaechst,
+  MOVE_IN_MOOD,
+  razzia,
+  razziaMoeglich,
+  runCycles,
+  setRequest,
+  setTax,
+  solveRequest,
+  wachsen,
+  wachstumsTakt,
+  wohnplatz,
+} from '../city/state'
+import { anpassen, createLife, signatureOf, stepLife, type Ereignis, type Life } from '../city/life'
+import { bewohnerVon, euro, gesellschaft, KLASSEN, STEUER_MAX, STEUER_MIN } from '../city/society'
+import { BauBlatt, KLASSE_NAME } from './CityBuildSheet'
 import {
   REQUEST_COINS,
   REQUEST_MATERIALS,
@@ -182,6 +195,11 @@ function CityWorld({ data }: { data: SaveData }) {
   const [newName, setNewName] = useState(city.name)
   const [newMotto, setNewMotto] = useState(city.motto)
   const request = city.request as CityRequest | null
+  /** Meldungen aus der Stadt: Brände, Razzien, neue Häuser – sie verschwinden von selbst */
+  const [meldungen, setMeldungen] = useState<{ id: number; text: string }[]>([])
+  const meldungsNr = useRef(1)
+  /** Kriminalität als Tönung auf der Karte */
+  const [krimKarte, setKrimKarte] = useState(false)
   /** Blickwinkel im Bogenmaß – bleibt, wenn man die Stadt verlässt und wiederkommt */
   const winkel = useRef<Blick>(blickJetzt())
   /** Zurückdrehen nach Norden, wenn der Kompass angetippt wurde */
@@ -195,8 +213,34 @@ function CityWorld({ data }: { data: SaveData }) {
   const framed = useRef(false)
   const stroke = useRef<string[]>([])
   const life = useRef<Life | null>(null)
-  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels })
-  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels }
+  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte })
+  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte }
+
+  const melde = useCallback((text: string) => {
+    const id = meldungsNr.current++
+    setMeldungen((liste) => [...liste.slice(-2), { id, text }])
+    window.setTimeout(() => setMeldungen((liste) => liste.filter((m) => m.id !== id)), 5200)
+  }, [])
+
+  /** Was das Leben der Stadt meldet: Einsätze, und Razzien, die ein Gebäude kosten */
+  const aufEreignisse = useRef<(liste: Ereignis[]) => void>(() => {})
+  aufEreignisse.current = (liste) => {
+    for (const e of liste) {
+      if (e.art === 'razzia') {
+        let beute = 0
+        setState((current) => {
+          if (!current.city) return current
+          const r = razzia(current.city, e.ort)
+          beute = r.beute
+          return r.beute > 0 ? { ...current, city: r.city } : current
+        })
+        melde(beute > 0 ? `${e.text} ${beute} 🪙 beschlagnahmt.` : e.text)
+        haptic('success')
+      } else {
+        melde(e.text)
+      }
+    }
+  }
 
   /** Kompass angetippt: in einer kurzen Bewegung zurück nach Norden */
   const nachNorden = () => {
@@ -232,6 +276,59 @@ function CityWorld({ data }: { data: SaveData }) {
       return neu && current.city ? { ...current, city: setRequest(current.city, neu) } : current
     })
   }, [])
+
+  // ---------- Die Stadt wächst, während man zusieht ----------
+  // Bei guter Stimmung ziehen laufend Menschen zu, und wenn der Wohnraum knapp wird,
+  // bauen sie selbst. Wo Armut und fehlende Bildung zusammenkommen, eröffnet ab und zu
+  // jemand ein dunkles Geschäft.
+  useEffect(() => {
+    const start = performance.now()
+    let naechsterZuzug = start + 12_000
+    let naechsterBau = start + 18_000
+    let naechsteUnterwelt = start + 100_000
+    const takt = window.setInterval(() => {
+      const jetzt = performance.now()
+      const stadt = getState().city
+      if (!stadt) return
+      const stimmung = happinessBreakdown(stadt).total
+
+      if (jetzt >= naechsterZuzug) {
+        naechsterZuzug = jetzt + 15_000
+        const platz = wohnplatz(stadt)
+        if (stimmung >= MOVE_IN_MOOD && stadt.population < platz) {
+          const neu = Math.min(platz - stadt.population, 1 + Math.floor((stimmung - MOVE_IN_MOOD) / 15))
+          setState((current) => (current.city ? { ...current, city: { ...current.city, population: current.city.population + neu } } : current))
+        }
+      }
+
+      const abstand = wachstumsTakt(stimmung)
+      if (abstand !== null && jetzt >= naechsterBau) {
+        naechsterBau = jetzt + abstand * 1000
+        const schritt = wachsen(stadt, Date.now())
+        if (schritt.gebaut) {
+          const def = buildingDef(schritt.gebaut.type)
+          const bewohner = Math.round((def?.effects.capacity ?? 0) * 0.6)
+          setState((current) =>
+            current.city === stadt ? { ...current, city: { ...schritt.city, population: schritt.city.population + bewohner } } : current,
+          )
+          melde(`🏡 Zugezogene haben ${artikel(schritt.gebaut.type)} gebaut.`)
+          haptic('soft')
+        }
+      } else if (abstand === null) {
+        naechsterBau = jetzt + 20_000
+      }
+
+      if (jetzt >= naechsteUnterwelt) {
+        naechsteUnterwelt = jetzt + 120_000
+        const schritt = dunkelWaechst(stadt, Date.now())
+        if (schritt.gebaut) {
+          setState((current) => (current.city === stadt ? { ...current, city: schritt.city } : current))
+          melde(`🕶️ Im Viertel ist ${artikel(schritt.gebaut.type)} entstanden.`)
+        }
+      }
+    }, 1000)
+    return () => window.clearInterval(takt)
+  }, [melde])
 
   // ---------- Zeichnen ----------
   useEffect(() => {
@@ -300,11 +397,12 @@ function CityWorld({ data }: { data: SaveData }) {
         if (zeigen) nadel.style.setProperty('--dreh', `${rest}rad`)
       }
 
-      // Leben neu aufsetzen, wenn sich die Stadt verändert hat
-      if (!life.current || life.current.signature !== signatureOf(state.city)) {
-        life.current = createLife(state.city)
-      }
-      stepLife(life.current, state.city, dt)
+      // Leben anpassen, wenn sich die Stadt verändert hat – wer unterwegs ist, bleibt es,
+      // solange sein Weg und sein Ziel noch da sind
+      if (!life.current) life.current = createLife(state.city)
+      else if (life.current.signature !== signatureOf(state.city)) anpassen(life.current, state.city)
+      const ereignisse = stepLife(life.current, state.city, dt)
+      if (ereignisse.length) aufEreignisse.current(ereignisse)
       const shown =
         state.mode === 'place' && state.pick
           ? {
@@ -328,6 +426,7 @@ function CityWorld({ data }: { data: SaveData }) {
         detail,
         blick: winkel.current,
         life: life.current,
+        kriminalitaet: state.krimKarte,
         bubble: bitte ? { buildingId: bitte.buildingId, emoji: bitte.citizen.emoji } : null,
         time: now / 1000,
       })
@@ -713,7 +812,6 @@ function CityWorld({ data }: { data: SaveData }) {
     haptic('tick')
   }
 
-  const list = catalogFor(city, levels, category)
   const expandOk = step ? expansionCheck(city) : null
 
   return (
@@ -753,6 +851,35 @@ function CityWorld({ data }: { data: SaveData }) {
           <p className="city-notice" role="status">
             {notice}
           </p>
+        )}
+
+        {krimKarte && (
+          <div className="city-legende" role="note">
+            <span aria-hidden="true">🚨</span>
+            <span>sicher</span>
+            <span className="city-legende-skala" aria-hidden="true" />
+            <span>gefährlich</span>
+            <button
+              className="city-legende-zu"
+              aria-label="Kriminalitätskarte ausblenden"
+              onClick={() => {
+                setKrimKarte(false)
+                haptic('tick')
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {meldungen.length > 0 && !notice && (
+          <div className={`city-meldungen${krimKarte ? ' unter-legende' : ''}`} aria-live="polite">
+            {meldungen.map((m) => (
+              <p key={m.id} className="city-meldung">
+                {m.text}
+              </p>
+            ))}
+          </div>
         )}
 
         {mode === 'view' && request && !shownRequest && !cycle && (
@@ -849,56 +976,15 @@ function CityWorld({ data }: { data: SaveData }) {
         )}
 
         {mode === 'build' && (
-          <div className="city-sheet">
-            <div className="city-sheet-head">
-              <strong>Bauen</strong>
-              <button className="city-close" aria-label="Schließen" onClick={() => setMode('view')}>
-                <IconClose />
-              </button>
-            </div>
-            <div className="city-tabs">
-              {CATEGORIES.map((entry) => (
-                <button
-                  key={entry.id}
-                  className={`city-tab${entry.id === category ? ' is-on' : ''}`}
-                  onClick={() => {
-                    setCategory(entry.id)
-                    haptic('tick')
-                  }}
-                >
-                  {entry.emoji} {entry.name}
-                </button>
-              ))}
-            </div>
-            <ul className="city-list">
-              {list.map(({ def, lock }) => {
-                const tooPoor = city.coins < def.coins || city.materials < def.materials
-                return (
-                  <li key={def.id}>
-                    <button
-                      className={`city-card${!lock.ok ? ' is-locked' : tooPoor ? ' is-poor' : ''}`}
-                      onClick={() =>
-                        lock.ok ? startPlacing(def.id) : say(`Dafür fehlt dir noch: ${lock.missing.join(', ')}.`)
-                      }
-                    >
-                      <span className="city-card-emoji">{lock.ok ? def.emoji : '🔒'}</span>
-                      <span className="city-card-body">
-                        <strong>{def.name}</strong>
-                        <span>{lock.ok ? def.note : lock.missing.join(' · ')}</span>
-                      </span>
-                      <span className="city-card-cost">
-                        🪙 {def.coins}
-                        {def.materials > 0 && <small>🧱 {def.materials}</small>}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-            <p className="city-hint">
-              Gesperrtes schaltet sich frei, wenn deine Stadt wächst – oder wenn du im passenden Fach dazulernst.
-            </p>
-          </div>
+          <BauBlatt
+            city={city}
+            levels={levels}
+            category={category}
+            onCategory={setCategory}
+            onPick={startPlacing}
+            onClose={() => setMode('view')}
+            say={say}
+          />
         )}
 
         {mode === 'road' && (
@@ -1049,9 +1135,19 @@ function CityWorld({ data }: { data: SaveData }) {
                 </>
               )}
             </p>
+            {cycle.gebaut.length > 0 && (
+              <p className="city-hint">🏡 Zugezogene haben gebaut: {zusammenfassen(cycle.gebaut)}.</p>
+            )}
+            {cycle.meldungen.length > 0 && (
+              <ul className="city-problems">
+                {cycle.meldungen.map((text, i) => (
+                  <li key={i}>{text}</li>
+                ))}
+              </ul>
+            )}
             {cycle.movedOut > 0 && (
               <p className="city-hint">
-                Bürger ziehen weg, solange die Stimmung unter 35 % liegt. Parks, Arbeit und Wohnraum holen sie zurück.
+                Bürger ziehen weg, wenn die Stimmung unter 35 % fällt – oder wenn ihnen die Steuern zu hoch sind.
               </p>
             )}
             <div className="city-place-row">
@@ -1091,6 +1187,115 @@ function CityWorld({ data }: { data: SaveData }) {
                   Zusammen <strong>{incomeBreakdown(city).total}</strong>
                 </li>
               </ul>
+
+              <p className="city-label-line">💸 Steuern</p>
+              <div className="city-steuer">
+                <div className="city-steuer-zeile">
+                  <strong>{city.tax} %</strong>
+                  <span>
+                    {incomeBreakdown(city).total.toLocaleString('de-DE')} 🪙 je Zyklus · Stimmung {stats.happiness} %
+                  </span>
+                </div>
+                <input
+                  className="city-regler"
+                  type="range"
+                  min={STEUER_MIN}
+                  max={STEUER_MAX}
+                  step={1}
+                  value={city.tax}
+                  aria-label="Steuersatz in Prozent"
+                  onChange={(event) => {
+                    const satz = Number(event.target.value)
+                    setState((current) => (current.city ? { ...current, city: setTax(current.city, satz) } : current))
+                    haptic('tick', { minGap: 60 })
+                  }}
+                />
+                <p className="city-hint">
+                  Niedrige Steuern machen froh, hohe füllen die Kasse. Ab 12 % ziehen die ersten Reichen weg, ab 20 % wird es für
+                  viele eng.
+                </p>
+              </div>
+
+              <p className="city-label-line">👥 Wer hier wohnt</p>
+              {(() => {
+                const g = gesellschaft(city)
+                const summe = Math.max(1, KLASSEN.reduce((n, k) => n + g.klassen[k], 0))
+                return (
+                  <div className="city-gesellschaft">
+                    <div className="city-klassen">
+                      {KLASSEN.map((k) => (
+                        <span key={k} className={`city-klasse klasse-${k}`}>
+                          <strong>{g.klassen[k].toLocaleString('de-DE')}</strong>
+                          {KLASSE_NAME[k]}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="city-klassen-balken" aria-hidden="true">
+                      {KLASSEN.map((k) => (
+                        <span key={k} className={`klasse-${k}`} style={{ width: `${(g.klassen[k] / summe) * 100}%` }} />
+                      ))}
+                    </div>
+                    <ul className="city-effects">
+                      {g.reichster && (
+                        <li>
+                          💎 Reichste Person <strong>{g.reichster.name}</strong>
+                        </li>
+                      )}
+                      {g.reichster && (
+                        <li>
+                          Vermögen <strong>{euro(g.reichster.vermoegen)}</strong>
+                        </li>
+                      )}
+                      <li>
+                        💎 Milliardäre <strong>{g.milliardaere}</strong>
+                      </li>
+                      <li>
+                        🛏️ Obdachlos <strong>{g.obdachlose}</strong>
+                      </li>
+                      <li>
+                        💼 Arbeitslos <strong>{g.arbeitslose}</strong>
+                      </li>
+                      <li>
+                        🎓 Bildung <strong>{g.bildung} %</strong>
+                      </li>
+                    </ul>
+                  </div>
+                )
+              })()}
+
+              <p className="city-label-line">🚨 Sicherheit und Versorgung</p>
+              {(() => {
+                const g = gesellschaft(city)
+                const zeilen: [string, number, string][] = [
+                  ['Kriminalität', g.kriminalitaet, g.kriminalitaet >= 40 ? '#ff5f7a' : g.kriminalitaet >= 20 ? '#ffb020' : '#3ce08a'],
+                  ['🚓 Polizei', Math.round(g.abdeckung.polizei * 100), '#2e86ff'],
+                  ['🚒 Feuerwehr', Math.round(g.abdeckung.feuer * 100), '#ff5a1f'],
+                  ['🏥 Ärzte', Math.round(g.abdeckung.gesundheit * 100), '#e8f4ff'],
+                ]
+                return (
+                  <div className="city-sicherheit">
+                    {zeilen.map(([name, wert, farbe]) => (
+                      <div key={name} className="city-sicherheit-zeile">
+                        <span>{name}</span>
+                        <span className="bar">
+                          <span style={{ width: `${wert}%`, background: farbe }} />
+                        </span>
+                        <strong>{wert} %</strong>
+                      </div>
+                    ))}
+                    <p className="city-hint">Polizei, Feuerwehr und Ärzte: Anteil der Wohnungen in Reichweite einer Wache.</p>
+                    <button
+                      className={`city-btn${krimKarte ? ' city-btn-main' : ''}`}
+                      onClick={() => {
+                        setKrimKarte((an) => !an)
+                        haptic('tick')
+                      }}
+                    >
+                      {krimKarte ? '✓ Kriminalität auf der Karte' : '🗺️ Kriminalität auf der Karte zeigen'}
+                    </button>
+                  </div>
+                )
+              })()}
 
               <p className="city-label-line">🧠 Dein Wissen baut die Stadt</p>
               <ul className="city-knowledge">
@@ -1240,12 +1445,34 @@ function CityWorld({ data }: { data: SaveData }) {
               </button>
             </div>
             <ul className="city-effects">
-              {Object.entries(effectsOf(chosenDef, chosen.level)).map(([key, value]) => (
-                <li key={key}>
-                  {EFFECT_LABEL[key] ?? key} <strong>{value > 0 ? `+${value}` : value}</strong>
+              {wirkungsListe(effectsOf(chosenDef, chosen.level)).map(([label, wert]) => (
+                <li key={label}>
+                  {label} <strong>{wert}</strong>
                 </li>
               ))}
             </ul>
+            {chosenDef.category === 'wohnen' && chosenDef.effects.klasse && (
+              <ul className="city-bewohner">
+                {[0, 1].map((nr) => {
+                  const b = bewohnerVon(chosen, nr, chosenDef.effects.klasse!)
+                  return (
+                    <li key={nr}>
+                      <span>👤 {b.name}</span>
+                      <strong>{euro(b.vermoegen)}</strong>
+                    </li>
+                  )
+                })}
+                <li className="city-bewohner-klasse">{WOHNLAGE[chosenDef.effects.klasse]}</li>
+              </ul>
+            )}
+            {chosen.auto && <p className="city-hint">🏡 Von Zugezogenen selbst gebaut.</p>}
+            {chosenDef.category === 'unterwelt' && (
+              <p className="city-hint">
+                {razziaMoeglich(city, chosen)
+                  ? '🚔 Eine Polizeiwache ist in Reichweite – hier droht eine Razzia.'
+                  : '🕶️ Keine Polizei in Reichweite. Noch.'}
+              </p>
+            )}
             <div className="city-place-row">
               <button className="city-btn" onClick={startMoving}>
                 ✥ Versetzen
@@ -1278,11 +1505,34 @@ function CityWorld({ data }: { data: SaveData }) {
   )
 }
 
-const EFFECT_LABEL: Record<string, string> = {
-  capacity: '👥 Wohnraum',
-  happiness: '😊 Stimmung',
-  education: '🎓 Bildung',
-  environment: '🌳 Umwelt',
-  income: '🪙 Einnahmen',
-  jobs: '💼 Arbeit',
+/** Was ein Gebäude bewirkt, lesbar – Klasse und Reichweiten eigens beschrieben */
+function wirkungsListe(e: ReturnType<typeof effectsOf>): [string, string][] {
+  const zahl = (n: number) => (n > 0 ? `+${n}` : String(n))
+  const liste: [string, string][] = []
+  if (e.capacity) liste.push(['👥 Wohnraum', zahl(e.capacity)])
+  if (e.jobs) liste.push(['💼 Arbeit', zahl(e.jobs)])
+  if (e.income) liste.push([e.income > 0 ? '🪙 Einnahmen' : '🪙 Unterhalt', zahl(e.income)])
+  if (e.black) liste.push(['💰 Schwarzgeld', zahl(e.black)])
+  if (e.education) liste.push(['🎓 Bildung', zahl(e.education)])
+  if (e.happiness) liste.push(['😊 Stimmung', zahl(e.happiness)])
+  if (e.environment) liste.push(['🌳 Umwelt', zahl(e.environment)])
+  if (e.crime) liste.push(['🚨 Kriminalität ringsum', zahl(e.crime)])
+  if (e.police) liste.push(['🚓 Reichweite', `${e.police} Kacheln`])
+  if (e.fire) liste.push(['🚒 Reichweite', `${e.fire} Kacheln`])
+  if (e.health) liste.push(['🏥 Reichweite', `${e.health} Kacheln`])
+  return liste
+}
+
+const WOHNLAGE: Record<string, string> = {
+  arm: 'Einfache Wohnlage',
+  mittel: 'Mittlere Wohnlage',
+  reich: 'Gehobene Wohnlage',
+  superreich: 'Luxuslage',
+}
+
+/** "2× Doppelhaus, Bungalow" */
+function zusammenfassen(namen: string[]): string {
+  const zahl = new Map<string, number>()
+  for (const n of namen) zahl.set(n, (zahl.get(n) ?? 0) + 1)
+  return [...zahl.entries()].map(([n, k]) => (k > 1 ? `${k}× ${n}` : n)).join(', ')
 }

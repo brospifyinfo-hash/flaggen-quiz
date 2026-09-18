@@ -1,12 +1,15 @@
 // Zeichnet die Stadt als kleines Diorama: schräge Sicht, Schatten, Fassaden mit Fenstern,
 // Dächer, Bäume. Alles in ein Canvas, damit auch große Städte flüssig bleiben.
+import { koerperVon } from './bau'
+import { bauHoehe, drawBuilding, einzug, tree, umrissPunkte } from './buildings'
 import { buildingDef, footprint, roadDef } from './catalog'
-import { drawBuilding, tree, umrissPunkte, type Seite } from './buildings'
-import { lift, quad, quadPath, roundedPath, type Point } from './draw'
-import { drawIdler, drawWalker, walkerAt } from './figures'
-import { nachRechts, setBlick, TILE_H, TILE_W, tiefe, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
-import type { Idler, Life, Walker } from './life'
-import { nextExpansion, roadAt, tilesOf } from './state'
+import { fade, lift, quad, quadPath, roundedPath, type Point } from './draw'
+import { drawAgent } from './figures'
+import type { Grund } from './geo'
+import { nachRechts, setBlick, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
+import { brennt, type Agent, type Life } from './life'
+import { kriminalitaetsfeld } from './society'
+import { nextExpansion, roadAt, seiteZurStrasse, tilesOf } from './state'
 import { themeById, type Theme } from './themes'
 import type { CityState, Placed } from './types'
 
@@ -46,8 +49,10 @@ export interface DrawOptions {
   time?: number
   /** Kleinteile zeichnen? false, wenn das Gerät sonst ins Stocken gerät */
   detail?: boolean
-  /** Aus welcher Richtung man auf die Stadt schaut, in Vierteldrehungen */
+  /** Aus welcher Richtung man auf die Stadt schaut, als Winkel */
   blick?: Blick
+  /** Kriminalität je Kachel als rote Tönung zeigen */
+  kriminalitaet?: boolean
 }
 
 /**
@@ -237,27 +242,175 @@ export function vorderTiefe(placed: Placed): number {
   return vorn
 }
 
-/**
- * Auf welcher Seite liegt die Straße? Dorthin kommen Tür, Schaufenster und Markise.
- * Gezählt werden die Straßenkacheln entlang jeder Seite; ohne Straße bleibt es bei
- * Osten – so sah es schon immer aus, bevor man die Stadt drehen konnte.
- */
-export function seiteZurStrasse(city: CityState, placed: Placed): Seite {
+/** Formen ohne Baukörper: Figuren stehen auf ihnen, nie dahinter */
+const FLACHE_FORMEN = new Set(['park', 'wasser', 'flach', 'brunnen', 'bank', 'blumen', 'hecke', 'felsen', 'laterne', 'fahne'])
+
+type Reihenfolge = { flach: boolean; lot: Grund; hmin: number; hmax: number; ecken: { h: number; g: number }[] }
+
+/** Der Baukörper eines Gebäudes, in Blickrichtung ausgemessen */
+function koerperFuerReihenfolge(
+  city: CityState,
+  placed: Placed,
+  g: { x: number; y: number },
+  quer: { x: number; y: number },
+): Reihenfolge | null {
   const def = buildingDef(placed.type)
-  if (!def) return 'o'
+  if (!def) return null
   const [w, h] = footprint(def, placed.rot)
-  const zaehle = (kacheln: [number, number][]) => kacheln.filter(([x, y]) => roadAt(city, x, y)).length
-  const entlangX = (y: number) => Array.from({ length: w }, (_, i) => [placed.x + i, y] as [number, number])
-  const entlangY = (x: number) => Array.from({ length: h }, (_, i) => [x, placed.y + i] as [number, number])
-  const kandidaten: [Seite, number][] = [
-    ['o', zaehle(entlangY(placed.x + w))],
-    ['s', zaehle(entlangX(placed.y + h))],
-    ['n', zaehle(entlangX(placed.y - 1))],
-    ['w', zaehle(entlangY(placed.x - 1))],
-  ]
-  let beste: [Seite, number] = kandidaten[0]
-  for (const k of kandidaten) if (k[1] > beste[1]) beste = k
-  return beste[0]
+  const lot: Grund = { x: placed.x, y: placed.y, w, h }
+  const look = def.look
+  if (FLACHE_FORMEN.has(look.kind)) return { flach: true, lot, hmin: 0, hmax: 0, ecken: [] }
+  let k: Grund
+  if (look.kind === 'baum') k = { x: placed.x + 0.25, y: placed.y + 0.25, w: 0.5, h: 0.5 }
+  else if (look.kind === 'bau' && look.stil) k = koerperVon(lot, look.stil, seiteZurStrasse(city, placed), placed.level, einzug(look, placed.level))
+  else {
+    const e = einzug(look, placed.level)
+    k = { x: lot.x + e, y: lot.y + e, w: lot.w - 2 * e, h: lot.h - 2 * e }
+  }
+  const ecken = [
+    { x: k.x, y: k.y },
+    { x: k.x + k.w, y: k.y },
+    { x: k.x + k.w, y: k.y + k.h },
+    { x: k.x, y: k.y + k.h },
+  ].map((p) => ({ h: p.x * quer.x + p.y * quer.y, g: p.x * g.x + p.y * g.y }))
+  const hs = ecken.map((e) => e.h)
+  return { flach: false, lot, hmin: Math.min(...hs), hmax: Math.max(...hs), ecken }
+}
+
+/** Wo schneidet eine Linie quer zur Blickrichtung den Baukörper? Vorderste und hinterste Tiefe dort. */
+function sehne(ecken: { h: number; g: number }[], hp: number): [number, number] {
+  let gmin = Infinity
+  let gmax = -Infinity
+  for (let i = 0; i < ecken.length; i++) {
+    const a = ecken[i]
+    const b = ecken[(i + 1) % ecken.length]
+    if ((a.h - hp) * (b.h - hp) > 0) continue
+    const t = Math.abs(b.h - a.h) < 1e-9 ? 0 : (hp - a.h) / (b.h - a.h)
+    const gs = Math.abs(b.h - a.h) < 1e-9 ? [a.g, b.g] : [a.g + (b.g - a.g) * t]
+    for (const wert of gs) {
+      gmin = Math.min(gmin, wert)
+      gmax = Math.max(gmax, wert)
+    }
+  }
+  if (gmin === Infinity) return [0, 0]
+  return [gmin, gmax]
+}
+
+/** Flammen und Rauch über einem brennenden Gebäude */
+function flammen(ctx: CanvasRenderingContext2D, placed: Placed, t: number): void {
+  const def = buildingDef(placed.type)
+  if (!def) return
+  const [w, h] = footprint(def, placed.rot)
+  const mitte = toScreen(placed.x + w / 2, placed.y + h / 2)
+  const hoch = bauHoehe(def.look, placed.level) * 0.95
+  const fuss = { sx: mitte.sx, sy: mitte.sy - hoch }
+  // Rauch
+  for (let i = 0; i < 5; i++) {
+    const phase = (t * 0.45 + i / 5) % 1
+    ctx.globalAlpha = (1 - phase) * 0.5
+    ctx.fillStyle = '#3a3a40'
+    ctx.beginPath()
+    ctx.arc(fuss.sx + Math.sin(phase * 4 + i) * 7, fuss.sy - 12 - phase * 38, 5 + phase * 9, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.globalAlpha = 1
+  // Flammenzungen
+  for (let i = 0; i < 6; i++) {
+    const x = fuss.sx + (i - 2.5) * 5
+    const flacker = Math.sin(t * 14 + i * 1.7) * 3
+    const hoehe = 12 + ((i * 37) % 7) + flacker
+    ctx.fillStyle = i % 2 ? '#ffb020' : '#ff5a1f'
+    ctx.beginPath()
+    ctx.moveTo(x - 4, fuss.sy + 2)
+    ctx.quadraticCurveTo(x - 3, fuss.sy - hoehe * 0.5, x + Math.sin(t * 9 + i) * 2, fuss.sy - hoehe)
+    ctx.quadraticCurveTo(x + 3, fuss.sy - hoehe * 0.5, x + 4, fuss.sy + 2)
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.fillStyle = fade('#ff8a3a', 0.18)
+  ctx.beginPath()
+  ctx.ellipse(fuss.sx, fuss.sy - 4, 26, 16, 0, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+/** Kriminalität als rote Tönung über dem Boden – dunkler, wo es gefährlicher ist */
+/** Kriminalität als Farbe: grün sicher, gelb unruhig, rot gefährlich */
+export function krimFarbe(wert: number, alpha: number): string {
+  const t = Math.max(0, Math.min(1, wert / 60))
+  const von = t < 0.5 ? [60, 200, 110] : [255, 200, 40]
+  const bis = t < 0.5 ? [255, 200, 40] : [235, 40, 60]
+  const u = t < 0.5 ? t * 2 : (t - 0.5) * 2
+  const k = von.map((v, i) => Math.round(v + (bis[i] - v) * u))
+  return `rgba(${k[0]},${k[1]},${k[2]},${alpha})`
+}
+
+/** Der Boden, eingefärbt nach Kriminalität – in sechs Stufen, damit es nur sechs Pfade sind */
+function kriminalitaetZeigen(ctx: CanvasRenderingContext2D, city: CityState): void {
+  const feld = kriminalitaetsfeld(city)
+  const n = city.land
+  const STUFEN = 6
+  const stufen: Point[][][] = Array.from({ length: STUFEN }, () => [])
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const stufe = Math.min(STUFEN - 1, Math.floor(feld[y * n + x] / 10))
+      stufen[stufe].push([toScreen(x, y), toScreen(x + 1, y), toScreen(x + 1, y + 1), toScreen(x, y + 1)])
+    }
+  }
+  stufen.forEach((kacheln, stufe) => {
+    if (!kacheln.length) return
+    ctx.beginPath()
+    for (const [a, b, c, d] of kacheln) quadPath(ctx, a, b, c, d)
+    ctx.fillStyle = krimFarbe(stufe * 10 + 5, 0.5)
+    ctx.fill()
+  })
+}
+
+/**
+ * In dichten Vierteln verdecken die Häuser den Boden – darum schwebt über jedem Bauwerk
+ * ein Punkt in der Farbe seines Viertels. Dunkle Geschäfte tragen einen schwarzen Kern.
+ */
+function kriminalitaetMarken(ctx: CanvasRenderingContext2D, city: CityState): void {
+  const feld = kriminalitaetsfeld(city)
+  const n = city.land
+  for (const placed of city.buildings) {
+    const def = buildingDef(placed.type)
+    if (!def || def.category === 'natur' || def.category === 'schmuck' || def.category === 'wege') continue
+    const [w, h] = footprint(def, placed.rot)
+    const tx = Math.max(0, Math.min(n - 1, Math.floor(placed.x + w / 2)))
+    const ty = Math.max(0, Math.min(n - 1, Math.floor(placed.y + h / 2)))
+    const wert = feld[ty * n + tx]
+    let oben = Infinity
+    let links = Infinity
+    let rechts = -Infinity
+    for (const p of umrissPunkte(placed, seiteZurStrasse(city, placed))) {
+      if (p.sy < oben) oben = p.sy
+      if (p.sx < links) links = p.sx
+      if (p.sx > rechts) rechts = p.sx
+    }
+    if (!Number.isFinite(oben)) continue
+    const x = (links + rechts) / 2
+    const y = oben - 10
+    ctx.beginPath()
+    ctx.moveTo(x, y + 12)
+    ctx.lineTo(x - 4, y + 4)
+    ctx.lineTo(x + 4, y + 4)
+    ctx.closePath()
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(x, y, 7, 0, Math.PI * 2)
+    ctx.fillStyle = krimFarbe(wert, 1)
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+    ctx.stroke()
+    if (def.category === 'unterwelt') {
+      ctx.beginPath()
+      ctx.arc(x, y, 3, 0, Math.PI * 2)
+      ctx.fillStyle = '#16121c'
+      ctx.fill()
+    }
+  }
 }
 
 /** Boden, Gitter und Rand des freigeschalteten Gebiets */
@@ -437,33 +590,55 @@ export function drawCity(
   // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst.
   // Menschen werden nach derselben Tiefe zwischen die Bauwerke gemischt.
   const zeit = options.time ?? 0
-  const menschen: { depth: number; walker?: Walker; idler?: Idler }[] = []
+
+  if (options.kriminalitaet) kriminalitaetZeigen(ctx, city)
+
+  // Gebäude von hinten nach vorn
+  const sorted = [...city.buildings].sort((a, b) => vorderTiefe(a) - vorderTiefe(b))
+
+  // Jede Figur kommt direkt nach dem letzten Gebäude, vor dem sie steht. Gemessen wird
+  // in Blickrichtung und nur dort, wo Figur und Baukörper seitlich überlappen – ein Haus
+  // verdeckt nur, was wirklich hinter ihm ist.
+  const g = tiefenRichtung()
+  const quer = { x: -g.y, y: g.x }
+  const koerper = sorted.map((placed) => koerperFuerReihenfolge(city, placed, g, quer))
+  const faecher: Agent[][] = sorted.map(() => [])
+  const danach: Agent[] = []
   if (options.life) {
-    for (const walker of options.life.walkers) {
-      const at = walkerAt(walker)
-      menschen.push({ depth: tiefe(at.x, at.y), walker })
+    for (const agent of options.life.agents) {
+      if (agent.zustand === 'drinnen') continue
+      const hp = agent.x * quer.x + agent.y * quer.y
+      const gp = agent.x * g.x + agent.y * g.y
+      let platz = -1
+      for (let i = 0; i < koerper.length; i++) {
+        const k = koerper[i]
+        if (!k) continue
+        if (k.flach) {
+          // Auf Flachem – Park, Platz, Bank – steht man immer obendrauf
+          if (agent.x >= k.lot.x - 0.05 && agent.x <= k.lot.x + k.lot.w + 0.05 && agent.y >= k.lot.y - 0.05 && agent.y <= k.lot.y + k.lot.h + 0.05) platz = i
+          continue
+        }
+        const breite = agent.art === 'auto' || agent.art === 'dienst' ? 0.34 : 0.14
+        if (hp < k.hmin - breite || hp > k.hmax + breite) continue
+        const [gmin, gmax] = sehne(k.ecken, Math.max(k.hmin, Math.min(k.hmax, hp)))
+        if (gp >= gmax - 0.02) platz = i
+        else if (gp <= gmin) continue
+        else platz = i
+      }
+      ;(platz + 1 < faecher.length ? faecher[platz + 1] : danach).push(agent)
     }
-    for (const idler of options.life.idlers) menschen.push({ depth: tiefe(idler.x, idler.y), idler })
-    menschen.sort((a, b) => a.depth - b.depth)
+  }
+  const nachTiefe = (a: Agent, b: Agent) => a.x * g.x + a.y * g.y - (b.x * g.x + b.y * g.y)
+  const figuren = (liste: Agent[]) => {
+    liste.sort(nachTiefe)
+    for (const agent of liste) drawAgent(ctx, agent, zeit, fein)
   }
 
-  let naechster = 0
-  const bisTiefe = (tiefe: number) => {
-    while (naechster < menschen.length && menschen[naechster].depth <= tiefe) {
-      const person = menschen[naechster++]
-      if (person.walker) drawWalker(ctx, person.walker, zeit)
-      else if (person.idler) drawIdler(ctx, person.idler, zeit)
-    }
-  }
-
-  // Ein Bauwerk verdeckt alles, was hinter seiner vorderen Kante steht. Maßgeblich
-  // ist darum nicht die hintere Ecke, sondern die vordere – sonst laufen Menschen
-  // und Autos durch ein mehrkachliges Haus hindurch, obwohl sie dahinter sind.
-  const vorderkante = (placed: Placed): number => vorderTiefe(placed)
-  const sorted = [...city.buildings].sort((a, b) => vorderkante(a) - vorderkante(b))
-  for (const placed of sorted) {
-    bisTiefe(vorderkante(placed))
+  for (let i = 0; i < sorted.length; i++) {
+    const placed = sorted[i]
+    figuren(faecher[i])
     drawBuilding(ctx, placed, zeit, theme, fein, seiteZurStrasse(city, placed))
+    if (brennt(options.life, placed.id)) flammen(ctx, placed, zeit)
     if (placed.id === options.selected) {
       const def = buildingDef(placed.type)
       if (def) {
@@ -472,7 +647,9 @@ export function drawCity(
       }
     }
   }
-  bisTiefe(Number.MAX_SAFE_INTEGER)
+  figuren(danach)
+
+  if (options.kriminalitaet) kriminalitaetMarken(ctx, city)
 
   if (options.bubble) {
     const haus = city.buildings.find((placed) => placed.id === options.bubble?.buildingId)
@@ -608,10 +785,10 @@ export function hitTest(city: CityState, wx: number, wy: number): Placed | null 
   // Zuerst ohne Spielraum: wer genau getroffen ist, gewinnt – auch wenn ein Haus
   // davor mit seinem Rand knapp danebenliegt
   for (const placed of vonVorn) {
-    if (imUmriss(huelle(umrissPunkte(placed)), punkt, 0)) return placed
+    if (imUmriss(huelle(umrissPunkte(placed, seiteZurStrasse(city, placed))), punkt, 0)) return placed
   }
   for (const placed of vonVorn) {
-    if (imUmriss(huelle(umrissPunkte(placed)), punkt, 5)) return placed
+    if (imUmriss(huelle(umrissPunkte(placed, seiteZurStrasse(city, placed))), punkt, 5)) return placed
   }
   return null
 }

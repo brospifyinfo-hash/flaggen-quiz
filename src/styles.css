@@ -2654,14 +2654,15 @@ svg {
   margin-top: 8px;
   border-radius: 20px;
   overflow: hidden;
-  touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Nur die Karte selbst fängt Wischen und Zwei-Finger-Gesten – Blätter darüber scrollen normal */
 .city-canvas {
   display: block;
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 
 .city-notice {
@@ -2826,11 +2827,15 @@ svg {
   height: 16px;
 }
 
+/* In den Blättern darf die Reiterleiste nie schrumpfen – sonst quetscht die Liste sie platt */
 .city-tabs {
+  flex: none;
   display: flex;
   gap: 6px;
   margin-bottom: 10px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
   scrollbar-width: none;
 }
 
@@ -2857,7 +2862,11 @@ svg {
 .city-list {
   display: grid;
   gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -3606,4 +3615,365 @@ svg {
 
 .mr-table span {
   color: rgb(255 255 255 / 0.65);
+}
+
+
+/* ---------- Baumenü ---------- */
+.bau-blatt {
+  height: min(66%, 560px);
+  max-height: none;
+}
+
+.bau-kasse {
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffd23f;
+  white-space: nowrap;
+}
+
+.city-tab small {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.18);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.bau-raster {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 8px;
+  padding-bottom: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bau-karte {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 7px 7px 9px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.07);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  color: #fff;
+  text-align: left;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease;
+}
+
+.bau-karte:active {
+  transform: scale(0.97);
+  background: rgb(255 255 255 / 0.14);
+}
+
+.bau-vorschau {
+  width: 100%;
+  height: 92px;
+  border-radius: 12px;
+  background: radial-gradient(ellipse at 50% 70%, rgb(255 255 255 / 0.1), transparent 70%), rgb(0 0 0 / 0.18);
+}
+
+.bau-name {
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bau-preis {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffd23f;
+}
+
+.bau-preis .fehlt {
+  color: #ff7a8e;
+}
+
+.bau-wirkung {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bau-wirkung span {
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: rgb(255 255 255 / 0.1);
+  color: rgb(255 255 255 / 0.85);
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bau-wirkung .bau-grund {
+  padding: 0;
+  background: none;
+  color: #ffd23f;
+  white-space: normal;
+}
+
+.bau-karte.is-locked {
+  opacity: 0.62;
+}
+
+.bau-karte.is-locked .bau-vorschau {
+  filter: grayscale(1) brightness(0.8);
+}
+
+.bau-karte.is-poor .bau-vorschau {
+  opacity: 0.7;
+}
+
+.bau-schloss {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 16px;
+}
+
+/* ---------- Meldungen aus der Stadt ---------- */
+.city-meldungen {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 64px;
+  display: grid;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.city-meldung {
+  padding: 8px 11px;
+  border-radius: 14px;
+  background: rgb(10 16 30 / 0.88);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    0 6px 18px rgb(0 0 0 / 0.3);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.3;
+  animation: fade-in 0.25s ease both;
+}
+
+/* ---------- Bericht: Steuern, Gesellschaft, Sicherheit ---------- */
+.city-steuer {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.city-steuer-zeile {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgb(255 255 255 / 0.75);
+}
+
+.city-steuer-zeile strong {
+  font-size: 26px;
+  font-weight: 900;
+  color: #fff;
+}
+
+.city-regler {
+  width: 100%;
+  height: 32px;
+  accent-color: #3ce08a;
+  touch-action: pan-x;
+}
+
+.city-gesellschaft {
+  display: grid;
+  gap: 8px;
+}
+
+.city-klassen {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.city-klasse {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.06);
+  font-size: 11px;
+  font-weight: 800;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.city-klasse strong {
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+}
+
+.city-klassen-balken {
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgb(255 255 255 / 0.08);
+}
+
+.city-klassen-balken span {
+  display: block;
+  height: 100%;
+}
+
+.klasse-arm {
+  --klasse: #c9a06a;
+}
+
+.klasse-mittel {
+  --klasse: #7bdcff;
+}
+
+.klasse-reich {
+  --klasse: #9dff8b;
+}
+
+.klasse-superreich {
+  --klasse: #ffd23f;
+}
+
+.city-klassen-balken span.klasse-arm,
+.city-klassen-balken span.klasse-mittel,
+.city-klassen-balken span.klasse-reich,
+.city-klassen-balken span.klasse-superreich {
+  background: var(--klasse);
+}
+
+.city-klasse.klasse-arm strong,
+.city-klasse.klasse-mittel strong,
+.city-klasse.klasse-reich strong,
+.city-klasse.klasse-superreich strong {
+  color: var(--klasse);
+}
+
+.city-sicherheit {
+  display: grid;
+  gap: 8px;
+}
+
+.city-sicherheit-zeile {
+  display: grid;
+  grid-template-columns: 96px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.city-sicherheit-zeile strong {
+  text-align: right;
+}
+
+.city-sicherheit-zeile .bar {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgb(255 255 255 / 0.08);
+}
+
+.city-sicherheit-zeile .bar span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+
+/* Bewohner in der Detailkarte */
+.city-bewohner {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.06);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.city-bewohner li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.city-bewohner strong {
+  color: #ffd23f;
+}
+
+.city-bewohner-klasse {
+  color: rgb(255 255 255 / 0.55);
+  font-size: 11.5px;
+}
+
+/* ---------- Legende der Kriminalitätskarte ---------- */
+.city-legende {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: calc(100% - 74px);
+  padding: 5px 5px 5px 11px;
+  border-radius: 99px;
+  background: rgb(10 16 30 / 0.88);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    0 6px 18px rgb(0 0 0 / 0.3);
+  color: rgb(255 255 255 / 0.85);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  animation: fade-in 0.2s ease both;
+}
+
+.city-legende-skala {
+  flex: 0 0 52px;
+  height: 8px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #3cc86e, #ffc828 50%, #eb283c);
+}
+
+.city-legende-zu {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.city-meldungen.unter-legende {
+  top: 54px;
 }

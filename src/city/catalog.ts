@@ -1,8 +1,15 @@
 // Der Bau-Katalog. Alles ist hier beschrieben – Aussehen, Kosten, Wirkung, Freischaltung.
 // Ein neues Gebäude braucht genau einen Eintrag und keine Änderung am Stadt-Code.
 import { domainById } from '../knowledge'
+import { DIENSTE } from './katalog/dienste'
+import { GEWERBE } from './katalog/gewerbe'
+import { UNTERWELT } from './katalog/unterwelt'
+import { WOHNEN } from './katalog/wohnen'
 
-export type Category = 'wohnen' | 'handel' | 'bildung' | 'natur' | 'schmuck' | 'wege'
+export type Category = 'wohnen' | 'handel' | 'dienste' | 'bildung' | 'natur' | 'schmuck' | 'unterwelt' | 'wege'
+
+/** Wer in einem Wohnhaus lebt – vom Wohnwagen bis zum Anwesen */
+export type Klasse = 'arm' | 'mittel' | 'reich' | 'superreich'
 
 /** Straßen liegen nicht als Bauwerk auf der Kachel, sondern als eigenes Netz darunter. */
 export interface RoadDef {
@@ -73,12 +80,85 @@ export interface CategoryInfo {
 
 export const CATEGORIES: CategoryInfo[] = [
   { id: 'wohnen', name: 'Wohnen', emoji: '🏠' },
-  { id: 'handel', name: 'Handel', emoji: '🏪' },
+  { id: 'handel', name: 'Gewerbe', emoji: '🏪' },
+  { id: 'dienste', name: 'Dienste', emoji: '🚨' },
   { id: 'bildung', name: 'Bildung', emoji: '🎓' },
   { id: 'natur', name: 'Natur', emoji: '🌳' },
   { id: 'schmuck', name: 'Schmuck', emoji: '✨' },
+  { id: 'unterwelt', name: 'Unterwelt', emoji: '🕶️' },
   { id: 'wege', name: 'Wege', emoji: '🛣️' },
 ]
+
+/** Dachformen, aus denen ein Gebäude gebaut wird */
+export type Dachform = 'sattel' | 'walm' | 'flach' | 'pult' | 'mansard' | 'zelt' | 'saege'
+/** Wandoberflächen */
+export type Fassade = 'putz' | 'ziegel' | 'fachwerk' | 'platte' | 'glas' | 'holz' | 'stein' | 'blech'
+/** Fensterarten */
+export type Fensterart = 'normal' | 'gross' | 'band' | 'bogen' | 'klein' | 'dunkel' | 'keine'
+/** Was im Erdgeschoss an der Straßenseite sitzt */
+export type Unten = 'tuer' | 'laden' | 'tor' | 'garage' | 'eingang'
+/** Zugaben am, auf und vor dem Gebäude */
+export type Extra =
+  | 'balkone'
+  | 'schornstein'
+  | 'gaube'
+  | 'solar'
+  | 'antenne'
+  | 'satellit'
+  | 'dachterrasse'
+  | 'garten'
+  | 'pool'
+  | 'fensterlaeden'
+  | 'efeu'
+  | 'briefkasten'
+  | 'fahrrad'
+  | 'muell'
+  | 'markise'
+  | 'schild'
+  | 'leuchtschrift'
+  | 'tische'
+  | 'zapfsaeulen'
+  | 'parkplatz'
+  | 'schlot'
+  | 'blaulicht'
+  | 'kreuz'
+  | 'heli'
+  | 'sirene'
+  | 'fahnenmast'
+  | 'schlauchturm'
+  | 'graffiti'
+  | 'gitter'
+  | 'wracks'
+  | 'stacheldraht'
+  | 'rauch'
+  | 'gewaechshaus'
+  | 'saeulen'
+  | 'kessel'
+
+/**
+ * Wie ein Gebäude aussieht, als Daten. Der Zeichner setzt es aus Dach, Fassade,
+ * Fenstern und Zugaben zusammen; die Farbe wählt jedes Haus selbst aus der Palette.
+ * So entstehen aus einem Eintrag viele verschiedene Häuser.
+ */
+export interface Stil {
+  dach: Dachform
+  fassade?: Fassade
+  fenster?: Fensterart
+  unten?: Unten
+  extras?: Extra[]
+  /** Zugaben, die nur manche Häuser dieser Art haben */
+  vielleicht?: Extra[]
+  /** Wandfarben – jedes Haus bekommt eine davon */
+  farben: string[]
+  /** Dachfarben – ebenso */
+  dachfarben?: string[]
+  /** Emoji auf dem Schild */
+  schild?: string
+  /** Leuchtfarbe für Neon, Growlicht, Blaulicht */
+  neon?: string
+  /** Baukörper auf dem Grundstück: Anteil in der Tiefe (von hinten) und in der Breite */
+  koerper?: { tiefe: number; breite: number }
+}
 
 /** Zeichenrezept: Der Renderer baut daraus den Körper des Gebäudes. */
 export interface Look {
@@ -101,6 +181,7 @@ export interface Look {
     | 'fahne'
     | 'felsen'
     | 'hecke'
+    | 'bau'
   /** Höhe in Kachelhöhen */
   height: number
   wall: string
@@ -108,6 +189,8 @@ export interface Look {
   accent: string
   /** Fensterreihen, 0 = keine */
   floors?: number
+  /** Nur bei kind 'bau': woraus das Gebäude zusammengesetzt ist */
+  stil?: Stil
 }
 
 export interface Effects {
@@ -118,6 +201,18 @@ export interface Effects {
   environment?: number
   income?: number
   jobs?: number
+  /** Wer hier wohnt – nur bei Wohnhäusern */
+  klasse?: Klasse
+  /** Erhöht (positiv) oder senkt (negativ) die Kriminalität ringsum */
+  crime?: number
+  /** Reichweite der Polizei in Kacheln */
+  police?: number
+  /** Reichweite der Feuerwehr in Kacheln */
+  fire?: number
+  /** Reichweite der ärztlichen Versorgung in Kacheln */
+  health?: number
+  /** Unversteuerte Einnahmen aus dunklen Geschäften */
+  black?: number
 }
 
 /** Ein Wissensgebiet auf einer Mindeststufe */
@@ -157,7 +252,7 @@ export const BUILDINGS: BuildingDef[] = [
     size: [1, 1],
     coins: 120,
     materials: 2,
-    effects: { capacity: 4, happiness: 1 },
+    effects: { capacity: 4, happiness: 1, klasse: 'mittel' },
     note: 'Platz für vier Menschen',
     look: { kind: 'haus', height: 1.05, wall: '#f3e2c7', roof: '#c8553d', accent: '#8c4230', floors: 1 },
     upgrades: [
@@ -173,7 +268,7 @@ export const BUILDINGS: BuildingDef[] = [
     size: [1, 1],
     coins: 280,
     materials: 4,
-    effects: { capacity: 8, happiness: 2 },
+    effects: { capacity: 8, happiness: 2, klasse: 'mittel' },
     note: 'Etwas größer, mit Garten',
     look: { kind: 'haus', height: 1.35, wall: '#fbf0dc', roof: '#3f7d8c', accent: '#2c5b66', floors: 2 },
     upgrades: [{ coins: 520, materials: 9, effects: { capacity: 14, happiness: 3 } }],
@@ -186,7 +281,7 @@ export const BUILDINGS: BuildingDef[] = [
     size: [2, 1],
     coins: 520,
     materials: 8,
-    effects: { capacity: 18, happiness: 2 },
+    effects: { capacity: 18, happiness: 2, klasse: 'mittel' },
     note: 'Viel Wohnraum auf wenig Fläche',
     look: { kind: 'haus', height: 1.2, wall: '#efd9bd', roof: '#a8563c', accent: '#7c3f2c', floors: 2 },
   },
@@ -198,7 +293,7 @@ export const BUILDINGS: BuildingDef[] = [
     size: [2, 2],
     coins: 1100,
     materials: 18,
-    effects: { capacity: 48, happiness: -2, jobs: 4 },
+    effects: { capacity: 48, happiness: -2, jobs: 4, klasse: 'mittel' },
     needsLevel: 3,
     note: 'Sehr viel Wohnraum, wenig Charme',
     look: { kind: 'block', height: 2.8, wall: '#dfe6ef', roof: '#8a99ad', accent: '#5d6b80', floors: 5 },
@@ -374,7 +469,7 @@ export const BUILDINGS: BuildingDef[] = [
     size: [1, 1],
     coins: 620,
     materials: 9,
-    effects: { capacity: 22, happiness: 1 },
+    effects: { capacity: 22, happiness: 1, klasse: 'mittel' },
     needsLevel: 4,
     note: 'Schmal, hoch, viele Nachbarn',
     look: { kind: 'haus', height: 2.2, wall: '#e9dcc6', roof: '#6b5a8c', accent: '#4c3f68', floors: 4 },
@@ -388,7 +483,7 @@ export const BUILDINGS: BuildingDef[] = [
     size: [2, 2],
     coins: 1900,
     materials: 26,
-    effects: { capacity: 14, happiness: 12 },
+    effects: { capacity: 14, happiness: 12, klasse: 'reich' },
     needsLevel: 6,
     note: 'Wenig Platz, viel Ansehen',
     look: { kind: 'haus', height: 1.9, wall: '#fdf3e0', roof: '#37606b', accent: '#24454e', floors: 2 },
@@ -573,6 +668,12 @@ export const BUILDINGS: BuildingDef[] = [
     look: { kind: 'flach', height: 0.08, wall: '#cfc6b8', roof: '#bdb3a4', accent: '#a79c8c' },
   },
 ]
+
+// Die großen Listen stehen in eigenen Dateien – sortiert nach Kategorie, damit die
+// Bauauswahl sie in derselben Reihenfolge zeigt.
+BUILDINGS.push(...WOHNEN, ...GEWERBE, ...DIENSTE, ...UNTERWELT)
+const REIHENFOLGE = CATEGORIES.map((entry) => entry.id)
+BUILDINGS.sort((a, b) => REIHENFOLGE.indexOf(a.category) - REIHENFOLGE.indexOf(b.category))
 
 const BY_ID = new Map(BUILDINGS.map((entry) => [entry.id, entry]))
 

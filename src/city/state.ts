@@ -10,7 +10,9 @@ import {
   roadDef,
   unlockInfo,
 } from './catalog'
+import type { Seite } from './geo'
 import { REQUEST_COINS, REQUEST_MATERIALS, sanitizeRequest } from './requests'
+import { gesellschaft, KLASSEN, kriminalitaetBei, STEUER_MAX, STEUER_MIN, STEUER_START, steuerVon } from './society'
 import { DEFAULT_THEME, themeById } from './themes'
 import {
   CITY_VERSION,
@@ -71,6 +73,8 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
     request: null,
     helped: 0,
     lastRequest: 0,
+    tax: STEUER_START,
+    lastGrowth: now,
     nextId: 1,
     foundedAt: now,
   }
@@ -213,10 +217,12 @@ export function remove(city: CityState, id: string): CityState {
   const placed = city.buildings.find((entry) => entry.id === id)
   const def = placed ? buildingDef(placed.type) : undefined
   if (!placed || !def) return city
+  // Was Zugezogene selbst gebaut haben, hast du nicht bezahlt – dafür gibt es nichts zurück
+  const zurueck = placed.auto ? 0 : 1
   return withLevel({
     ...city,
-    coins: city.coins + Math.round(def.coins / 2),
-    materials: city.materials + Math.floor(def.materials / 2),
+    coins: city.coins + Math.round(def.coins / 2) * zurueck,
+    materials: city.materials + Math.floor(def.materials / 2) * zurueck,
     buildings: city.buildings.filter((entry) => entry.id !== id),
   })
 }
@@ -424,15 +430,19 @@ function totals(city: CityState) {
  */
 export function happinessBreakdown(city: CityState): { total: number; parts: Part[] } {
   const sums = totals(city)
+  const g = gesellschaft(city)
   const parts: Part[] = [{ label: 'Grundstimmung', value: 60 }]
 
-  if (sums.happy !== 0) parts.push({ label: 'Bauwerke und Grün', value: sums.happy })
+  // Bauwerke und Grün freuen – mit abnehmendem Ertrag: Der zehnte Park macht nicht mehr so
+  // froh wie der erste. Sonst höbe jedes selbst gebaute Haus die Stimmung, die wieder neue
+  // Häuser bringt, und keine Arbeitslosigkeit könnte die Stadt je noch verstimmen.
+  const gruen = sums.happy > 0 ? Math.round(45 * Math.tanh(sums.happy / 45)) : Math.max(-40, sums.happy)
+  if (gruen !== 0) parts.push({ label: 'Bauwerke und Grün', value: gruen })
 
   const schulen = Math.min(12, Math.round(sums.education / 2))
   if (schulen > 0) parts.push({ label: 'Bildung', value: schulen })
 
-  const ohneArbeit = Math.max(0, Math.round(city.population / 4) - sums.jobs)
-  if (ohneArbeit > 0) parts.push({ label: 'Fehlende Arbeit', value: -Math.min(25, ohneArbeit) })
+  if (g.arbeitslose > 0) parts.push({ label: 'Arbeitslosigkeit', value: -Math.min(25, Math.round(g.arbeitslose / 3)) })
 
   const eng = city.population - Math.round(sums.capacity * 0.95)
   if (eng > 0) parts.push({ label: 'Enge Wohnungen', value: -Math.min(20, Math.round(eng / 2) + 4) })
@@ -447,6 +457,30 @@ export function happinessBreakdown(city: CityState): { total: number; parts: Par
     )
   }
 
+  // Steuern: unter zehn Prozent freut es die Leute, darüber ärgert es sie
+  const steuer = steuerVon(city)
+  if (city.population > 0 && steuer !== 10) {
+    parts.push({
+      label: `Steuern ${steuer} %`,
+      value: steuer < 10 ? Math.round((10 - steuer) * 0.8) : -Math.round((steuer - 10) * 1.6),
+    })
+  }
+
+  if (g.kriminalitaet >= 6) parts.push({ label: 'Kriminalität', value: -Math.round(g.kriminalitaet / 4) })
+  if (g.obdachlose > 0) parts.push({ label: 'Obdachlosigkeit', value: -Math.min(10, Math.ceil(g.obdachlose / 3)) })
+
+  // Dienste: wer abgedeckt ist, fühlt sich sicherer – wer lange ohne auskommen muss, nicht
+  if (city.population >= 40) {
+    if (g.abdeckung.polizei > 0) parts.push({ label: 'Sicherheit', value: Math.round(5 * g.abdeckung.polizei) })
+    else if (city.population >= 80) parts.push({ label: 'Keine Polizei', value: -6 })
+    if (g.abdeckung.gesundheit > 0) parts.push({ label: 'Ärzte in der Nähe', value: Math.round(5 * g.abdeckung.gesundheit) })
+    else if (city.population >= 100) parts.push({ label: 'Keine Ärzte', value: -6 })
+  }
+  if (city.buildings.length >= 12) {
+    if (g.abdeckung.feuer > 0) parts.push({ label: 'Brandschutz', value: Math.round(3 * g.abdeckung.feuer) })
+    else if (city.buildings.length >= 25) parts.push({ label: 'Keine Feuerwehr', value: -4 })
+  }
+
   // Wer seinen Nachbarn hilft, merkt es an der Stimmung
   const dank = Math.min(10, Math.floor(city.helped / 3))
   if (dank > 0) parts.push({ label: 'Nachbarschaftshilfe', value: dank })
@@ -457,32 +491,55 @@ export function happinessBreakdown(city: CityState): { total: number; parts: Par
 
 /** Woraus die Einnahmen eines Zyklus bestehen */
 export function incomeBreakdown(city: CityState): { total: number; parts: Part[] } {
-  const sums = totals(city)
-  const mood = happinessBreakdown(city).total
-  const steuern = Math.round(city.population * 3 * (mood / 100))
+  const g = gesellschaft(city)
+  let handel = 0
+  let dienste = 0
+  for (const placed of city.buildings) {
+    const def = buildingDef(placed.type)
+    if (!def) continue
+    const einnahme = effectsOf(def, placed.level).income ?? 0
+    if (einnahme >= 0) handel += einnahme
+    else dienste += einnahme
+  }
+  const diebstahl = Math.round((handel * g.kriminalitaet) / 250)
   const unterhalt = city.buildings.length + Math.ceil(Object.keys(city.roads).length / 2)
 
   const parts: Part[] = []
-  if (sums.income > 0) parts.push({ label: 'Handel', value: sums.income })
-  if (steuern > 0) parts.push({ label: 'Steuern', value: steuern })
+  if (handel > 0) parts.push({ label: 'Handel', value: handel })
+  if (g.steuern > 0) parts.push({ label: `Steuern (${steuerVon(city)} %)`, value: g.steuern })
+  if (g.schwarzgeld > 0) parts.push({ label: 'Schwarzgeld', value: g.schwarzgeld })
+  if (dienste < 0) parts.push({ label: 'Polizei, Feuerwehr, Ärzte', value: dienste })
+  if (diebstahl > 0) parts.push({ label: 'Diebstahl', value: -diebstahl })
   if (unterhalt > 0) parts.push({ label: 'Unterhalt', value: -unterhalt })
 
-  return { total: Math.max(0, sums.income + steuern - unterhalt), parts }
+  const total = Math.max(0, parts.reduce((sum, part) => sum + part.value, 0))
+  return { total, parts }
 }
 
 /** Was die Bürger gerade stört – daraus werden freiwillige Ziele */
 export function problemsOf(city: CityState): string[] {
   const sums = totals(city)
+  const g = gesellschaft(city)
   const list: string[] = []
-  if (city.population > 0 && Math.round(city.population / 4) > sums.jobs) {
-    list.push('🏪 Uns fehlen Arbeitsplätze. Läden und Werkstätten helfen.')
+  if (g.arbeitslose > 0 && city.population > 0) {
+    list.push(`💼 ${g.arbeitslose} Menschen suchen Arbeit. Läden, Büros und Fabriken helfen.`)
   }
   if (city.population >= Math.round(sums.capacity * 0.95) && sums.capacity > 0) {
-    list.push('🏠 Es gibt keine freien Wohnungen mehr.')
+    list.push('🏠 Es gibt keine freien Wohnungen mehr – bei guter Stimmung bauen Zugezogene selbst.')
   }
   if (sums.education === 0 && city.population >= 20) {
-    list.push('🎓 Die Kinder brauchen eine Schule.')
+    list.push('🎓 Die Kinder brauchen eine Schule. Ohne Bildung wächst die Kriminalität.')
   }
+  if (g.kriminalitaet >= 40) {
+    list.push(`🚨 Kriminalität ${g.kriminalitaet} %. Polizeiwachen und Schulen drücken sie.`)
+  }
+  if (g.abdeckung.polizei === 0 && city.population >= 60) list.push('🚓 Es gibt keine Polizei.')
+  if (g.obdachlose > 0) {
+    list.push(`🛏️ ${g.obdachlose} ${g.obdachlose === 1 ? 'Mensch schläft' : 'Menschen schlafen'} auf der Straße. Arbeit und günstiger Wohnraum helfen.`)
+  }
+  if (g.abdeckung.gesundheit === 0 && city.population >= 100) list.push('🏥 Kranke müssen weit fahren. Eine Arztpraxis hilft.')
+  if (g.abdeckung.feuer === 0 && city.buildings.length >= 25) list.push('🚒 Ohne Feuerwehr brennt es länger.')
+  if (steuerVon(city) > 20) list.push('💸 Die Steuern sind hoch – die Reichen ziehen weg.')
   if (sums.environment < 10 && city.population >= 20) {
     list.push('🌳 Die Stadt braucht mehr Grün.')
   }
@@ -508,9 +565,28 @@ export function statsOf(city: CityState): CityStats {
   }
 }
 
+/** Kleiner, wiederholbarer Zufall – damit Zyklen nachvollziehbar bleiben */
+export function zufallAus(samen: number): () => number {
+  let a = Math.floor(samen) >>> 0 || 1
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** So viel Wohnraum wollen die Menschen bei diesem Steuersatz tatsächlich nutzen */
+export const wohnplatz = (city: CityState): number => {
+  const g = gesellschaft(city)
+  return KLASSEN.reduce((summe, k) => summe + g.platz[k], 0)
+}
+
 /**
- * Holt die Zyklen seit dem letzten Besuch nach: Einnahmen, Zuzug, Wegzug.
- * Es wird höchstens ein Tag nachgeholt – Wegbleiben soll sich nicht lohnen.
+ * Holt die Zyklen seit dem letzten Besuch nach: Einnahmen, Zuzug, Wegzug – und was
+ * die Bürger in der Zeit selbst getan haben: Häuser gebaut, dunkle Geschäfte eröffnet,
+ * und was die Polizei davon ausgehoben hat. Es wird höchstens ein Tag nachgeholt.
  */
 export function runCycles(city: CityState, now = Date.now()): { city: CityState; report: CycleReport | null } {
   const last = city.lastTick > 0 ? city.lastTick : now
@@ -518,23 +594,29 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
   if (elapsed < CYCLE_MS) return { city: city.lastTick > 0 ? city : { ...city, lastTick: now }, report: null }
 
   const cycles = Math.min(MAX_CYCLES, Math.floor(elapsed / CYCLE_MS))
+  const zufall = zufallAus(last + city.nextId * 7919)
   let next: CityState = { ...city }
   let coins = 0
   let movedIn = 0
   let movedOut = 0
+  const gebaut: string[] = []
+  const meldungen: string[] = []
 
   for (let i = 0; i < cycles; i++) {
+    const zeit = last + (i + 1) * CYCLE_MS
     const income = incomeBreakdown(next)
     coins += income.total
     const mood = happinessBreakdown(next).total
-    const sums = totals(next)
+    const platz = wohnplatz(next)
 
     let population = next.population
-    if (mood >= MOVE_IN_MOOD && population < sums.capacity) {
-      const zuzug = Math.min(
-        sums.capacity - population,
-        Math.max(1, Math.round(sums.capacity * 0.08 * ((mood - 40) / 60))),
-      )
+    if (population > platz) {
+      // Zu hohe Steuern oder Kriminalität: wer es sich leisten kann, geht
+      const weg = Math.max(1, Math.round((population - platz) * 0.5))
+      population -= weg
+      movedOut += weg
+    } else if (mood >= MOVE_IN_MOOD && population < platz) {
+      const zuzug = Math.min(platz - population, Math.max(1, Math.round(platz * 0.08 * ((mood - 40) / 60))))
       population += zuzug
       movedIn += zuzug
     } else if (mood < MOVE_OUT_MOOD && population > 0) {
@@ -543,11 +625,280 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
       movedOut += wegzug
     }
     next = { ...next, population, coins: next.coins + income.total }
+
+    // Bei guter Stimmung bauen Zugezogene selbst – je besser, desto mehr
+    const bauten = mood >= WACHSTUM_STIMMUNG ? 1 + Math.floor((mood - WACHSTUM_STIMMUNG) / 12) : 0
+    for (let b = 0; b < bauten; b++) {
+      const schritt = wachsen(next, zeit, zufall)
+      if (!schritt.gebaut) break
+      next = schritt.city
+      gebaut.push(buildingDef(schritt.gebaut.type)?.name ?? schritt.gebaut.type)
+    }
+
+    // Wo Armut und fehlende Bildung zusammenkommen, entstehen dunkle Geschäfte
+    const dunkel = dunkelWaechst(next, zeit, zufall)
+    if (dunkel.gebaut) {
+      next = dunkel.city
+      meldungen.push(`🕶️ Im Viertel ist ${artikel(dunkel.gebaut.type)} entstanden.`)
+    }
+
+    // Die Polizei hebt aus, was sie erreicht
+    for (const placed of next.buildings) {
+      const def = buildingDef(placed.type)
+      if (def?.category !== 'unterwelt') continue
+      const abgedeckt = razziaMoeglich(next, placed)
+      if (!abgedeckt || zufall() > 0.3) continue
+      const r = razzia(next, placed.id)
+      next = r.city
+      meldungen.push(`🚔 Razzia: ${def.name} ausgehoben, ${r.beute} 🪙 beschlagnahmt.`)
+      coins += r.beute
+    }
   }
 
   // Alles, was über den Deckel hinausgeht, verfällt
   next.lastTick = elapsed > MAX_CYCLES * CYCLE_MS ? now : last + cycles * CYCLE_MS
-  return { city: withLevel(next), report: { cycles, coins, movedIn, movedOut, income: incomeBreakdown(next).parts } }
+  return {
+    city: withLevel(next),
+    report: { cycles, coins, movedIn, movedOut, income: incomeBreakdown(next).parts, gebaut, meldungen },
+  }
+}
+
+// ---------- Die Stadt wächst von selbst ----------
+
+/** Ab dieser Stimmung bauen Zugezogene selbst */
+export const WACHSTUM_STIMMUNG = 60
+
+/** Sekunden zwischen zwei Häusern, die Bürger live bauen – je besser die Stimmung, desto schneller */
+export function wachstumsTakt(stimmung: number): number | null {
+  if (stimmung < WACHSTUM_STIMMUNG) return null
+  return Math.max(22, 95 - (stimmung - WACHSTUM_STIMMUNG) * 2.1)
+}
+
+/** Kacheln, die frei sind und an einer Straße liegen – dort kann jemand bauen */
+function freieKacheln(city: CityState): { x: number; y: number }[] {
+  const belegt = new Set<string>()
+  for (const placed of city.buildings) for (const t of tilesOf(placed)) belegt.add(roadKey(t.x, t.y))
+  const liste: { x: number; y: number }[] = []
+  for (let y = 0; y < city.land; y++) {
+    for (let x = 0; x < city.land; x++) {
+      const key = roadKey(x, y)
+      if (belegt.has(key) || city.roads[key]) continue
+      if (roadAt(city, x + 1, y) || roadAt(city, x - 1, y) || roadAt(city, x, y + 1) || roadAt(city, x, y - 1)) {
+        liste.push({ x, y })
+      }
+    }
+  }
+  return liste
+}
+
+/** Wie begehrt eine Lage ist: Grün und Wasser ziehen an, Industrie und Kriminalität stoßen ab */
+function lageBei(city: CityState, x: number, y: number): number {
+  let lage = 0
+  for (const placed of city.buildings) {
+    const def = buildingDef(placed.type)
+    if (!def) continue
+    const d = Math.hypot(placed.x - x, placed.y - y)
+    if (d > 5) continue
+    const f = 1 - d / 5
+    if (def.category === 'natur') lage += 1.4 * f
+    if (def.effects.klasse === 'reich' || def.effects.klasse === 'superreich') lage += 2 * f
+    if (def.effects.klasse === 'arm') lage -= 1.2 * f
+    if ((def.effects.environment ?? 0) < 0) lage -= 2 * f
+    if (def.category === 'unterwelt') lage -= 3 * f
+  }
+  return lage - kriminalitaetBei(city, x, y) / 20
+}
+
+/** Wählt, was Zugezogene an dieser Stelle bauen – nach Lage, Kriminalität und Stadtstufe */
+function wohnartFuer(city: CityState, x: number, y: number, zufall: () => number) {
+  const lage = lageBei(city, x, y)
+  const krim = kriminalitaetBei(city, x, y)
+  const kandidaten = BUILDINGS.filter(
+    (def) => def.category === 'wohnen' && def.effects.klasse && (def.needsLevel ?? 1) <= city.level,
+  )
+  const gewicht = (def: (typeof kandidaten)[number]) => {
+    const k = def.effects.klasse
+    const flaeche = def.size[0] * def.size[1]
+    const groesse = flaeche === 1 ? 1 : flaeche === 2 ? 0.7 : 0.35
+    if (k === 'arm') return (0.6 + krim / 30 + (lage < 0 ? 1.5 : 0)) * groesse
+    if (k === 'mittel') return 3 * groesse
+    if (k === 'reich') return Math.max(0, lage) * 0.9 * groesse
+    return Math.max(0, lage - 3) * 0.35 * groesse
+  }
+  const summe = kandidaten.reduce((s, d) => s + gewicht(d), 0)
+  let wahl = zufall() * summe
+  for (const def of kandidaten) {
+    wahl -= gewicht(def)
+    if (wahl <= 0) return def
+  }
+  return kandidaten[0]
+}
+
+/**
+ * Zugezogene bauen ein Haus: auf einem freien Platz an einer Straße, gern in der Nähe
+ * anderer Häuser. Kostet dich nichts – sie bauen mit ihrem eigenen Geld.
+ */
+export function wachsen(city: CityState, now: number, zufall: () => number = Math.random): { city: CityState; gebaut: Placed | null } {
+  const platz = wohnplatz(city)
+  // Solange es genug freie Wohnungen gibt, ziehen die Leute dort ein
+  if (platz > 0 && city.population < platz * 0.8) return { city, gebaut: null }
+  const frei = freieKacheln(city)
+  if (frei.length === 0) return { city, gebaut: null }
+
+  // Nähe zu bestehenden Häusern: Viertel wachsen zusammen, statt überall zu streuen
+  const bewertet = frei
+    .map((k) => {
+      let nachbarn = 0
+      for (const placed of city.buildings) if (Math.abs(placed.x - k.x) <= 2 && Math.abs(placed.y - k.y) <= 2) nachbarn++
+      return { ...k, wert: nachbarn + zufall() * 1.5 }
+    })
+    .sort((a, b) => b.wert - a.wert)
+    .slice(0, 6)
+
+  for (const lot of bewertet) {
+    for (let versuch = 0; versuch < 4; versuch++) {
+      const def = wohnartFuer(city, lot.x, lot.y, zufall)
+      for (const rot of [0, 1] as const) {
+        // Ein Rechteck darf von der Kachel aus nach links oder oben reichen
+        const [w, h] = footprint(def, rot)
+        for (const [ox, oy] of [
+          [0, 0],
+          [1 - w, 0],
+          [0, 1 - h],
+          [1 - w, 1 - h],
+        ]) {
+          const x = lot.x + ox
+          const y = lot.y + oy
+          if (!canPlace(city, def.id, x, y, rot, { free: true }).ok) continue
+          const placed: Placed = { id: `b${city.nextId}`, type: def.id, x, y, rot, level: 1, at: now, auto: true }
+          const neu = withLevel({ ...city, buildings: [...city.buildings, placed], nextId: city.nextId + 1, lastGrowth: now })
+          return { city: neu, gebaut: placed }
+        }
+      }
+    }
+  }
+  return { city, gebaut: null }
+}
+
+/** Unterwelt, die ohne dein Zutun entsteht */
+const DUNKLES = ['gangtreff', 'growhaus', 'spielhalle', 'drogenlabor', 'hanfplantage']
+
+/**
+ * Wo Kriminalität hoch und Bildung niedrig ist, eröffnet jemand ein dunkles Geschäft –
+ * auf einem freien Platz im schlimmsten Viertel.
+ */
+export function dunkelWaechst(city: CityState, now: number, zufall: () => number = Math.random): { city: CityState; gebaut: Placed | null } {
+  if (city.level < 2 || city.population < 40) return { city, gebaut: null }
+  const g = gesellschaft(city)
+  if (g.kriminalitaet < 35 || g.bildung > 70) return { city, gebaut: null }
+  const chance = ((g.kriminalitaet - 35) / 100) * (1 - g.bildung / 100) * 1.4
+  if (zufall() > chance) return { city, gebaut: null }
+  const frei = freieKacheln(city)
+    .map((k) => ({ ...k, krim: kriminalitaetBei(city, k.x, k.y) }))
+    .filter((k) => k.krim >= 45)
+    .sort((a, b) => b.krim - a.krim)
+  const arten = DUNKLES.map((id) => buildingDef(id)).filter((def): def is NonNullable<typeof def> => !!def && (def.needsLevel ?? 1) <= city.level)
+  for (const lot of frei.slice(0, 5)) {
+    const def = arten[Math.floor(zufall() * arten.length)]
+    if (!def) break
+    for (const rot of [0, 1] as const) {
+      if (!canPlace(city, def.id, lot.x, lot.y, rot, { free: true }).ok) continue
+      const placed: Placed = { id: `b${city.nextId}`, type: def.id, x: lot.x, y: lot.y, rot, level: 1, at: now, auto: true }
+      return { city: withLevel({ ...city, buildings: [...city.buildings, placed], nextId: city.nextId + 1 }), gebaut: placed }
+    }
+  }
+  return { city, gebaut: null }
+}
+
+/** Kann die Polizei dieses Gebäude erreichen? */
+export function razziaMoeglich(city: CityState, placed: Placed): boolean {
+  const def = buildingDef(placed.type)
+  if (def?.category !== 'unterwelt') return false
+  const [w, h] = footprint(def, placed.rot)
+  const mx = placed.x + w / 2
+  const my = placed.y + h / 2
+  return city.buildings.some((wache) => {
+    const reichweite = buildingDef(wache.type)?.effects.police ?? 0
+    if (!reichweite) return false
+    const wd = buildingDef(wache.type)!
+    const [ww, wh] = footprint(wd, wache.rot)
+    return Math.hypot(wache.x + ww / 2 - mx, wache.y + wh / 2 - my) <= reichweite
+  })
+}
+
+/** Die Polizei hebt ein dunkles Geschäft aus: Es verschwindet, die Beute geht an die Stadt */
+export function razzia(city: CityState, id: string): { city: CityState; beute: number } {
+  const placed = city.buildings.find((b) => b.id === id)
+  const def = placed ? buildingDef(placed.type) : undefined
+  if (!placed || def?.category !== 'unterwelt') return { city, beute: 0 }
+  const beute = Math.round((def.effects.black ?? 0) * 2)
+  return {
+    city: withLevel({ ...city, buildings: city.buildings.filter((b) => b.id !== id), coins: city.coins + beute }),
+    beute,
+  }
+}
+
+/** Steuersatz setzen – zwischen 0 und 30 Prozent */
+export function setTax(city: CityState, satz: number): CityState {
+  const tax = Math.max(STEUER_MIN, Math.min(STEUER_MAX, Math.round(satz)))
+  return tax === city.tax ? city : { ...city, tax }
+}
+
+/** "eine Hanfplantage", "ein Grow-Haus" – für Meldungen */
+export function artikel(type: string): string {
+  const def = buildingDef(type)
+  if (!def) return type
+  const weiblich = /e$|ung$|halle$|plantage$|ei$|stelle$|wache$|praxis$|villa$/i.test(def.name.split(' ').pop() ?? '')
+  return `${weiblich ? 'eine' : 'ein'} ${def.name}`
+}
+
+/**
+ * Auf welcher Seite liegt die Straße? Dorthin kommen Tür, Schaufenster und Markise,
+ * und dort gehen die Menschen hinein. Gezählt werden die Straßenkacheln entlang jeder
+ * Seite; ohne Straße daneben wird in zwei Kacheln Umkreis gesucht, sonst bleibt es Osten.
+ */
+export function seiteZurStrasse(city: CityState, placed: Placed): Seite {
+  const def = buildingDef(placed.type)
+  if (!def) return 'o'
+  const [w, h] = footprint(def, placed.rot)
+  const zaehle = (kacheln: [number, number][]) => kacheln.filter(([x, y]) => roadAt(city, x, y)).length
+  const entlangX = (y: number) => Array.from({ length: w }, (_, i) => [placed.x + i, y] as [number, number])
+  const entlangY = (x: number) => Array.from({ length: h }, (_, i) => [x, placed.y + i] as [number, number])
+  for (const abstand of [1, 2]) {
+    const kandidaten: [Seite, number][] = [
+      ['o', zaehle(entlangY(placed.x + w - 1 + abstand))],
+      ['s', zaehle(entlangX(placed.y + h - 1 + abstand))],
+      ['n', zaehle(entlangX(placed.y - abstand))],
+      ['w', zaehle(entlangY(placed.x - abstand))],
+    ]
+    let beste: [Seite, number] = kandidaten[0]
+    for (const k of kandidaten) if (k[1] > beste[1]) beste = k
+    if (beste[1] > 0) return beste[0]
+  }
+  return 'o'
+}
+
+/** Die Straßenkachel vor dem Eingang – dort beginnt und endet jeder Weg zu diesem Haus */
+export function zugangVon(city: CityState, placed: Placed): { x: number; y: number } | null {
+  const def = buildingDef(placed.type)
+  if (!def) return null
+  const [w, h] = footprint(def, placed.rot)
+  const seite = seiteZurStrasse(city, placed)
+  // Wie die Türseite sucht auch der Zugang bis zu zwei Kacheln weit – dazwischen liegt
+  // dann eben ein Vorgarten, durch den man zur Straße geht
+  for (const abstand of [1, 2]) {
+    const kandidaten: [number, number][] = []
+    if (seite === 'o') for (let i = 0; i < h; i++) kandidaten.push([placed.x + w - 1 + abstand, placed.y + i])
+    if (seite === 'w') for (let i = 0; i < h; i++) kandidaten.push([placed.x - abstand, placed.y + i])
+    if (seite === 's') for (let i = 0; i < w; i++) kandidaten.push([placed.x + i, placed.y + h - 1 + abstand])
+    if (seite === 'n') for (let i = 0; i < w; i++) kandidaten.push([placed.x + i, placed.y - abstand])
+    // die mittlere zuerst, damit der Weg gerade auf die Tür zuläuft
+    const mx = placed.x + w / 2 - 0.5
+    const my = placed.y + h / 2 - 0.5
+    kandidaten.sort((a, b) => Math.abs(a[0] - mx) + Math.abs(a[1] - my) - (Math.abs(b[0] - mx) + Math.abs(b[1] - my)))
+    for (const [x, y] of kandidaten) if (roadAt(city, x, y)) return { x, y }
+  }
+  return null
 }
 
 /** Stadt-Stufe: wächst mit Einwohnern, Bauwerken und Bildung */
@@ -645,6 +996,7 @@ export function sanitizeCity(input: unknown): CityState | null {
         rot: rot < 0 ? 0 : rot,
         level: Math.max(1, Math.min(maxLevel(def), int(item.level, 1))),
         at: int(item.at, 0),
+        ...(item.auto === true ? { auto: true } : {}),
       }
       const [w, h] = footprint(def, placed.rot)
       if (placed.x < 0 || placed.y < 0 || placed.x + w > land || placed.y + h > land) continue
@@ -674,6 +1026,8 @@ export function sanitizeCity(input: unknown): CityState | null {
     request: sanitizeRequest(raw.request),
     helped: Math.max(0, int(raw.helped)),
     lastRequest: Math.max(0, int(raw.lastRequest)),
+    tax: Math.max(STEUER_MIN, Math.min(STEUER_MAX, int(raw.tax, STEUER_START))),
+    lastGrowth: Math.max(0, int(raw.lastGrowth)),
     nextId: Math.max(buildings.length + 1, int(raw.nextId, 1)),
     foundedAt: int(raw.foundedAt),
   }

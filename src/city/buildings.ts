@@ -4,10 +4,14 @@
 // Zwei Regeln ziehen sich durch: Erstens wächst ein Haus sichtbar mit seiner Stufe –
 // es wird höher, füllt mehr von seinem Grundstück und bekommt Aufbauten dazu.
 // Zweitens hängt alles Zufällige am Namen des Hauses, damit es sein Aussehen behält.
+import { drawBau, umrissBau } from './bau'
 import { buildingDef, footprint, type Look } from './catalog'
 import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
-import { dirToScreen, nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
+import { nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
+import { SEITEN, umlauf, waende, schwerpunkt, type Grund, type Seite, type Wand } from './geo'
 import type { Theme } from './themes'
+
+export { SEITEN, type Seite } from './geo'
 import type { Placed } from './types'
 
 /** Höhe des dunkleren Sockels in Bildpunkten */
@@ -161,73 +165,6 @@ function facade(
       ctx.stroke()
     }
   }
-}
-
-/**
- * Die vier Seiten eines Grundrisses, fest an der Karte: n (kleines y), o (großes x),
- * s (großes y), w (kleines x). Eine Tür bleibt so an ihrer Wand, gleich wie man die
- * Stadt dreht – sie verschwindet höchstens auf die Rückseite.
- */
-export type Seite = 'n' | 'o' | 's' | 'w'
-
-export const SEITEN: Seite[] = ['n', 'o', 's', 'w']
-
-/** Ein Grundriss in Kachelkoordinaten */
-type Grund = { x: number; y: number; w: number; h: number }
-
-/** Außenrichtung jeder Seite auf der Karte */
-const NORMALE: Record<Seite, [number, number]> = { n: [0, -1], o: [1, 0], s: [0, 1], w: [-1, 0] }
-
-/** Die vier Ecken eines Grundrisses, rundherum in fester Reihenfolge, auf gegebener Höhe */
-function umlauf(g: Grund, hoch = 0): [Point, Point, Point, Point] {
-  return [
-    lift(toScreen(g.x, g.y), hoch),
-    lift(toScreen(g.x + g.w, g.y), hoch),
-    lift(toScreen(g.x + g.w, g.y + g.h), hoch),
-    lift(toScreen(g.x, g.y + g.h), hoch),
-  ]
-}
-
-/** Schwerpunkt – die Mitte eines Dachs, gleich wie es gerade im Bild liegt */
-function schwerpunkt(punkte: Point[]): Point {
-  let sx = 0
-  let sy = 0
-  for (const p of punkte) {
-    sx += p.sx
-    sy += p.sy
-  }
-  return { sx: sx / punkte.length, sy: sy / punkte.length }
-}
-
-/**
- * Eine Wand: ihre beiden Fußpunkte im Bild (links, rechts), ob sie zum Betrachter
- * zeigt, wie hell sie im Licht von rechts ist, wie weit vorn sie steht und in welche
- * Richtung "nach draußen" im Bild zeigt – für Markisen, Stufen und Kisten.
- */
-type Wand = { seite: Seite; a: Point; b: Point; sichtbar: boolean; ton: number; tiefe: number; raus: Point }
-
-function waende(g: Grund, basis = 0): Record<Seite, Wand> {
-  const [p0, p1, p2, p3] = umlauf(g, basis)
-  const kanten: Record<Seite, [Point, Point]> = { n: [p0, p1], o: [p1, p2], s: [p2, p3], w: [p3, p0] }
-  const out = {} as Record<Seite, Wand>
-  for (const seite of SEITEN) {
-    const [nx, ny] = NORMALE[seite]
-    const [k0, k1] = kanten[seite]
-    const [a, b] = k0.sx <= k1.sx ? [k0, k1] : [k1, k0]
-    const r = dirToScreen(nx, ny)
-    const laenge = Math.hypot(r.sx, r.sy) || 1
-    out[seite] = {
-      seite,
-      a,
-      b,
-      sichtbar: zeigtNachVorn(nx, ny),
-      // Licht von rechts: nach rechts gewandte Wände sind heller
-      ton: -35 + 17 * nachRechts(nx, ny),
-      tiefe: (k0.sy + k1.sy) / 2,
-      raus: { sx: r.sx / laenge, sy: r.sy / laenge },
-    }
-  }
-  return out
 }
 
 /** Was ein Baukörper nach dem Zeichnen über sich verrät */
@@ -829,6 +766,25 @@ export function drawBuilding(
   const ein = einzug(look, stufe)
   const grund: Grund = { x: placed.x + ein, y: placed.y + ein, w: w - ein * 2, h: h - ein * 2 }
 
+  if (look.kind === 'bau' && look.stil) {
+    const alter = Date.now() - placed.at
+    const wachsen = placed.at > 0 && alter >= 0 && alter < 600 ? Math.max(0.08, alter / 600) : 1
+    drawBau(ctx, {
+      placed,
+      look,
+      stil: look.stil,
+      lot: { x: placed.x, y: placed.y, w, h },
+      stufe,
+      hoehe: bauHoehe(look, stufe) * wachsen,
+      seed,
+      time,
+      fein,
+      vorn,
+      einzug: ein,
+    })
+    return
+  }
+
   // Schatten. Er gehört unter den Baukörper, nicht unter die ganze Kachel: Schaute
   // er ringsum unter dem Haus hervor, sähe es aus, als schwebte es darüber. Der
   // Versatz liegt im Bild, nicht auf der Karte – aus jeder Blickrichtung fällt er
@@ -1250,12 +1206,26 @@ export function drawBuilding(
  * die Trefferfläche – genau genug, dass ein Haus keine Tipper abfängt, die sichtbar
  * dem Haus dahinter gehören. Bei freier Drehung stehen Häuser oft knapp hintereinander.
  */
-export function umrissPunkte(placed: Placed): Point[] {
+export function umrissPunkte(placed: Placed, vorn: Seite = 'o'): Point[] {
   const def = buildingDef(placed.type)
   if (!def) return []
   const [w, h] = footprint(def, placed.rot)
   const look = def.look
   const stufe = Math.max(1, placed.level)
+
+  if (look.kind === 'bau' && look.stil) {
+    return umrissBau({
+      placed,
+      look,
+      stil: look.stil,
+      lot: { x: placed.x, y: placed.y, w, h },
+      stufe,
+      hoehe: bauHoehe(look, stufe),
+      seed: hashOf(placed.id + placed.type),
+      vorn,
+      einzug: einzug(look, stufe),
+    })
+  }
 
   if (look.kind === 'baum') {
     // Stamm und Krone: gut eine Kachelhöhe hoch, schmaler als die Kachel
