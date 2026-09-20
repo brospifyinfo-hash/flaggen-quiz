@@ -2395,3 +2395,401 @@
   font-family: var(--lw-schrift);
   font-size: 22px;
 }
+
+/* ---------- Banking: Zahlen, Schalter, Fälle ---------- */
+
+.lw-daten {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--lw-weich);
+}
+
+.lw-daten > div,
+.lw-haushalt > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.lw-daten dt,
+.lw-haushalt dt {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lw-daten dd,
+.lw-haushalt dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.lw-haushalt {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+}
+
+.lw-haushalt .is-plus dd {
+  color: var(--good, #1f8f6a);
+}
+
+.lw-haushalt .is-summe {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 2px solid var(--lw-kante);
+}
+
+.lw-haushalt .is-summe dt,
+.lw-haushalt .is-summe dd {
+  color: var(--lw-tinte);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+/* Zahlenfeld */
+.lw-anzeige {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+}
+
+.lw-anzeige.is-gut {
+  box-shadow: inset 0 0 0 3px var(--good, #1f8f6a);
+}
+
+.lw-anzeige.is-schlecht {
+  box-shadow: inset 0 0 0 3px var(--bad, #d6456b);
+}
+
+.lw-anzeige-zahl {
+  font-size: 34px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.lw-anzeige-einheit {
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.lw-tasten {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.lw-taste {
+  padding: 16px 0;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.06s ease;
+}
+
+.lw-taste:active {
+  transform: scale(0.96);
+  background: var(--lw-weich);
+}
+
+.lw-taste.is-weg {
+  color: var(--muted);
+}
+
+.lw-rechenweg {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.lw-rechenweg li {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+/* Schalter */
+.lw-schalter,
+.lw-kunde {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--lw-weich);
+}
+
+.lw-schalter-emoji,
+.lw-kunde-emoji {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 26px;
+}
+
+.lw-schalter small,
+.lw-kunde small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lw-schalter p {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.lw-kunde strong {
+  font-size: 16px;
+}
+
+.lw-wunsch {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  font-style: italic;
+}
+
+.lw-buendel,
+.lw-gelegt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lw-schein {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.lw-schein.is-klein {
+  padding: 5px 9px;
+  font-size: 13px;
+}
+
+.lw-schein.is-unerwuenscht {
+  box-shadow: inset 0 0 0 2px var(--bad, #d6456b);
+  color: var(--bad, #d6456b);
+}
+
+.lw-kassenfeld {
+  display: grid;
+  gap: 10px;
+  min-height: 92px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+}
+
+.lw-kassenfeld.is-gut {
+  box-shadow: inset 0 0 0 3px var(--good, #1f8f6a);
+}
+
+.lw-kassenfeld.is-schlecht {
+  box-shadow: inset 0 0 0 3px var(--bad, #d6456b);
+}
+
+.lw-leer {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lw-kassensumme {
+  margin: 0;
+  text-align: right;
+  font-size: 20px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.lw-kassensumme small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lw-geldbrett {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.lw-geld {
+  padding: 14px 0;
+  border-radius: 12px;
+  background: var(--lw-weich);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.06s ease;
+}
+
+.lw-geld:active {
+  transform: scale(0.95);
+}
+
+.lw-geld.is-muenze {
+  background: var(--surface);
+  font-size: 14px;
+}
+
+/* Fall */
+.lw-pruefungen {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lw-pruefungen li button {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.lw-pruefungen li.is-offen {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--lw-weich);
+}
+
+.lw-pruefungen li.is-offen strong {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.lw-pruefungen li.is-offen span {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.lw-option.is-gewaehlt {
+  box-shadow: inset 0 0 0 3px var(--lw-akzent);
+}
+
+/* Beleg */
+.lw-beleg {
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+}
+
+.lw-beleg-titel {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.lw-beleg-titel small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lw-beleg dl {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.lw-beleg dl > div {
+  display: grid;
+  grid-template-columns: minmax(96px, 40%) 1fr;
+  align-items: baseline;
+  gap: 10px;
+  border-radius: 10px;
+}
+
+.lw-beleg dt {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lw-beleg dd {
+  margin: 0;
+}
+
+.lw-beleg dd button {
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.lw-beleg dd button:active {
+  background: var(--lw-weich);
+}
+
+.lw-beleg .is-gewaehlt {
+  background: var(--lw-weich);
+}
+
+.lw-beleg .is-fehler dd button {
+  color: var(--bad, #d6456b);
+  text-decoration: line-through;
+}
+
+.lw-beleg .is-korrigiert {
+  background: var(--lw-weich);
+}
+
+.lw-beleg .is-korrigiert dd button {
+  color: var(--good, #1f8f6a);
+  font-weight: 900;
+}

@@ -3,7 +3,7 @@
 import { useState, type CSSProperties } from 'react'
 import { IconBack } from '../../components/Icons'
 import { haptic } from '../../haptics'
-import { knowledgeLevel, pointsOf } from '../../knowledge'
+import { domainById, knowledgeLevel, pointsOf } from '../../knowledge'
 import { goBack, navigate } from '../../router'
 import { setState } from '../../store'
 import type { SaveData } from '../../types'
@@ -133,7 +133,7 @@ export function KursScreen({ data, id }: { data: SaveData; id: string }) {
               <span style={{ width: breite(stadt.anteil) }} />
             </span>
             <small>
-              ab {kurs.titel}-Stufe {stadt.stufe} · noch {stadt.fehlen.toLocaleString('de-DE')} Wissen
+              ab Stufe {stadt.stufe} in {domainById(kurs.domain)?.name ?? kurs.titel} · noch {stadt.fehlen.toLocaleString('de-DE')} Wissen
             </small>
           </span>
         </button>

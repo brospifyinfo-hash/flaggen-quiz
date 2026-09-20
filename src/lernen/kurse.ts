@@ -2,12 +2,13 @@
 // immer da; die Inhalte werden erst geladen, wenn man einen Kurs öffnet oder ein Spiel sie
 // braucht. Ein neuer Kurs: Definition anlegen, hier eintragen – fertig.
 import { useEffect, useSyncExternalStore } from 'react'
+import { BANK } from './kurse/bank'
 import { DEUTSCH } from './kurse/deutsch'
 import { ENGLISCH } from './kurse/englisch'
 import { FRANZOESISCH } from './kurse/franzoesisch'
 import type { Inhalt, KursDef, KursInhalt, SpielDef } from './typen'
 
-export const KURSE: readonly KursDef[] = [DEUTSCH, ENGLISCH, FRANZOESISCH]
+export const KURSE: readonly KursDef[] = [DEUTSCH, ENGLISCH, FRANZOESISCH, BANK]
 
 export const kursById = (id: string): KursDef | undefined => KURSE.find((kurs) => kurs.id === id)
 

@@ -6,7 +6,12 @@ import type { MechanikProps } from '../gemeinsam'
 import { Aussprache } from './Aussprache'
 import { Auswahl } from './Auswahl'
 import { Dialog } from './Dialog'
+import { Dokument } from './Dokument'
 import { Duell } from './Duell'
+import { Fall } from './Fall'
+import { Kasse } from './Kasse'
+import { Kredit } from './Kredit'
+import { Rechnen } from './Rechnen'
 import { Hoeren } from './Hoeren'
 import { Fehlersuche } from './Fehlersuche'
 import { Paare } from './Paare'
@@ -25,6 +30,11 @@ export const MECHANIKEN: Partial<Record<MechanikId, ComponentType<MechanikProps<
   aussprache: Aussprache,
   paare: Paare,
   sortieren: Sortieren,
+  dokument: Dokument,
+  rechnen: Rechnen,
+  kasse: Kasse,
+  kredit: Kredit,
+  fall: Fall,
 }
 
 /** Welche Inhaltsart zu welcher Mechanik passt – was nicht passt, wird aussortiert */
