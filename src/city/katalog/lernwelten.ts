@@ -1,0 +1,72 @@
+// Gebäude aus den Lernwelten: Was man in einem Kurs lernt, wird in der Stadt sichtbar.
+// Freigeschaltet werden sie über das Wissen im jeweiligen Fach (src/knowledge.ts).
+import type { BuildingDef } from '../catalog'
+
+export const LERNWELTEN: BuildingDef[] = [
+  // 🇩🇪 Deutsch
+  {
+    id: 'sprachakademie',
+    name: 'Sprachakademie',
+    category: 'bildung',
+    emoji: '🏫',
+    size: [2, 1],
+    coins: 2200,
+    materials: 30,
+    effects: { education: 18, happiness: 7, jobs: 10, income: 30 },
+    needsLevel: 4,
+    needs: [{ domain: 'deutsch', level: 3 }],
+    note: 'Wächst aus dem, was du im Deutschkurs gelernt hast',
+    look: {
+      kind: 'bau',
+      height: 1.9,
+      wall: '#efe4cf',
+      roof: '#5b4a6e',
+      accent: '#a8781c',
+      floors: 3,
+      stil: {
+        dach: 'mansard',
+        fassade: 'stein',
+        fenster: 'bogen',
+        unten: 'eingang',
+        farben: ['#efe4cf', '#e8dcc4', '#f2e9d6'],
+        dachfarben: ['#5b4a6e', '#4f5864'],
+        extras: ['saeulen', 'fahnenmast', 'schild'],
+        vielleicht: ['efeu', 'fahrrad'],
+        schild: '📚',
+      },
+    },
+  },
+  {
+    id: 'grosse_sprachakademie',
+    name: 'Große Sprachakademie',
+    category: 'bildung',
+    emoji: '🏛️',
+    size: [2, 2],
+    coins: 7400,
+    materials: 110,
+    effects: { education: 55, happiness: 16, jobs: 34, income: 120 },
+    needsLevel: 10,
+    needs: [{ domain: 'deutsch', level: 8 }],
+    note: 'Das Wahrzeichen für alle, die Deutsch meisterhaft beherrschen',
+    look: {
+      kind: 'bau',
+      height: 2.6,
+      wall: '#f3ead6',
+      roof: '#3f5a52',
+      accent: '#a8781c',
+      floors: 4,
+      stil: {
+        dach: 'walm',
+        fassade: 'stein',
+        fenster: 'bogen',
+        unten: 'eingang',
+        farben: ['#f3ead6', '#efe2c8'],
+        dachfarben: ['#3f5a52', '#4f5864'],
+        extras: ['saeulen', 'fahnenmast', 'schild', 'gaube'],
+        vielleicht: ['efeu'],
+        schild: '🖋️',
+        koerper: { tiefe: 0.7, breite: 0.86 },
+      },
+    },
+  },
+]

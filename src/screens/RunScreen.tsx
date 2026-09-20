@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { IconCheck, IconClose, IconCross } from '../components/Icons'
 import { haptic } from '../haptics'
+import { ladeAlle } from '../lernen/kurse'
 import { getMode } from '../modes/registry'
 import { requestPersistentStorage } from '../pwa'
 import { goBack, navigate } from '../router'
@@ -25,6 +26,11 @@ export function RunScreen({ run }: { run: Run }) {
   const timer = useRef<number | undefined>(undefined)
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  // Random Mode: Kurs-Aktivitäten brauchen ihre Inhalte – auch nach einem Neustart der App
+  useEffect(() => {
+    if (run.mode === RANDOM) void ladeAlle()
+  }, [run.mode])
 
   const goNext = () => {
     window.clearTimeout(timer.current)

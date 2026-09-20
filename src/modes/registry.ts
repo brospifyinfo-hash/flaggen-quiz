@@ -32,6 +32,12 @@ export interface QuizMode {
   renderFeedback?: (question: ModeQuestion, picked: string) => ReactNode
   /** eigener Bereich auf dem Modus-Bildschirm, z. B. die Kontinent-Reise der Flaggen */
   renderExtra?: (data: SaveData) => ReactNode
+  /** Gewicht im Random Mode (Standard 1) – Lernwelt-Aktivitäten dauern länger und kommen seltener */
+  gewicht?: number
+  /** gehört zu einem Kurs der Lernwelten; erscheint dann als Kurs statt als Modus */
+  lernwelt?: string
+  /** zählt nur mit, wenn diese Prüfung stimmt – z. B. erst, wenn ein Kurs begonnen wurde */
+  zaehlt?: (data: SaveData) => boolean
 }
 
 const MODES: QuizMode[] = []
@@ -42,19 +48,26 @@ export function registerMode(mode: QuizMode) {
 
 export const allModes = (): readonly QuizMode[] => MODES
 export const getMode = (id: string) => MODES.find((mode) => mode.id === id)
+/** Die klassischen Quiz-Modi – ohne die Kurse der Lernwelten */
+export const quizModes = (): readonly QuizMode[] => MODES.filter((mode) => !mode.lernwelt)
 
 /**
  * Gewichtete Auswahl für den Random Mode: abwechslungsreich, aber nicht vorhersehbar.
  * Zuletzt gespielte Modi werden stark abgewertet, schwache und selten gespielte leicht bevorzugt.
  */
-export function pickRandomMode(data: SaveData, recentModes: readonly string[]): QuizMode | null {
-  if (MODES.length === 0) return null
-  if (MODES.length === 1) return MODES[0]
+export function pickRandomMode(
+  data: SaveData,
+  recentModes: readonly string[],
+  ausser: readonly string[] = [],
+): QuizMode | null {
+  const erlaubt = MODES.filter((mode) => !ausser.includes(mode.id))
+  if (erlaubt.length === 0) return null
+  if (erlaubt.length === 1) return erlaubt[0]
 
   // Harte Grenze: nach zwei gleichen Kategorien am Stück ist diese Kategorie gesperrt
   const blocked = recentModes.length >= 2 && recentModes[0] === recentModes[1] ? recentModes[0] : null
-  const pool = MODES.filter((mode) => mode.id !== blocked)
-  const candidates = pool.length > 0 ? pool : MODES
+  const pool = erlaubt.filter((mode) => mode.id !== blocked)
+  const candidates = pool.length > 0 ? pool : erlaubt
 
   const weights = candidates.map((mode) => {
     let weight = 1
@@ -66,6 +79,7 @@ export function pickRandomMode(data: SaveData, recentModes: readonly string[]): 
     // wenig gespielte Modi etwas häufiger
     const answered = data.modes[mode.id]?.answered ?? 0
     weight *= 1 + Math.max(0, 1 - answered / 60) * 0.4
+    weight *= mode.gewicht ?? 1
     return weight
   })
 

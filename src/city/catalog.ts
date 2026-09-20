@@ -3,6 +3,7 @@
 import { domainById } from '../knowledge'
 import { DIENSTE } from './katalog/dienste'
 import { GEWERBE } from './katalog/gewerbe'
+import { LERNWELTEN } from './katalog/lernwelten'
 import { UNTERWELT } from './katalog/unterwelt'
 import { WOHNEN } from './katalog/wohnen'
 
@@ -671,7 +672,7 @@ export const BUILDINGS: BuildingDef[] = [
 
 // Die großen Listen stehen in eigenen Dateien – sortiert nach Kategorie, damit die
 // Bauauswahl sie in derselben Reihenfolge zeigt.
-BUILDINGS.push(...WOHNEN, ...GEWERBE, ...DIENSTE, ...UNTERWELT)
+BUILDINGS.push(...WOHNEN, ...GEWERBE, ...DIENSTE, ...UNTERWELT, ...LERNWELTEN)
 const REIHENFOLGE = CATEGORIES.map((entry) => entry.id)
 BUILDINGS.sort((a, b) => REIHENFOLGE.indexOf(a.category) - REIHENFOLGE.indexOf(b.category))
 

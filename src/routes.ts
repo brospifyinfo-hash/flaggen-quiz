@@ -1,3 +1,4 @@
+import { kursById } from './lernen/kurse'
 import { isContinentId } from './quiz'
 import type { Mode, Route } from './types'
 
@@ -29,6 +30,14 @@ export function routeToHash(route: Route): string {
       return `#/m/${FLAGS}/${route.id}/${SLUG[route.mode]}`
     case 'result':
       return `#/m/${FLAGS}/${route.id}/${SLUG[route.mode]}/ergebnis`
+    case 'kurs':
+      return `#/lernen/${route.id}`
+    case 'kursSitzung':
+      return '#/lernen/session'
+    case 'kursErgebnis':
+      return '#/lernen/bilanz'
+    case 'bitte':
+      return '#/stadt/bitte'
   }
 }
 
@@ -41,7 +50,12 @@ export function hashToRoute(hash: string): Route | null {
   if (first === 'einstellungen') return { name: 'settings' }
   if (first === 'waehlen') return { name: 'specific' }
   if (first === 'math') return { name: 'mathRunner' }
-  if (first === 'stadt') return { name: 'city' }
+  if (first === 'stadt') return second === 'bitte' ? { name: 'bitte' } : { name: 'city' }
+  if (first === 'lernen') {
+    if (second === 'session') return { name: 'kursSitzung' }
+    if (second === 'bilanz') return { name: 'kursErgebnis' }
+    return second && kursById(second) ? { name: 'kurs', id: second } : { name: 'home' }
+  }
   if (first === 'run') return second === 'ergebnis' ? { name: 'runResult' } : { name: 'run' }
 
   if (first === 'm') {
@@ -73,7 +87,12 @@ export function isRoute(value: unknown): value is Route {
     case 'city':
     case 'run':
     case 'runResult':
+    case 'kursSitzung':
+    case 'kursErgebnis':
+    case 'bitte':
       return true
+    case 'kurs':
+      return typeof route.id === 'string' && !!kursById(route.id)
     case 'mode':
       return typeof route.id === 'string' && route.id.length > 0
     case 'continent':
@@ -97,7 +116,12 @@ export function parentsOf(route: Route): Route[] {
     case 'city':
     case 'run':
     case 'runResult':
+    case 'kurs':
+    case 'kursSitzung':
+    case 'kursErgebnis':
       return [{ name: 'home' }]
+    case 'bitte':
+      return [{ name: 'home' }, { name: 'city' }]
     case 'mode':
       return [{ name: 'home' }, { name: 'specific' }]
     case 'continent':

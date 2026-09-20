@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
+import { kursById } from './lernen/kurse'
 import { getMode } from './modes/registry'
 import { isContinentUnlocked, sessionKey } from './quiz'
 import { navigate } from './router'
@@ -17,6 +18,14 @@ import { SpecificScreen } from './screens/SpecificScreen'
 import { useSaveData } from './store'
 import type { Route, SaveData } from './types'
 
+// Lernwelten: Bildschirme und Spiele laden erst, wenn man sie öffnet
+const KursScreen = lazy(() => import('./lernen/ui/KursScreen').then((m) => ({ default: m.KursScreen })))
+const SitzungScreen = lazy(() => import('./lernen/ui/SitzungScreen').then((m) => ({ default: m.SitzungScreen })))
+const ErgebnisScreen = lazy(() => import('./lernen/ui/ErgebnisScreen').then((m) => ({ default: m.ErgebnisScreen })))
+const BitteScreen = lazy(() => import('./lernen/ui/BitteScreen').then((m) => ({ default: m.BitteScreen })))
+
+const Laden = () => <main className="screen lern-laedt">Lädt …</main>
+
 /** Leitet Seiten um, die es (noch) nicht gibt – z. B. beendete Runs oder gesperrte Kontinente */
 function resolveRoute(data: SaveData): Route {
   const { route } = data
@@ -28,7 +37,19 @@ function resolveRoute(data: SaveData): Route {
     case 'city':
       return route
     case 'mode':
+      // Kurse der Lernwelten haben ihre eigene Seite
+      if (route.id.startsWith('kurs:') && kursById(route.id.slice(5))) return { name: 'kurs', id: route.id.slice(5) }
       return getMode(route.id) ? route : { name: 'specific' }
+    case 'kurs':
+      return kursById(route.id) ? route : { name: 'home' }
+    case 'kursSitzung':
+      if (data.lernen?.sitzung) return route
+      return data.lernen?.letzte ? { name: 'kursErgebnis' } : { name: 'home' }
+    case 'kursErgebnis':
+      return data.lernen?.letzte ? route : { name: 'home' }
+    case 'bitte':
+      // Nach dem Helfen ist die Bitte weg – die Seite zeigt dann noch den Dank und schickt selbst zurück
+      return data.city ? route : { name: 'home' }
     case 'run':
       if (data.run) return route
       return data.lastRun ? { name: 'runResult' } : { name: 'home' }
@@ -91,5 +112,29 @@ export function App() {
     }
     case 'result':
       return <ResultScreen result={data.lastResult!} />
+    case 'kurs':
+      return (
+        <Suspense fallback={<Laden />}>
+          <KursScreen data={data} id={route.id} />
+        </Suspense>
+      )
+    case 'kursSitzung':
+      return (
+        <Suspense fallback={<Laden />}>
+          <SitzungScreen data={data} />
+        </Suspense>
+      )
+    case 'kursErgebnis':
+      return (
+        <Suspense fallback={<Laden />}>
+          <ErgebnisScreen data={data} />
+        </Suspense>
+      )
+    case 'bitte':
+      return (
+        <Suspense fallback={<Laden />}>
+          <BitteScreen data={data} />
+        </Suspense>
+      )
   }
 }

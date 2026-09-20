@@ -3,6 +3,7 @@
 import { grant } from './city/state'
 import { CONTINENTS, COUNTRIES } from './data/countries'
 import { addKnowledge } from './knowledge'
+import { KURS_ERFOLGE } from './lernen/erfolge'
 import { allModes } from './modes/registry'
 import { flagState } from './quiz'
 import type { ModeProgress, SaveData } from './types'
@@ -108,7 +109,8 @@ export const accuracyOf = (progress: ModeProgress) =>
 
 /** Durchschnitt über alle Modi – Grundlage für den Gesamtfortschritt */
 export function overallMastery(data: SaveData): number {
-  const modes = allModes()
+  // Kurse zählen erst mit, wenn man sie begonnen hat – sonst sänke jeder neue Kurs den Stand
+  const modes = allModes().filter((mode) => mode.zaehlt?.(data) ?? true)
   if (modes.length === 0) return 0
   return modes.reduce((sum, mode) => sum + mode.mastery(data), 0) / modes.length
 }
@@ -153,6 +155,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'geschichte-100', emoji: '⏳', title: 'Zeitreisender', text: '100 historische Ereignisse beantwortet', reached: (d) => modeProgress(d, 'geschichte').answered >= 100 },
   { id: 'math-1000', emoji: '🧮', title: 'Kopfrechner', text: '1.000 Punkte im Math Runner', reached: (d) => (d.mathRunner?.highScore ?? 0) >= 1000 },
   { id: 'math-expert', emoji: '🚀', title: 'Rechenrakete', text: 'Erreiche EXPERT im Math Runner', reached: (d) => (d.mathRunner?.bestStage ?? 0) >= 3 },
+  // Lernwelten: Erfolge je Kurs – gleiche Liste, gleicher Prüfer
+  ...KURS_ERFOLGE.map(({ id, emoji, title, text, reached }) => ({ id, emoji, title, text, reached })),
 ]
 
 export const achievementById = (id: string) => ACHIEVEMENTS.find((a) => a.id === id)

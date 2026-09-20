@@ -1,5 +1,6 @@
 import { IconBack, IconChevron } from '../components/Icons'
-import { allModes } from '../modes/registry'
+import { LernweltenStreifen } from '../lernen/LernweltenStreifen'
+import { quizModes } from '../modes/registry'
 import { goBack, navigate } from '../router'
 import type { SaveData } from '../types'
 
@@ -13,8 +14,11 @@ export function SpecificScreen({ data }: { data: SaveData }) {
         <h1>Was willst du trainieren?</h1>
       </header>
 
+      <LernweltenStreifen data={data} titel="Lernwelten – ein Fach, viele Spiele" />
+
+      <h2 className="section-title">Quiz</h2>
       <ul className="mode-list">
-        {allModes().map((mode) => {
+        {quizModes().map((mode) => {
           const mastery = Math.round(mode.mastery(data) * 100)
           const facts = mode.summary(data).slice(0, 2)
           return (

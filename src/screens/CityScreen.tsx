@@ -8,8 +8,12 @@ import {
   maxLevel,
   nextUpgrade,
   roadDef,
+  unlockInfo,
   type Category,
 } from '../city/catalog'
+import { nimmVorgemerkt } from '../city/vormerkung'
+import { istKursBitte } from '../lernen/bitten'
+import { ladeAlle } from '../lernen/kurse'
 import { blickJetzt, setBlick, toScreen, toTile, type Blick } from '../city/iso'
 import { cityFrame, drawCity, hitTest, type Camera } from '../city/render'
 import {
@@ -67,7 +71,7 @@ import { DOMAINS, knowledgeLevel, levels as knowledgeLevels, pointsOf } from '..
 import { getMode } from '../modes/registry'
 import { creditXp } from '../progression'
 import { haptic } from '../haptics'
-import { goBack } from '../router'
+import { goBack, navigate } from '../router'
 import { getState, setState } from '../store'
 import type { SaveData } from '../types'
 
@@ -768,9 +772,39 @@ function CityWorld({ data }: { data: SaveData }) {
     haptic('tick')
   }
 
+  // Bürger bitten auch um Kurs-Aufgaben – deren Inhalte laden im Hintergrund
+  useEffect(() => {
+    void ladeAlle()
+  }, [])
+
+  // ---------- Aus einer Kurs-Bilanz: „Jetzt bauen“ ----------
+  useEffect(() => {
+    const vor = nimmVorgemerkt()
+    const def = vor ? buildingDef(vor) : undefined
+    if (!vor || !def) return
+    const lock = unlockInfo(def, city.level, levels)
+    const check = canPlace(city, vor, 0, 0, 0, { levels })
+    if (lock.ok && !check.reason?.startsWith('Dir fehlen')) {
+      startPlacing(vor)
+      return
+    }
+    // Noch nicht baubar: das Baumenü an der richtigen Stelle öffnen und sagen, was fehlt
+    setCategory(def.category)
+    setMode('build')
+    say(lock.ok ? (check.reason ?? '') : `Dafür fehlt dir noch: ${lock.missing.join(', ')}.`)
+    // nur beim Öffnen der Stadt
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // ---------- Bitten der Bürger ----------
   const openRequest = () => {
     if (!request) return
+    // Aufgaben aus den Lernwelten sind ganze Mini-Spiele – dafür gibt es eine eigene Seite
+    if (istKursBitte(request)) {
+      haptic('soft')
+      navigate({ name: 'bitte' })
+      return
+    }
     setShownRequest(request)
     setAnswer(null)
     setMode('view')

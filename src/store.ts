@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react'
 import { mergeCities, sanitizeCity } from './city/state'
 import { CONTINENTS } from './data/countries'
+import { fuehreZusammen, leseLernen } from './lernen/fortschritt'
 import { isContinentId, isCountry, sessionKey } from './quiz'
 import { isRoute } from './routes'
 import type {
@@ -117,6 +118,8 @@ function isOptions(value: unknown): value is QuestionOption[] {
 function isInput(value: unknown): value is QuestionInput {
   if (!isObject(value)) return false
   if (value.kind === 'timeline') return typeof value.min === 'number' && typeof value.max === 'number'
+  // Lernwelten: eine ganze Aktivität als JSON – der Kurs-Modus prüft beim Anzeigen den Inhalt
+  if (value.kind === 'aktivitaet') return typeof value.daten === 'string' && value.daten.length < 60_000
   return value.kind === 'map' && typeof value.view === 'string'
 }
 
@@ -294,6 +297,7 @@ function sanitize(input: unknown): SaveData | null {
 
   const mathRunner = readMath(input.mathRunner)
   const city = sanitizeCity(input.city)
+  const lernen = leseLernen(input.lernen)
 
   const knowledge: Record<string, number> = {}
   if (isObject(input.knowledge)) {
@@ -315,12 +319,15 @@ function sanitize(input: unknown): SaveData | null {
     ...(mathRunner ? { mathRunner } : {}),
     ...(city ? { city } : {}),
     ...(Object.keys(knowledge).length > 0 ? { knowledge } : {}),
+    ...(lernen ? { lernen } : {}),
     run: isRun(input.run) ? input.run : null,
     lastRun: isRunResult(input.lastRun) ? input.lastRun : null,
     route: isRoute(input.route) ? input.route : { name: 'home' },
     settings: {
       haptics: !(isObject(input.settings) && input.settings.haptics === false),
       sound: !(isObject(input.settings) && input.settings.sound === false),
+      stimme: !(isObject(input.settings) && input.settings.stimme === false),
+      langsam: isObject(input.settings) && input.settings.langsam === true,
     },
     updatedAt: count(input.updatedAt),
   }
@@ -396,6 +403,7 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
 
   const mathRunner = mergeMath(current.mathRunner, older.mathRunner)
   const city = mergeCities(current.city, older.city)
+  const lernen = fuehreZusammen(current.lernen, older.lernen)
 
   const knowledge: Record<string, number> = { ...older.knowledge }
   for (const [id, value] of Object.entries(current.knowledge ?? {})) {
@@ -406,6 +414,7 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     ...current,
     ...(city ? { city } : {}),
     ...(Object.keys(knowledge).length > 0 ? { knowledge } : {}),
+    ...(lernen ? { lernen } : {}),
     stats,
     progress,
     modes,

@@ -2,8 +2,10 @@ import { cityTitle, statsOf } from '../city/state'
 import { IconChevron, IconPlay, IconSettings } from '../components/Icons'
 import { haptic } from '../haptics'
 import { RankCrest } from '../components/RankCrest'
-import { allModes, getMode } from '../modes/registry'
+import { LernweltenStreifen } from '../lernen/LernweltenStreifen'
+import { getMode, quizModes } from '../modes/registry'
 import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, rankFor, totalAnswered } from '../progression'
+import { kursById, ladeAlle } from '../lernen/kurse'
 import { navigate } from '../router'
 import { RANDOM, endRun, startRun } from '../run'
 import { setState } from '../store'
@@ -14,9 +16,12 @@ export function HomeScreen({ data }: { data: SaveData }) {
   const { rank, next, into, needed } = rankFor(data.xp)
   const run = data.run
   const runMode = run ? (run.mode === RANDOM ? null : getMode(run.mode)) : null
+  const kursLaeuft = data.lernen?.sitzung
 
   const begin = (mode: string) => {
     haptic('soft')
+    // Der Random Mode mischt Kurs-Aktivitäten ein – deren Inhalte laden jetzt im Hintergrund
+    if (mode === RANDOM) void ladeAlle()
     setState((current) => startRun(endRun(current), mode))
     navigate({ name: 'run' })
   }
@@ -88,6 +93,21 @@ export function HomeScreen({ data }: { data: SaveData }) {
         </button>
       )}
 
+      {kursLaeuft && (
+        <button className="resume" onClick={() => navigate({ name: 'kursSitzung' })}>
+          <span className="resume-icon">
+            <IconPlay />
+          </span>
+          <span className="resume-text">
+            <small>Session läuft</small>
+            <strong>{kursById(kursLaeuft.kurs)?.emoji} {kursById(kursLaeuft.kurs)?.titel}</strong>
+          </span>
+          <span className="resume-count">
+            {Math.min(kursLaeuft.index + 1, kursLaeuft.laenge)}/{kursLaeuft.laenge}
+          </span>
+        </button>
+      )}
+
       <div className="start-grid">
         <button className="start-card start-random" onClick={() => begin(RANDOM)}>
           <span className="start-emoji" aria-hidden="true">
@@ -104,6 +124,8 @@ export function HomeScreen({ data }: { data: SaveData }) {
           <span className="start-sub">Ich wähle</span>
         </button>
       </div>
+
+      <LernweltenStreifen data={data} />
 
       <button
         className="mr-launch"
@@ -150,7 +172,7 @@ export function HomeScreen({ data }: { data: SaveData }) {
 
       <h2 className="section-title">Modi</h2>
       <ul className="mode-strip">
-        {allModes().map((mode) => (
+        {quizModes().map((mode) => (
           <li key={mode.id}>
             <button className="mode-chip" onClick={() => navigate({ name: 'mode', id: mode.id })}>
               <span className="mode-chip-emoji" aria-hidden="true">

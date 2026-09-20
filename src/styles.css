@@ -3977,3 +3977,133 @@ svg {
 .city-meldungen.unter-legende {
   top: 54px;
 }
+
+/* ================= Lernwelten auf Start- und Auswahlseite =================
+   Die eigentlichen Kursseiten bringen ihr eigenes Stylesheet mit (src/lernen/ui/lernen.css). */
+
+.lw-streifen .section-title {
+  margin-top: 22px;
+}
+
+.lw-kurs-karten {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lw-kurs-karte {
+  --k: var(--primary);
+  --k-weich: var(--primary-soft);
+  display: grid;
+  gap: 2px;
+  padding: 14px 14px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow:
+    inset 0 3px 0 var(--k),
+    var(--shadow);
+  text-align: left;
+  transition: transform 0.08s ease;
+}
+
+.lw-kurs-karte:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.lw-kurs-karte:active {
+  transform: translateY(2px);
+}
+
+.lw-kurs-emoji {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  background: var(--k-weich);
+  font-size: 26px;
+}
+
+.lw-kurs-karte strong {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.lw-kurs-karte small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.lw-kurs-karte .bar {
+  margin-top: 6px;
+  height: 6px;
+}
+
+.lw-kurs-karte .bar > span {
+  background: var(--k);
+}
+
+.lw-kurs-karte.kurs-deutsch {
+  --k: #c9a227;
+  --k-weich: rgb(201 162 39 / 0.16);
+}
+
+.lw-kurs-karte.kurs-englisch {
+  --k: #0f9d9a;
+  --k-weich: rgb(15 157 154 / 0.14);
+}
+
+.lw-kurs-karte.kurs-franzoesisch {
+  --k: #d6456b;
+  --k-weich: rgb(214 69 107 / 0.13);
+}
+
+.lw-kurs-karte.kurs-bank {
+  --k: #0f6b50;
+  --k-weich: rgb(15 107 80 / 0.14);
+}
+
+.lw-kurs-karte.kurs-it {
+  --k: #16a36a;
+  --k-weich: rgb(22 163 106 / 0.15);
+}
+
+/* Kopf einer Kurs-Aktivität im Random Mode */
+.lern-kopf {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 4px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.lern-kopf-emoji {
+  font-size: 32px;
+}
+
+.lern-kopf-text {
+  display: grid;
+}
+
+.lern-kopf-text small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.lern-kopf-text strong {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.lern-laedt {
+  padding: 24px 16px;
+  color: var(--muted);
+  font-weight: 800;
+  text-align: center;
+}

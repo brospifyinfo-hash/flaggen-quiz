@@ -1,5 +1,6 @@
 import type { CityState } from './city/types'
 import type { ContinentId } from './data/countries'
+import type { LernStand } from './lernen/typen'
 
 // ---------- Flaggen-Reise (Kontinente, Übungsrunden, Abschlusstests) ----------
 
@@ -84,8 +85,14 @@ export interface MapInput {
   view: string
 }
 
+/** Lernwelten: eine ganze Mini-Aktivität (Aktivitaet als JSON). Antwort ist das Ergebnis als JSON. */
+export interface ActivityInput {
+  kind: 'aktivitaet'
+  daten: string
+}
+
 /** Eingabe statt fester Antworten, z. B. der Zeitstrahl bei Geschichte */
-export type QuestionInput = TimelineInput | MapInput
+export type QuestionInput = TimelineInput | MapInput | ActivityInput
 
 /** Eine Frage aus einem beliebigen Spielmodus – muss als JSON speicherbar sein */
 export interface ModeQuestion {
@@ -204,6 +211,10 @@ export type Route =
   | { name: 'continent'; id: ContinentId }
   | { name: 'quiz'; id: ContinentId; mode: Mode }
   | { name: 'result'; id: ContinentId; mode: Mode }
+  | { name: 'kurs'; id: string }
+  | { name: 'kursSitzung' }
+  | { name: 'kursErgebnis' }
+  | { name: 'bitte' }
 
 export interface SaveData {
   version: 2
@@ -227,9 +238,12 @@ export interface SaveData {
   city?: CityState
   /** Wissenspunkte je Fach, siehe src/knowledge.ts */
   knowledge?: Record<string, number>
+  /** Lernwelten: Kurse, Lernstand je Lernziel, laufende Session – siehe src/lernen */
+  lernen?: LernStand
   run: Run | null
   lastRun: RunResult | null
   route: Route
-  settings: { haptics: boolean; sound: boolean }
+  /** stimme: Sprachausgabe in den Sprachkursen · langsam: ruhigeres Sprechtempo */
+  settings: { haptics: boolean; sound: boolean; stimme?: boolean; langsam?: boolean }
   updatedAt: number
 }

@@ -16,6 +16,12 @@ export const DOMAINS: Domain[] = [
   { id: 'geschichte', name: 'Geschichte', emoji: '🏛️', modes: ['geschichte'], color: '#b9773f' },
   { id: 'menschen', name: 'Menschen', emoji: '👤', modes: ['personen'], color: '#a763c4' },
   { id: 'mathe', name: 'Zahlen', emoji: '🧮', modes: ['mathRunner', 'higher-lower'], color: '#3f8fd0' },
+  // Lernwelten: jeder Kurs zahlt auf sein eigenes Fach ein
+  { id: 'deutsch', name: 'Deutsch', emoji: '🇩🇪', modes: ['kurs:deutsch'], color: '#c9a227' },
+  { id: 'englisch', name: 'Englisch', emoji: '🇬🇧', modes: ['kurs:englisch'], color: '#2f6fd6' },
+  { id: 'franzoesisch', name: 'Französisch', emoji: '🇫🇷', modes: ['kurs:franzoesisch'], color: '#d6456b' },
+  { id: 'finanzen', name: 'Finanzen', emoji: '🏦', modes: ['kurs:bank'], color: '#1f8f6a' },
+  { id: 'technik', name: 'Technik', emoji: '💻', modes: ['kurs:it'], color: '#7a5cf0' },
 ]
 
 const BY_MODE = new Map<string, Domain>()

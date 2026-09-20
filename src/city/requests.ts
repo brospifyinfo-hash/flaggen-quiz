@@ -1,5 +1,6 @@
 // Bürger, die um Hilfe bitten. Die Aufgabe kommt aus den vorhandenen Quiz-Modi –
 // so fließt jedes Wissensgebiet der App in die Stadt zurück.
+import { kursBitte } from '../lernen/bitten'
 import { getMode, pickRandomMode } from '../modes/registry'
 import type { ModeQuestion, SaveData } from '../types'
 import { buildingDef } from './catalog'
@@ -100,7 +101,9 @@ export function dueRequest(data: SaveData, now = Date.now()): CityRequest | null
   const wohnhaeuser = city.buildings.filter((placed) => buildingDef(placed.type)?.category === 'wohnen')
   const zuhause = wohnhaeuser.length > 0 ? pick(wohnhaeuser) : city.buildings[0]
   if (!zuhause) return null
-  return makeRequest(data, zuhause.id, now)
+  // Jede zweite Bitte kommt aus den Lernwelten: ein Satz, ein Netzwerk, ein Kundenfall …
+  const ausKurs = Math.random() < 0.5 ? kursBitte(data, zuhause.id, now) : null
+  return ausKurs ?? makeRequest(data, zuhause.id, now)
 }
 
 /** Prüft die Antwort auf eine Bitte */
@@ -119,7 +122,9 @@ export function sanitizeRequest(value: unknown): CityRequest | null {
   if (typeof raw.id !== 'string' || typeof raw.modeId !== 'string' || typeof raw.buildingId !== 'string') return null
   if (!citizen || typeof citizen.name !== 'string' || typeof citizen.emoji !== 'string') return null
   if (!question || typeof question.correctId !== 'string' || !Array.isArray(question.options)) return null
-  if (question.options.length < 2) return null
+  const aktivitaet = (question.input as { kind?: unknown; daten?: unknown } | undefined)?.kind === 'aktivitaet'
+  if (aktivitaet && typeof (question.input as { daten?: unknown }).daten !== 'string') return null
+  if (!aktivitaet && question.options.length < 2) return null
   if (!getMode(raw.modeId)) return null
   return {
     id: raw.id,

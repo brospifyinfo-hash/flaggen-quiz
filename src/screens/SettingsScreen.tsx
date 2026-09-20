@@ -60,7 +60,7 @@ export function SettingsScreen({ data }: { data: SaveData }) {
         <div className="row">
           <span className="row-label">
             <strong>Ton</strong>
-            <span>Kurze Töne im Math Runner</span>
+            <span>Kurze Töne im Math Runner und in den Lernwelten</span>
           </span>
           <button
             className="switch"
@@ -71,6 +71,51 @@ export function SettingsScreen({ data }: { data: SaveData }) {
               setState((current) => ({
                 ...current,
                 settings: { ...current.settings, sound: !current.settings.sound },
+              }))
+              haptic('success')
+            }}
+          />
+        </div>
+      </section>
+
+      <h2 className="section-title">Sprachausgabe</h2>
+      <section className="list">
+        <div className="row">
+          <span className="row-label">
+            <strong>Vorlesen</strong>
+            <span>
+              Englisch und Französisch mit der Stimme deines Geräts – unabhängig vom Ton oben. Klingt die Stimme falsch, lässt
+              sie sich in den Geräteeinstellungen unter Bedienungshilfen wechseln.
+            </span>
+          </span>
+          <button
+            className="switch"
+            role="switch"
+            aria-checked={data.settings.stimme !== false}
+            aria-label="Vorlesen"
+            onClick={() => {
+              setState((current) => ({
+                ...current,
+                settings: { ...current.settings, stimme: current.settings.stimme === false },
+              }))
+              haptic('success')
+            }}
+          />
+        </div>
+        <div className="row">
+          <span className="row-label">
+            <strong>Ruhiger sprechen</strong>
+            <span>Etwas langsameres Grundtempo. Der 🐢-Knopf spricht immer ganz langsam.</span>
+          </span>
+          <button
+            className="switch"
+            role="switch"
+            aria-checked={data.settings.langsam === true}
+            aria-label="Ruhiger sprechen"
+            onClick={() => {
+              setState((current) => ({
+                ...current,
+                settings: { ...current.settings, langsam: current.settings.langsam !== true },
               }))
               haptic('success')
             }}

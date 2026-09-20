@@ -13,8 +13,17 @@ const masteryOf = (data: SaveData, mode: string) =>
   mode === RANDOM ? overallMastery(data) : (getMode(mode)?.mastery(data) ?? 0)
 
 function makeQuestion(data: SaveData, mode: string, recentKeys: string[], recentModes: string[]): ModeQuestion | null {
-  const chosen = mode === RANDOM ? pickRandomMode(data, recentModes) : getMode(mode)
-  return chosen?.nextQuestion(data, recentKeys) ?? null
+  if (mode !== RANDOM) return getMode(mode)?.nextQuestion(data, recentKeys) ?? null
+  // Ein Modus kann gerade nichts liefern (etwa weil Kursinhalte noch laden) – dann ein anderer
+  const versucht: string[] = []
+  for (let i = 0; i < 6; i++) {
+    const chosen = pickRandomMode(data, recentModes, versucht)
+    if (!chosen) return null
+    const question = chosen.nextQuestion(data, recentKeys)
+    if (question) return question
+    versucht.push(chosen.id)
+  }
+  return null
 }
 
 /** Prüft, ob die Antwort zur Frage passt – Knopf oder freie Eingabe wie der Zeitstrahl */
@@ -26,6 +35,15 @@ function isValidAnswer(question: ModeQuestion, answer: string): boolean {
   }
   // Karte: der Code des angetippten Landes
   if (input?.kind === 'map') return /^[a-z]{2}$/.test(answer)
+  // Lernwelten: das Ergebnis einer ganzen Aktivität als JSON
+  if (input?.kind === 'aktivitaet') {
+    try {
+      const ergebnis = JSON.parse(answer) as { punkte?: unknown }
+      return typeof ergebnis.punkte === 'number' && ergebnis.punkte >= 0 && ergebnis.punkte <= 1
+    } catch {
+      return false
+    }
+  }
   return question.options.some((option) => option.id === answer)
 }
 
