@@ -10,7 +10,7 @@ import { kursStand, lernen } from './fortschritt'
 import { kursById, spielById } from './kurse'
 import { bandVon, kursStufe, kursWert } from './meisterschaft'
 import { einzelneAktivitaet } from './planer'
-import { wendeErgebnisAn } from './sitzung'
+import { umfangVon, wendeErgebnisAn } from './sitzung'
 import { STUFE_NAME, type Aktivitaet, type AktivitaetsErgebnis, type KursDef } from './typen'
 import { neuerSamen } from './zufall'
 
@@ -78,7 +78,7 @@ export function kursModus(kurs: KursDef): QuizMode {
       const e = ergebnisAus(picked)
       if (!akt || !e) return { correct: false, xp: 0, headline: 'Das hat nicht geklappt' }
       if (e.uebersprungen) return { correct: false, xp: 0, headline: 'Übersprungen' }
-      return { correct: e.punkte >= GESCHAFFT_AB, xp: xpFuer(e.punkte, akt.stufe, combo), headline: wertung(e.punkte).titel }
+      return { correct: e.punkte >= GESCHAFFT_AB, xp: xpFuer(e.punkte, akt.stufe, combo, umfangVon(akt)), headline: wertung(e.punkte).titel }
     },
 
     recordAnswer: (data, question, picked, _correct, now) => {

@@ -16,11 +16,17 @@ export const GESCHAFFT_AB = 0.7
 
 export const modusVon = (kurs: string) => `kurs:${kurs}`
 
-export function xpFuer(punkte: number, stufe: Stufe, combo: number): number {
+/**
+ * XP einer Aktivität: Punkte mal Schwierigkeit, dazu ein kleiner Combo-Bonus.
+ * „umfang“ ist der Anteil der gespielten Runden an den üblichen – eine kurze Aktivität
+ * (im Random Mode oder wenn wenig Stoff offen ist) bringt entsprechend weniger.
+ */
+export function xpFuer(punkte: number, stufe: Stufe, combo: number, umfang = 1): number {
   const p = Math.max(0, Math.min(1, punkte))
   if (p <= 0) return 0
-  const basis = XP_AKTIVITAET * (0.8 + 0.1 * stufe) * p
-  const bonus = p >= GESCHAFFT_AB ? Math.min(combo, 5) * 5 : 0
+  const anteil = Math.max(0.4, Math.min(1, umfang))
+  const basis = XP_AKTIVITAET * (0.8 + 0.1 * stufe) * p * anteil
+  const bonus = p >= GESCHAFFT_AB ? Math.min(combo, 5) * 5 * anteil : 0
   return Math.round(basis + bonus)
 }
 

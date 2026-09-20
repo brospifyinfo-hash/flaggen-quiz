@@ -65,6 +65,16 @@ export interface SitzungsPlan {
   fokus: string[]
 }
 
+/** Wie viele Aufgaben ein Spiel in den offenen Modulen überhaupt noch anbieten kann */
+function vorrat(inhalt: GeladenerKurs, kurs: KursDef, spiel: SpielDef, offen: ReadonlySet<string>): number {
+  if (spiel.generator) return Infinity
+  const proSpiel = inhalt.index.get(spiel.id)
+  if (!proSpiel) return 0
+  let n = 0
+  for (const ziel of kurs.ziele) if (offen.has(ziel.modul)) n += proSpiel.get(ziel.id)?.length ?? 0
+  return n
+}
+
 /** Gewicht eines Spiels an einer bestimmten Stelle der Session */
 function spielGewicht(
   spiel: SpielDef,
@@ -72,12 +82,17 @@ function spielGewicht(
   plan: readonly AktivitaetsPlan[],
   stand: KursStand | undefined,
   verlauf: readonly string[],
+  vorhanden: number,
 ): number {
   const vorher = plan[stelle - 1] ? spielById(plan[stelle - 1].spiel) : undefined
   if (vorher?.id === spiel.id) return 0
   let w = 1
   const schon = plan.filter((p) => p.spiel === spiel.id).length
   w *= Math.pow(0.22, schon)
+  // Ein zweites Mal lohnt sich nur, wenn danach noch genug Neues übrig ist –
+  // sonst bleibt von der Aktivität eine einzige Runde übrig.
+  const gebraucht = spiel.runden * (schon + 1)
+  if (schon > 0 && vorhanden < gebraucht) w *= Math.pow(Math.max(0, vorhanden / gebraucht), 2)
   const r = verlauf.indexOf(spiel.id)
   if (r >= 0 && r < 5) w *= 0.35 + 0.13 * r
   if (vorher && vorher.tempo === spiel.tempo) w *= 0.55
@@ -105,6 +120,7 @@ export function planeSitzung(
   const stufe = kursStufe(kurs, stand)
   const spiele = kurs.spiele.filter((s) => spielOffen(s, stufe))
   const bedarfe = new Map(kurs.ziele.map((z) => [z.id, bedarf(kurs, stand, z.id, jetzt, offen, aktuell, fokus)]))
+  const vorraete = new Map(spiele.map((s) => [s.id, vorrat(inhalt, kurs, s, offen)]))
 
   // Ab und zu kommt Gemeistertes wieder – in der Mitte der Session, nicht am Anfang
   const gemeistert = kurs.ziele.filter((z) => zielWert(stand, z.id) >= 0.75 && (bedarfe.get(z.id) ?? 0) > 0)
@@ -125,7 +141,7 @@ export function planeSitzung(
     const kandidaten: { spiel: SpielDef; ziele: string[]; werte: number[] }[] = []
     const spielGewichte: number[] = []
     for (const spiel of spiele) {
-      const sg = spielGewicht(spiel, stelle, plan, stand, verlauf)
+      const sg = spielGewicht(spiel, stelle, plan, stand, verlauf, vorraete.get(spiel.id) ?? 0)
       if (sg <= 0) continue
       const ziele = zielAuswahl.filter((ziel) => zielWertJetzt(ziel) > 0 && hatInhalt(inhalt, spiel, ziel))
       if (ziele.length === 0) continue

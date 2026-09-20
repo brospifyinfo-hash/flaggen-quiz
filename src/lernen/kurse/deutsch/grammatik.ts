@@ -226,6 +226,10 @@ export const DUELL: DuellItem[] = [
   d('de.du.68', 'de.meister', 4, 'Die Kollegin ist zurzeit im Urlaub.', 'Die Kollegin ist zur Zeit im Urlaub.', '„Zurzeit“ = derzeit, zusammengeschrieben.'),
   d('de.du.69', 'de.meister', 5, 'Er ist einer der wenigen, die das verstehen.', 'Er ist einer der wenigen, der das versteht.', 'Der Relativsatz gehört zu „der wenigen“ (Plural).'),
   d('de.du.70', 'de.meister', 5, 'Sie ist eine der Ersten, die gekommen sind.', 'Sie ist eine der Ersten, die gekommen ist.', 'Bezugswort ist „der Ersten“ (Plural) – das Verb steht im Plural.'),
+  d('de.du.90', 'de.partizip', 3, 'Die von der Kommission vorgelegten Zahlen wurden geprüft.', 'Die von der Kommission vorgelegte Zahlen wurden geprüft.', 'Das Partizipialattribut wird wie ein Adjektiv dekliniert: Plural mit Artikel verlangt „vorgelegten“.'),
+  d('de.du.91', 'de.partizip', 4, 'Die seit Jahren bestehende Regelung wird überarbeitet.', 'Die seit Jahren bestandene Regelung wird überarbeitet.', 'Für etwas Andauerndes steht das Partizip I: die bestehende Regelung.'),
+  d('de.du.92', 'de.nominal', 4, 'Nach Abschluss der Arbeiten wird die Straße freigegeben.', 'Nach Abschluss von den Arbeiten wird die Straße freigegeben.', 'Im Nominalstil steht der Genitiv: „Abschluss der Arbeiten“.'),
+  d('de.du.93', 'de.nominal', 4, 'Wir bitten um Beachtung der Hinweise.', 'Wir bitten um die Beachtung von den Hinweisen.', 'Der Nominalstil kommt ohne überflüssigen Artikel aus – und bindet das Nomen im Genitiv an.'),
 ]
 
 // ---------- Umformung ----------
@@ -464,6 +468,12 @@ export const ARCHITEKT: BauItem[] = [
   b('de.ar.24', 'de.konj2', 2, 'Könnten | Sie | mir | bitte | die Unterlagen | schicken?', 'Höfliche Bitte mit Konjunktiv II.', {
     alternativen: ['Könnten | Sie | mir | die Unterlagen | bitte | schicken?'],
   }),
+  b('de.ar.45', 'de.partizip', 3, 'Die | im letzten Jahr | beschlossenen | Maßnahmen | zeigen | Wirkung.', 'Das Partizipialattribut steht komplett zwischen Artikel und Nomen – die Zeitangabe gehört mit hinein.'),
+  b('de.ar.46', 'de.nominal', 4, 'Nach | der Prüfung | der Unterlagen | entscheidet | der Ausschuss.', 'Im Nominalstil wird aus dem Nebensatz eine Präpositionalgruppe; danach steht das Verb an zweiter Stelle.'),
+  b('de.ar.47', 'de.beruf', 4, 'Für | Ihre Rückmeldung | bedanke | ich | mich | im Voraus.', 'Steht die Präpositionalgruppe im Vorfeld, folgt direkt das Verb – erst danach kommt das Subjekt.'),
+  b('de.ar.48', 'de.wissenschaft', 4, 'Aus | den Daten | lässt | sich | schließen, | dass | der Effekt | gering | ist.', '„Lässt sich schließen“ ist der unpersönliche Passiversatz; im dass-Satz steht das Verb am Ende.'),
+  b('de.ar.49', 'de.meister', 5, 'Je | genauer | die Frage | gestellt | wird, | desto | hilfreicher | ist | die Antwort.', 'Im Je-Satz steht das Verb am Ende, im Desto-Satz direkt hinter dem Vergleichswort.'),
+  b('de.ar.50', 'de.meister', 5, 'Nicht | nur | die Kosten, | sondern | auch | der Aufwand | sprechen | dagegen.', 'Bei „nicht nur …, sondern auch …“ stehen beide Teile parallel; das Verb richtet sich nach beiden Subjekten.'),
 ]
 
 // ---------- Lektorat: ganze Texte mit mehreren Fehlern ----------

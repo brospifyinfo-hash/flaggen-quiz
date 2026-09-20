@@ -346,6 +346,30 @@ export const KONTEXT: WahlItem[] = [
     'Haupt::„Sein Haupt erheben“ passt hier nicht.',
     'Maske::„Die Maske fallen lassen“ ist das Gegenteil.',
   ]),
+  k('de.ko.74', 'de.wortwahl', 3, 'Die neue Vorschrift ___ nur für Verträge, die nach dem 1. Januar geschlossen wurden.', [
+    'gilt',
+    '~0.5 trifft zu::„Zutreffen“ passt zu Aussagen („Das trifft zu“), nicht zu Vorschriften.',
+    'zählt::Umgangssprachlich. In einem Text steht „gilt“.',
+    'wirkt::„Wirken“ heißt: Wirkung zeigen – hier geht es um den Geltungsbereich.',
+  ], '„Gelten“ ist das präzise Verb für Regeln, Fristen und Preise.'),
+  k('de.ko.75', 'de.stil', 3, 'Der Bericht ___ die wichtigsten Ergebnisse auf zwei Seiten.', [
+    'bündelt',
+    '~0.5 enthält::Richtig, sagt aber nur aus, dass etwas drinsteht.',
+    'macht::Zu blass – „machen“ passt fast nie, wenn es ein genaues Verb gibt.',
+    'beinhaltet::Behördendeutsch. „Enthält“ ist schlichter, „bündelt“ genauer.',
+  ], 'Genaue Verben tragen die Aussage: „bündeln“ zeigt, dass etwas zusammengeführt wurde.'),
+  k('de.ko.76', 'de.wortwahl', 3, 'Sie hat den Vorschlag ___, weil die Kosten zu hoch waren.', [
+    'abgelehnt',
+    '~0.5 zurückgewiesen::Möglich, klingt aber nach Vorwurf – als hätte der Vorschlag jemanden angegriffen.',
+    'verweigert::„Verweigern“ nimmt man für Leistungen: die Aussage verweigern.',
+    'verneint::„Verneinen“ bezieht sich auf Fragen, nicht auf Vorschläge.',
+  ], '„Ablehnen“ ist die neutrale Form; „zurückweisen“ trägt einen Unterton.'),
+  k('de.ko.77', 'de.stil', 4, 'Die Kritik ___ vor allem den zweiten Teil der Studie.', [
+    'betrifft',
+    '~0.5 meint::Verständlich, aber blass – und streng genommen „meinen“ Menschen etwas, nicht Kritik.',
+    'angeht::„Angehen“ steht in der Wendung „was … angeht“ – nicht allein.',
+    'handelt::„Handeln“ braucht „von“: Die Studie handelt von …',
+  ], '„Betreffen“ verbindet eine Sache direkt mit dem, worauf sie sich bezieht – ohne Präposition.'),
 ]
 
 // ---------- Stil-Upgrade ----------

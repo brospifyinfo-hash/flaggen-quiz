@@ -6,7 +6,7 @@ import { pointsOf } from '../knowledge'
 import type { ModeProgress, SaveData } from '../types'
 import { GESCHAFFT_AB, gutschreiben, modusVon, neuFreigeschaltet, PERFEKT_BONUS, xpFuer } from './belohnung'
 import { kursStand, lernen, mitKurs, mitLernen, itemNachher, serieNachher, spielNachher } from './fortschritt'
-import { inhaltVon, kursById } from './kurse'
+import { inhaltVon, kursById, spielById } from './kurse'
 import { zielNachher } from './meisterschaft'
 import { aktivitaetFuer, planeSitzung } from './planer'
 import type { Aktivitaet, AktivitaetsErgebnis, KursSitzung, RundenErgebnis, SitzungsBilanz } from './typen'
@@ -165,7 +165,7 @@ export function schliesseAb(data: SaveData, roh: AktivitaetsErgebnis, jetzt = Da
   }
   const geschafft = ergebnis.punkte >= GESCHAFFT_AB
   const combo = geschafft ? s.combo + 1 : 0
-  const xp = xpFuer(ergebnis.punkte, akt.stufe, s.combo)
+  const xp = xpFuer(ergebnis.punkte, akt.stufe, s.combo, umfangVon(akt))
 
   const gelernt = wendeErgebnisAn(data, akt, ergebnis, combo, jetzt)
   const gut = gutschreiben(gelernt, xp, kurs)
@@ -184,6 +184,12 @@ export function schliesseAb(data: SaveData, roh: AktivitaetsErgebnis, jetzt = Da
     erfolge: [...s.erfolge, ...geprueft.unlocked],
   }
   return mitLernen(geprueft.data, (l) => ({ ...l, sitzung }))
+}
+
+/** Wie viel von einer üblichen Aktivität gespielt wurde – kurze Runden bringen weniger XP */
+export function umfangVon(akt: Aktivitaet): number {
+  const spiel = spielById(akt.spiel)
+  return spiel && spiel.runden > 0 ? akt.items.length / spiel.runden : 1
 }
 
 /** Wie schwer die nächste Aktivität wird: Pause nach Fehlschlägen, Herausforderung nach Serien */

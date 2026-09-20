@@ -11,7 +11,7 @@ import { gutschreiben, xpFuer } from '../belohnung'
 import { kursBitte } from '../bitten'
 import { kursById, spielById } from '../kurse'
 import { aktivitaetAus } from '../quizmodus'
-import { wendeErgebnisAn } from '../sitzung'
+import { umfangVon, wendeErgebnisAn } from '../sitzung'
 import type { AktivitaetsErgebnis } from '../typen'
 import { AktivitaetSpieler } from './AktivitaetSpieler'
 import { rueckmeldung } from './gemeinsam'
@@ -63,7 +63,7 @@ export function BitteScreen({ data }: { data: SaveData }) {
       }
       const vorher = { muenzen: next.city!.coins, material: next.city!.materials }
       next = { ...next, city: solveRequest(next.city!) }
-      const gut = gutschreiben(next, REQUEST_XP + xpFuer(e.punkte, akt.stufe, 0), kurs)
+      const gut = gutschreiben(next, REQUEST_XP + xpFuer(e.punkte, akt.stufe, 0, umfangVon(akt)), kurs)
       ergebnis = {
         geholfen,
         xp: gut.xp,

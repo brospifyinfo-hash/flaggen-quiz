@@ -2068,3 +2068,254 @@
 .kurs-it .btn-primary {
   color: #06140d;
 }
+
+/* ---------- Gespräch ---------- */
+
+.lw-dialog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lw-ort {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--lw-weich);
+  font-size: 13px;
+}
+
+.lw-ort > span[aria-hidden] {
+  font-size: 26px;
+}
+
+.lw-ort > span:nth-child(2) {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.lw-ort strong {
+  font-size: 15px;
+}
+
+.lw-ort small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.lw-uebersetzen {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--lw-kante);
+  font-size: 18px;
+  opacity: 0.6;
+}
+
+.lw-uebersetzen.is-an {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2.5px var(--lw-akzent);
+}
+
+.lw-chat {
+  display: grid;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.lw-chat-zeile {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  animation: fade-up 0.25s ease both;
+}
+
+.lw-chat-zeile.is-ich {
+  justify-content: flex-end;
+}
+
+.lw-chat-emoji {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--lw-weich);
+  font-size: 22px;
+}
+
+.lw-chat-blase {
+  display: grid;
+  gap: 3px;
+  max-width: 78%;
+  padding: 10px 13px;
+  border-radius: 18px 18px 18px 6px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--lw-kante);
+  font-size: 16.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.lw-chat-zeile.is-ich .lw-chat-blase {
+  border-radius: 18px 18px 6px;
+  background: var(--lw-akzent);
+  box-shadow: none;
+  color: #fff;
+}
+
+.kurs-it .lw-chat-zeile.is-ich .lw-chat-blase {
+  color: #06140d;
+}
+
+.lw-chat-zeile.is-ich.is-holprig .lw-chat-blase {
+  background: var(--warn-soft);
+  color: var(--warn-strong);
+}
+
+.lw-chat-zeile.is-ich .lw-uebersetzung,
+.lw-chat-zeile.is-ich .lw-laut-hilfe {
+  color: rgb(255 255 255 / 0.85);
+}
+
+.lw-chat-zeile.is-ich.is-holprig .lw-uebersetzung,
+.lw-chat-zeile.is-ich.is-holprig .lw-laut-hilfe {
+  color: var(--warn-strong);
+}
+
+.lw-chat-note {
+  padding-top: 4px;
+  border-top: 1px solid rgb(255 255 255 / 0.25);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.lw-tippt {
+  display: flex;
+  gap: 4px;
+  padding: 14px;
+}
+
+.lw-tippt span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+  animation: tippen 1s ease-in-out infinite;
+}
+
+.lw-tippt span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.lw-tippt span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes tippen {
+  30% {
+    transform: translateY(-5px);
+    opacity: 0.5;
+  }
+}
+
+.lw-antworten {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  animation: fade-up 0.25s ease both;
+}
+
+.lw-antwort {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 2px var(--line-strong),
+    0 3px 0 var(--line-strong);
+  font-size: 16px;
+  font-weight: 750;
+  text-align: left;
+  transition: transform 0.08s ease;
+}
+
+.lw-antwort:active {
+  transform: translateY(3px);
+}
+
+.lw-antwort small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.lw-ziel-erfuellt {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* ---------- Hören ---------- */
+
+.lw-hoerfeld {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 26px 16px;
+  border-radius: 20px;
+  background: var(--lw-weich);
+}
+
+.lw-hoerfeld small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.lw-hoerknopf {
+  display: grid;
+  place-items: center;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: var(--lw-akzent);
+  box-shadow: 0 5px 0 var(--lw-akzent-2);
+  font-size: 38px;
+  transition: transform 0.08s ease;
+}
+
+.lw-hoerknopf:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 var(--lw-akzent-2);
+}
+
+.lw-hoerknopf.is-klein {
+  width: 54px;
+  height: 54px;
+  font-size: 24px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+}
+
+.lw-kein-ton {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+
+.lw-kein-ton p {
+  font-family: var(--lw-schrift);
+  font-size: 19px;
+  font-weight: 700;
+}
