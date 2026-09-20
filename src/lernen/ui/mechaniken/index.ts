@@ -3,6 +3,7 @@
 import type { ComponentType } from 'react'
 import type { MechanikId } from '../../typen'
 import type { MechanikProps } from '../gemeinsam'
+import { Aussprache } from './Aussprache'
 import { Auswahl } from './Auswahl'
 import { Dialog } from './Dialog'
 import { Duell } from './Duell'
@@ -21,6 +22,7 @@ export const MECHANIKEN: Partial<Record<MechanikId, ComponentType<MechanikProps<
   duell: Duell,
   dialog: Dialog,
   hoeren: Hoeren,
+  aussprache: Aussprache,
   paare: Paare,
   sortieren: Sortieren,
 }

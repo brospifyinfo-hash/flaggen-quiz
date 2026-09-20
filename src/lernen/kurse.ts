@@ -4,9 +4,10 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { DEUTSCH } from './kurse/deutsch'
 import { ENGLISCH } from './kurse/englisch'
+import { FRANZOESISCH } from './kurse/franzoesisch'
 import type { Inhalt, KursDef, KursInhalt, SpielDef } from './typen'
 
-export const KURSE: readonly KursDef[] = [DEUTSCH, ENGLISCH]
+export const KURSE: readonly KursDef[] = [DEUTSCH, ENGLISCH, FRANZOESISCH]
 
 export const kursById = (id: string): KursDef | undefined => KURSE.find((kurs) => kurs.id === id)
 

@@ -1,9 +1,18 @@
 // Satzbau: Aus Bausteinen wird ein Satz. Antippen setzt einen Baustein ans Ende, Antippen im
 // Satz nimmt ihn zurück. Wer lieber schiebt, zieht gesetzte Bausteine an eine andere Stelle.
 import { useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
-import type { BauItem, RundenErgebnis } from '../../typen'
+import type { BauItem, RundenErgebnis, Sprache } from '../../typen'
 import { ableiten, mische, zufall } from '../../zufall'
 import { Erklaerung, Rueckmeldung, Rundenpunkte, rueckmeldung, useEinmal, Vorlesen, type MechanikProps } from '../gemeinsam'
+
+/**
+ * Bausteine zu einem Satz fügen. Vor Satzzeichen steht kein Leerzeichen – außer im
+ * Französischen: dort gehört vor ? ! : ; ein schmales geschütztes Leerzeichen.
+ */
+function satzAus(teile: readonly string[], sprache?: Sprache): string {
+  const satz = teile.join(' ').replace(/\s+([,.;:!?])/g, '$1')
+  return sprache === 'fr-FR' ? satz.replace(/([;:!?])/g, ' $1') : satz
+}
 
 interface Stein {
   id: number
@@ -207,7 +216,7 @@ function BauRunde({ item, seed, onFertig }: { item: BauItem; seed: number; onFer
           weiter={() => onFertig({ id: item.id, ziel: item.ziel, stufe: item.stufe, punkte: ende.punkte })}
         >
           <p className="lw-loesung">
-            {item.teile.join(' ').replace(/ ([,.;:!?])/g, '$1')}
+            {satzAus(item.teile, item.sprache)}
             <Vorlesen text={item.teile.join(' ')} sprache={item.sprache} klein />
           </p>
           <Erklaerung text={item.erklaerung} mehr={item.mehr} />
