@@ -6,9 +6,10 @@ import { BANK } from './kurse/bank'
 import { DEUTSCH } from './kurse/deutsch'
 import { ENGLISCH } from './kurse/englisch'
 import { FRANZOESISCH } from './kurse/franzoesisch'
+import { IT } from './kurse/it'
 import type { Inhalt, KursDef, KursInhalt, SpielDef } from './typen'
 
-export const KURSE: readonly KursDef[] = [DEUTSCH, ENGLISCH, FRANZOESISCH, BANK]
+export const KURSE: readonly KursDef[] = [DEUTSCH, ENGLISCH, FRANZOESISCH, BANK, IT]
 
 export const kursById = (id: string): KursDef | undefined => KURSE.find((kurs) => kurs.id === id)
 

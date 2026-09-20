@@ -1141,10 +1141,12 @@
 .lw-code-text {
   margin: 0;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 15px;
-  line-height: 1.9;
+  /* Auf schmalen Geräten lieber kleiner als mitten im Bezeichner umgebrochen */
+  font-size: clamp(12.5px, 3.6vw, 15px);
+  line-height: 1.8;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  tab-size: 2;
 }
 
 .lw-blatt.is-code .lw-wort.is-klick:active,
@@ -2332,7 +2334,7 @@
   text-align: center;
 }
 
-.lw-wort {
+.lw-lautwort {
   margin: 0;
   font-family: var(--lw-schrift);
   font-size: 40px;
@@ -2342,7 +2344,7 @@
   letter-spacing: 0.01em;
 }
 
-.lw-wort.is-verdeckt {
+.lw-lautwort.is-verdeckt {
   display: grid;
   place-items: center;
   width: 78px;
@@ -2792,4 +2794,294 @@
 .lw-beleg .is-korrigiert dd button {
   color: var(--good, #1f8f6a);
   font-weight: 900;
+}
+
+/* ---------- IT: Netz, Roboter, Baukasten ---------- */
+
+.lw-symptom {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--lw-weich);
+  font-size: 22px;
+}
+
+.lw-symptom p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.lw-netzplan {
+  display: grid;
+  gap: 10px;
+}
+
+.lw-router {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 26px;
+}
+
+.lw-router strong {
+  font-size: 15px;
+}
+
+.lw-router small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lw-geraete {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lw-geraet {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 6px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 22px;
+}
+
+.lw-geraet strong {
+  font-size: 13px;
+}
+
+.lw-geraet small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lw-geraet.is-betroffen {
+  box-shadow: inset 0 0 0 2px var(--bad, #d6456b);
+}
+
+.lw-geraet.is-offen {
+  background: var(--lw-weich);
+}
+
+.lw-geraetedaten dd {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
+/* Roboter */
+.lw-gitter {
+  display: grid;
+  grid-template-columns: repeat(var(--breite), 1fr);
+  gap: 4px;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--lw-weich);
+}
+
+.lw-feld {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  font-size: min(6vw, 26px);
+}
+
+.lw-feld.is-wand {
+  background: var(--lw-kante);
+  box-shadow: inset 0 0 0 2px var(--lw-akzent-2);
+}
+
+.lw-feld.is-ziel::after {
+  content: '🏁';
+  position: absolute;
+  font-size: min(5vw, 22px);
+  opacity: 0.85;
+}
+
+.lw-bot {
+  position: relative;
+  z-index: 1;
+  transition: transform 0.2s ease;
+}
+
+.lw-muenze {
+  position: absolute;
+  font-size: min(4vw, 18px);
+}
+
+.lw-programm {
+  display: flex;
+  gap: 8px;
+}
+
+.lw-prog-reiter {
+  flex: 1;
+  padding: 9px 8px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.lw-prog-reiter.is-an {
+  background: var(--lw-weich);
+  box-shadow: inset 0 0 0 2px var(--lw-akzent);
+}
+
+.lw-befehle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  list-style: none;
+  min-height: 56px;
+}
+
+.lw-befehl {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: var(--lw-weich);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.lw-befehl.is-gesetzt {
+  background: var(--lw-akzent);
+  color: #0c1118;
+  box-shadow: none;
+}
+
+.lw-befehl.is-leer {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  opacity: 0.5;
+}
+
+.lw-befehlsbrett {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lw-bot-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lw-bot-knoepfe .lw-pruefen {
+  flex: 1;
+  margin: 0;
+}
+
+.lw-zuruecksetzen {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.lw-aufgeben {
+  width: 100%;
+  padding: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* Baukasten */
+.lw-plaetze {
+  display: grid;
+  gap: 10px;
+}
+
+.lw-platz {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--lw-kante);
+}
+
+.lw-platz-typ {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lw-teile {
+  display: grid;
+  gap: 6px;
+}
+
+.lw-teil {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--lw-weich);
+  text-align: left;
+}
+
+.lw-teil strong {
+  font-size: 15px;
+}
+
+.lw-teil small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lw-teil.is-an {
+  box-shadow: inset 0 0 0 2px var(--lw-akzent);
+}
+
+.lw-platz.is-schuld {
+  box-shadow: inset 0 0 0 3px var(--bad, #d6456b);
+}
+
+.lw-platz.is-wrong {
+  box-shadow: inset 0 0 0 3px var(--lw-kante);
+  opacity: 0.6;
 }

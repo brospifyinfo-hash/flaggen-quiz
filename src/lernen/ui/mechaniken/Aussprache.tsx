@@ -77,11 +77,11 @@ function AusspracheRunde({ item, seed, onFertig }: { item: AusspracheItem; seed:
 
       <div className="lw-wortkarte">
         {hoermodus && stimme && !gewaehlt ? (
-          <p className="lw-wort is-verdeckt" aria-label="verdecktes Wort">
+          <p className="lw-lautwort is-verdeckt" aria-label="verdecktes Wort">
             ？
           </p>
         ) : (
-          <p className="lw-wort" lang="fr">
+          <p className="lw-lautwort" lang="fr">
             {item.wort}
           </p>
         )}

@@ -11,6 +11,9 @@ import { Duell } from './Duell'
 import { Fall } from './Fall'
 import { Kasse } from './Kasse'
 import { Kredit } from './Kredit'
+import { Netz } from './Netz'
+import { Baukasten } from './Baukasten'
+import { Roboter } from './Roboter'
 import { Rechnen } from './Rechnen'
 import { Hoeren } from './Hoeren'
 import { Fehlersuche } from './Fehlersuche'
@@ -35,6 +38,9 @@ export const MECHANIKEN: Partial<Record<MechanikId, ComponentType<MechanikProps<
   kasse: Kasse,
   kredit: Kredit,
   fall: Fall,
+  netz: Netz,
+  baukasten: Baukasten,
+  roboter: Roboter,
 }
 
 /** Welche Inhaltsart zu welcher Mechanik passt – was nicht passt, wird aussortiert */
