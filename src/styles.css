@@ -2542,34 +2542,23 @@ svg {
 }
 
 /* Die Stadt selbst */
-/* Die Stadt nimmt den ganzen Bildschirm ein – Kopf und Fuß schweben über der Karte */
 .city {
   position: fixed;
   inset: 0;
   display: flex;
   flex-direction: column;
-  padding: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 6px) 10px calc(var(--safe-bottom) + 8px);
   background: #0d1526;
   color: #fff;
   overscroll-behavior: none;
 }
 
 .city-top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 3;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: calc(var(--safe-top) + 8px) 12px 22px;
-  background: linear-gradient(#0d1526e6, #0d152600);
-  pointer-events: none;
-}
-
-.city-top > * {
-  pointer-events: auto;
 }
 
 .city-icon {
@@ -2618,8 +2607,8 @@ svg {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  margin: 0;
-  border-radius: 0;
+  margin-top: 8px;
+  border-radius: 20px;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
@@ -2654,10 +2643,9 @@ svg {
 
 .city-bar {
   position: absolute;
-  bottom: calc(var(--safe-bottom) + 58px);
-  left: 12px;
-  right: 12px;
-  z-index: 2;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
 }
 
 /* Kompass: zeigt, wie weit die Stadt gedreht ist. Antippen dreht zurück nach Norden. */
@@ -3142,16 +3130,10 @@ svg {
 }
 
 .city-foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 3;
   display: grid;
   gap: 6px;
   width: 100%;
-  padding: 18px 14px calc(var(--safe-bottom) + 10px);
-  background: linear-gradient(#0d152600, #0d1526e6 55%);
+  margin-top: 8px;
 }
 
 .city-foot .bar {
