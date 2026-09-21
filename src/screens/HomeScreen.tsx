@@ -1,15 +1,15 @@
 import { cityTitle, statsOf } from '../city/state'
-import { IconChevron, IconPlay, IconSettings } from '../components/Icons'
+import { IconPlay, IconSettings } from '../components/Icons'
 import { haptic } from '../haptics'
 import { RankCrest } from '../components/RankCrest'
-import { LernweltenStreifen } from '../lernen/LernweltenStreifen'
-import { getMode, quizModes } from '../modes/registry'
-import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, rankFor, totalAnswered } from '../progression'
-import { kursById, ladeAlle } from '../lernen/kurse'
+import { KURSE, kursById } from '../lernen/kurse'
+import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, PERFEKT_LOHN, PERFEKT_LOHN_KURS, rankFor, totalAnswered } from '../progression'
 import { navigate } from '../router'
-import { RANDOM, endRun, startRun } from '../run'
-import { setState } from '../store'
+import { getMode } from '../modes/registry'
+import { RANDOM } from '../run'
 import type { SaveData } from '../types'
+
+const zahl = (n: number) => n.toLocaleString('de-DE')
 
 export function HomeScreen({ data }: { data: SaveData }) {
   const level = levelFor(data.xp)
@@ -17,68 +17,97 @@ export function HomeScreen({ data }: { data: SaveData }) {
   const run = data.run
   const runMode = run ? (run.mode === RANDOM ? null : getMode(run.mode)) : null
   const kursLaeuft = data.lernen?.sitzung
-
-  const begin = (mode: string) => {
-    haptic('soft')
-    // Der Random Mode mischt Kurs-Aktivitäten ein – deren Inhalte laden jetzt im Hintergrund
-    if (mode === RANDOM) void ladeAlle()
-    setState((current) => startRun(endRun(current), mode))
-    navigate({ name: 'run' })
-  }
+  const stadt = data.city
+  const einwohner = stadt ? statsOf(stadt).population : 0
 
   return (
-    <main className="screen">
+    <main className="screen home">
       <header className="home-head">
         <div>
           <p className="eyebrow">Weltwissen</p>
-          <h1>Was möchtest du spielen?</h1>
+          <h1>{stadt ? 'Schön, dass du da bist' : 'Was möchtest du spielen?'}</h1>
         </div>
         <button className="icon-btn" aria-label="Einstellungen" onClick={() => navigate({ name: 'settings' })}>
           <IconSettings />
         </button>
       </header>
 
-      <section className="rank-card">
-        <RankCrest rank={rank} />
-        <span className="rank-text">
-          <span className="rank-name">
-            {rank.name}
-            <small>Level {level.level}</small>
-          </span>
-          <span className="rank-meta">{data.xp.toLocaleString('de-DE')} XP gesammelt</span>
-          <span className="bar">
+      {/* Der Rang steht groß oben – darunter alles, was den eigenen Stand ausmacht */}
+      <section className="held">
+        <div className="held-rang">
+          <RankCrest rank={rank} />
+          <div className="held-text">
+            <strong className="held-name">{rank.name}</strong>
+            <span className="held-level">Level {level.level}</span>
+            <span className="held-xp">{zahl(data.xp)} XP</span>
+          </div>
+        </div>
+        <div className="held-bar">
+          <span className="bar held-fortschritt">
             <span style={{ width: `${next ? (into / needed) * 100 : 100}%` }} />
           </span>
-          <span className="rank-meta">
-            {next
-              ? `noch ${(needed - into).toLocaleString('de-DE')} XP bis ${next.name}`
-              : 'Höchster Rang erreicht'}
-          </span>
-        </span>
+          <small>{next ? `noch ${zahl(needed - into)} XP bis ${next.name}` : 'Höchster Rang erreicht'}</small>
+        </div>
+        <dl className="held-zahlen">
+          <div>
+            <dt>Fragen</dt>
+            <dd>{zahl(totalAnswered(data))}</dd>
+          </div>
+          <div>
+            <dt>Beste Combo</dt>
+            <dd>{bestComboOverall(data)}</dd>
+          </div>
+          <div>
+            <dt>Mastery</dt>
+            <dd>{Math.round(overallMastery(data) * 100)} %</dd>
+          </div>
+          <div>
+            <dt>Erfolge</dt>
+            <dd>
+              {Object.keys(data.achievements).length}
+              <small>/{ACHIEVEMENTS.length}</small>
+            </dd>
+          </div>
+        </dl>
       </section>
 
-      <button
-        className="city-launch"
-        onClick={() => {
-          haptic('soft')
-          navigate({ name: 'city' })
-        }}
-      >
-        <span className="city-launch-emblem" aria-hidden="true">
-          {data.city?.emblem ?? '🏙️'}
+      {/* Die Stadt: Name, Motto, Kasse, Einwohner – und der Weg hinein */}
+      <section className={`stadtkarte${stadt ? '' : ' is-neu'}`}>
+        <span className="stadtkarte-emblem" aria-hidden="true">
+          {stadt?.emblem ?? '🏙️'}
         </span>
-        <span className="city-launch-body">
-          <strong>{data.city ? data.city.name : 'Deine Stadt'}</strong>
-          <span>
-            {data.city
-              ? `${cityTitle(data.city.level)} · Stufe ${data.city.level} · 👥 ${statsOf(data.city).population.toLocaleString('de-DE')}`
-              : 'Gründen und aus jedem Spiel aufbauen'}
+        <div className="stadtkarte-kopf">
+          <strong>{stadt ? stadt.name : 'Deine Stadt'}</strong>
+          <span className="stadtkarte-motto">
+            {stadt ? stadt.motto || `${cityTitle(stadt.level)} · Stufe ${stadt.level}` : 'Gründen und aus jedem Spiel aufbauen'}
           </span>
-        </span>
-        <span className="city-launch-go">
-          {data.city ? `🪙 ${data.city.coins.toLocaleString('de-DE')}` : 'NEU'}
-        </span>
-      </button>
+        </div>
+        {stadt && (
+          <dl className="stadtkarte-zahlen">
+            <div>
+              <dt>Münzen</dt>
+              <dd>🪙 {zahl(stadt.coins)}</dd>
+            </div>
+            <div>
+              <dt>Steine</dt>
+              <dd>🧱 {zahl(stadt.materials)}</dd>
+            </div>
+            <div>
+              <dt>Einwohner</dt>
+              <dd>👥 {zahl(einwohner)}</dd>
+            </div>
+          </dl>
+        )}
+        <button
+          className="btn btn-primary stadtkarte-knopf"
+          onClick={() => {
+            haptic('soft')
+            navigate({ name: 'city' })
+          }}
+        >
+          {stadt ? '🏙️ Stadt betreten' : '🏙️ Stadt gründen'}
+        </button>
+      </section>
 
       {run && (
         <button className="resume" onClick={() => navigate({ name: 'run' })}>
@@ -100,7 +129,9 @@ export function HomeScreen({ data }: { data: SaveData }) {
           </span>
           <span className="resume-text">
             <small>Session läuft</small>
-            <strong>{kursById(kursLaeuft.kurs)?.emoji} {kursById(kursLaeuft.kurs)?.titel}</strong>
+            <strong>
+              {kursById(kursLaeuft.kurs)?.emoji} {kursById(kursLaeuft.kurs)?.titel}
+            </strong>
           </span>
           <span className="resume-count">
             {Math.min(kursLaeuft.index + 1, kursLaeuft.laenge)}/{kursLaeuft.laenge}
@@ -108,85 +139,30 @@ export function HomeScreen({ data }: { data: SaveData }) {
         </button>
       )}
 
-      <div className="start-grid">
-        <button className="start-card start-random" onClick={() => begin(RANDOM)}>
-          <span className="start-emoji" aria-hidden="true">
-            🎲
+      {/* Zwei Wege ins Spiel: kurz und schnell – oder ein Kurs mit vielen Spielen */}
+      <h2 className="section-title">Spielen</h2>
+      <div className="wege">
+        <button className="weg weg-schnell" onClick={() => navigate({ name: 'specific' })}>
+          <span className="weg-emoji" aria-hidden="true">
+            ⚡
           </span>
-          <span className="start-title">Random</span>
-          <span className="start-sub">Überrasche mich</span>
+          <strong>Schnelles Spiel</strong>
+          <span className="weg-text">Quizrunden, so lange du willst</span>
+          <span className="weg-lohn">
+            🪙 {zahl(PERFEKT_LOHN.coins)} · 🧱 {zahl(PERFEKT_LOHN.materials)} bei 100 %
+          </span>
         </button>
-        <button className="start-card start-specific" onClick={() => navigate({ name: 'specific' })}>
-          <span className="start-emoji" aria-hidden="true">
-            🎯
+        <button className="weg weg-lernen" onClick={() => navigate({ name: 'kurse' })}>
+          <span className="weg-emoji" aria-hidden="true">
+            🧠
           </span>
-          <span className="start-title">Specific</span>
-          <span className="start-sub">Ich wähle</span>
+          <strong>Lernkurse</strong>
+          <span className="weg-text">{KURSE.length} Kurse, viele Spielarten</span>
+          <span className="weg-lohn">
+            🪙 {zahl(PERFEKT_LOHN_KURS.coins)} · 🧱 {zahl(PERFEKT_LOHN_KURS.materials)} bei 100 %
+          </span>
         </button>
       </div>
-
-      <LernweltenStreifen data={data} />
-
-      <button
-        className="mr-launch"
-        onClick={() => {
-          haptic('soft')
-          navigate({ name: 'mathRunner' })
-        }}
-      >
-        <span className="mr-launch-emoji" aria-hidden="true">
-          🧮
-        </span>
-        <span className="mr-launch-body">
-          <strong>MATH RUNNER</strong>
-          <span>Kopfrechnen im Renntempo</span>
-        </span>
-        <span className="mr-launch-score">
-          {(data.mathRunner?.highScore ?? 0).toLocaleString('de-DE')}
-          <small>HIGHSCORE</small>
-        </span>
-      </button>
-
-      <h2 className="section-title">Dein Stand</h2>
-      <div className="stats stats-2">
-        <div className="stat">
-          <strong>{totalAnswered(data).toLocaleString('de-DE')}</strong>
-          <span>Fragen</span>
-        </div>
-        <div className="stat">
-          <strong>{bestComboOverall(data)}</strong>
-          <span>Beste Combo</span>
-        </div>
-        <div className="stat">
-          <strong>{Math.round(overallMastery(data) * 100)} %</strong>
-          <span>Mastery</span>
-        </div>
-        <div className="stat">
-          <strong>
-            {Object.keys(data.achievements).length}
-            <small>/{ACHIEVEMENTS.length}</small>
-          </strong>
-          <span>Achievements</span>
-        </div>
-      </div>
-
-      <h2 className="section-title">Modi</h2>
-      <ul className="mode-strip">
-        {quizModes().map((mode) => (
-          <li key={mode.id}>
-            <button className="mode-chip" onClick={() => navigate({ name: 'mode', id: mode.id })}>
-              <span className="mode-chip-emoji" aria-hidden="true">
-                {mode.emoji}
-              </span>
-              <span className="mode-chip-body">
-                <strong>{mode.name}</strong>
-                <span>Mastery {Math.round(mode.mastery(data) * 100)} %</span>
-              </span>
-              <IconChevron className="continent-arrow" />
-            </button>
-          </li>
-        ))}
-      </ul>
 
       <p className="footnote">Dein Fortschritt wird automatisch auf diesem Gerät gespeichert – ohne Konto und auch offline.</p>
     </main>

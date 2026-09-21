@@ -3,6 +3,7 @@ import { IconCheck, IconClose, IconCross } from '../components/Icons'
 import { haptic } from '../haptics'
 import { ladeAlle } from '../lernen/kurse'
 import { getMode } from '../modes/registry'
+import { PERFEKT_LOHN, PERFEKTLAUF } from '../progression'
 import { requestPersistentStorage } from '../pwa'
 import { goBack, navigate } from '../router'
 import { RANDOM, answerRun, endRun, nextRunQuestion } from '../run'
@@ -100,10 +101,20 @@ export function RunScreen({ run }: { run: Run }) {
           <span className="hud-item" title="Fragen">
             ❓ {run.answered}
           </span>
+          {!run.perfekt && run.answered === run.correct && run.answered > 0 && (
+            <span className="hud-item hud-perfekt" title={`Noch ${PERFEKTLAUF - run.answered} Fragen ohne Fehler bis zum Jackpot`}>
+              ✨ {run.answered}/{PERFEKTLAUF}
+            </span>
+          )}
         </div>
         {gained > 0 && (
           <span className="xp-pop" key={run.answered}>
             +{gained}
+          </span>
+        )}
+        {run.perfekt && run.answered === PERFEKTLAUF && (
+          <span className="jackpot-pop" role="status">
+            Perfektlauf! 🪙 {PERFEKT_LOHN.coins.toLocaleString('de-DE')} · 🧱 {PERFEKT_LOHN.materials}
           </span>
         )}
       </header>

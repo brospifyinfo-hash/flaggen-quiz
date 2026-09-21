@@ -143,6 +143,8 @@ export interface Run {
   judged: Judgement | null
   /** in diesem Run freigeschaltete Achievements */
   earned: string[]
+  /** Der Perfektlauf-Jackpot wurde in diesem Run schon ausgezahlt */
+  perfekt?: boolean
 }
 
 export interface RunRecords {
@@ -164,6 +166,8 @@ export interface RunResult {
   records: string[]
   /** ID des neuen Rangs, falls in diesem Run aufgestiegen */
   rankUp: string | null
+  /** Perfektlauf geschafft: Münzen und Material aus dem Jackpot */
+  perfekt?: { coins: number; materials: number }
   finishedAt: number
 }
 
@@ -205,6 +209,7 @@ export type Route =
   | { name: 'mathRunner' }
   | { name: 'city' }
   | { name: 'specific' }
+  | { name: 'kurse' }
   | { name: 'mode'; id: string }
   | { name: 'run' }
   | { name: 'runResult' }

@@ -3,7 +3,7 @@ import { Confetti } from '../components/Confetti'
 import { RankCrest } from '../components/RankCrest'
 import { getMode } from '../modes/registry'
 import { achievementById, modeProgress, rankById } from '../progression'
-import { goBack, navigate } from '../router'
+import { navigate } from '../router'
 import { RANDOM, startRun } from '../run'
 import { haptic } from '../haptics'
 import { setState } from '../store'
@@ -36,7 +36,7 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
 
   return (
     <main className="screen result">
-      {(records.length > 0 || newRank) && <Confetti />}
+      {(records.length > 0 || newRank || result.perfekt) && <Confetti />}
 
       <section className="result-hero">
         <div className="result-emoji" aria-hidden="true">
@@ -45,6 +45,15 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
         <h1>Run beendet</h1>
         <p>{mode ? `${mode.emoji} ${mode.name}` : '🎲 Random Mode'}</p>
       </section>
+
+      {result.perfekt && (
+        <div className="record-banner is-jackpot">
+          <span aria-hidden="true">✨</span>
+          <span>
+            Perfektlauf: <strong>🪙 {result.perfekt.coins.toLocaleString('de-DE')} · 🧱 {result.perfekt.materials}</strong> für deine Stadt
+          </span>
+        </div>
+      )}
 
       {records.length > 0 && (
         <div className="record-banner">
@@ -139,7 +148,7 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
         <button className="btn btn-primary" onClick={again}>
           Nochmal spielen
         </button>
-        <button className="btn btn-ghost" onClick={() => goBack({ name: 'home' })}>
+        <button className="btn btn-ghost" onClick={() => navigate({ name: 'home' })}>
           Zur Startseite
         </button>
       </div>

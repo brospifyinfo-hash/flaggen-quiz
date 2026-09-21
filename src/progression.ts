@@ -17,15 +17,37 @@ export function xpForAnswer(comboBefore: number): number {
   return XP_BASE + Math.min(comboBefore, XP_COMBO_CAP) * XP_PER_COMBO
 }
 
+/** Aus einem XP-Gewinn wird Baumaterial – Steine sind knapper als Münzen, aber nicht so knapp wie früher */
+export const MATERIAL_PRO_XP = 1 / 6
+
 /**
  * Der einzige Weg, XP zu vergeben: Sie zählen für den Rang und fließen zugleich
  * als Münzen und Material in die Stadt. Jedes Spiel nutzt diese eine Kette.
  */
 export function creditXp(data: SaveData, gained: number, modeId?: string): SaveData {
   if (gained <= 0) return data
-  const city = data.city ? grant(data.city, gained, Math.floor(gained / 20)) : undefined
+  const city = data.city ? grant(data.city, gained, Math.round(gained * MATERIAL_PRO_XP)) : undefined
   const mitXp: SaveData = { ...data, xp: data.xp + gained, ...(city ? { city } : {}) }
   return addKnowledge(mitXp, modeId, gained)
+}
+
+/** So viele Fragen ohne einen einzigen Fehler zählen als Perfektlauf */
+export const PERFEKTLAUF = 15
+
+/**
+ * Der Jackpot für einen Perfektlauf: einmal je Run, sichtbar schon auf der Startseite.
+ * Er läuft bewusst nicht über die XP-Kette – hier geht es um den Aufbau der Stadt,
+ * nicht um den Rang.
+ */
+export const PERFEKT_LOHN = { coins: 1200, materials: 180 }
+
+/** Dasselbe für eine fehlerfreie Kurs-Session */
+export const PERFEKT_LOHN_KURS = { coins: 1600, materials: 240 }
+
+/** Münzen und Material gutschreiben, ohne XP zu vergeben (Jackpots, Stadtereignisse) */
+export function grantCity(data: SaveData, coins: number, materials: number): SaveData {
+  if (!data.city) return data
+  return { ...data, city: grant(data.city, coins, materials) }
 }
 
 /** XP aus Spielen außerhalb der Quiz-Runs, z. B. dem Math Runner */

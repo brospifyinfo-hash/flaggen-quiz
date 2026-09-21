@@ -198,6 +198,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const [reward, setReward] = useState<{ coins: number; materials: number } | null>(null)
   const [newName, setNewName] = useState(city.name)
   const [newMotto, setNewMotto] = useState(city.motto)
+  /** Kurzes Willkommen beim Betreten – wer es eilig hat, tippt es weg */
+  const [eintritt, setEintritt] = useState(true)
   const request = city.request as CityRequest | null
   /** Meldungen aus der Stadt: Brände, Razzien, neue Häuser – sie verschwinden von selbst */
   const [meldungen, setMeldungen] = useState<{ id: number; text: string }[]>([])
@@ -850,6 +852,19 @@ function CityWorld({ data }: { data: SaveData }) {
 
   return (
     <main className="city">
+      {eintritt && (
+        <div className="city-eintritt" onAnimationEnd={() => setEintritt(false)} onPointerDown={() => setEintritt(false)}>
+          <span className="city-eintritt-emblem" aria-hidden="true">
+            {city.emblem}
+          </span>
+          <strong>{city.name}</strong>
+          {city.motto && <em>„{city.motto}“</em>}
+          <small>
+            {cityTitle(city.level)} · 👥 {stats.population.toLocaleString('de-DE')}
+          </small>
+        </div>
+      )}
+
       <div className="city-top">
         <button className="city-icon" aria-label="Zurück" onClick={() => goBack({ name: 'home' })}>
           <IconBack />

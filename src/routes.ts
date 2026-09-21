@@ -14,6 +14,8 @@ export function routeToHash(route: Route): string {
       return '#/einstellungen'
     case 'specific':
       return '#/waehlen'
+    case 'kurse':
+      return '#/lernen'
     case 'mathRunner':
       return '#/math'
     case 'city':
@@ -52,6 +54,7 @@ export function hashToRoute(hash: string): Route | null {
   if (first === 'math') return { name: 'mathRunner' }
   if (first === 'stadt') return second === 'bitte' ? { name: 'bitte' } : { name: 'city' }
   if (first === 'lernen') {
+    if (!second) return { name: 'kurse' }
     if (second === 'session') return { name: 'kursSitzung' }
     if (second === 'bilanz') return { name: 'kursErgebnis' }
     return second && kursById(second) ? { name: 'kurs', id: second } : { name: 'home' }
@@ -116,10 +119,12 @@ export function parentsOf(route: Route): Route[] {
     case 'city':
     case 'run':
     case 'runResult':
+    case 'kurse':
+      return [{ name: 'home' }]
     case 'kurs':
     case 'kursSitzung':
     case 'kursErgebnis':
-      return [{ name: 'home' }]
+      return [{ name: 'home' }, { name: 'kurse' }]
     case 'bitte':
       return [{ name: 'home' }, { name: 'city' }]
     case 'mode':

@@ -23,6 +23,7 @@ const KursScreen = lazy(() => import('./lernen/ui/KursScreen').then((m) => ({ de
 const SitzungScreen = lazy(() => import('./lernen/ui/SitzungScreen').then((m) => ({ default: m.SitzungScreen })))
 const ErgebnisScreen = lazy(() => import('./lernen/ui/ErgebnisScreen').then((m) => ({ default: m.ErgebnisScreen })))
 const BitteScreen = lazy(() => import('./lernen/ui/BitteScreen').then((m) => ({ default: m.BitteScreen })))
+const KurseScreen = lazy(() => import('./lernen/ui/KurseScreen').then((m) => ({ default: m.KurseScreen })))
 
 const Laden = () => <main className="screen lern-laedt">Lädt …</main>
 
@@ -33,6 +34,7 @@ function resolveRoute(data: SaveData): Route {
     case 'home':
     case 'settings':
     case 'specific':
+    case 'kurse':
     case 'mathRunner':
     case 'city':
       return route
@@ -98,6 +100,8 @@ export function App() {
       return <CityScreen data={data} />
     case 'specific':
       return <SpecificScreen data={data} />
+    case 'kurse':
+      return <KurseScreen data={data} />
     case 'mode':
       return <ModeScreen data={data} id={route.id} />
     case 'run':

@@ -2586,23 +2586,34 @@ svg {
 }
 
 /* Die Stadt selbst */
+/* Die Stadt nimmt den ganzen Bildschirm ein – Kopf und Fuß schweben über der Karte */
 .city {
   position: fixed;
   inset: 0;
   display: flex;
   flex-direction: column;
-  max-width: 480px;
-  margin: 0 auto;
-  padding: calc(var(--safe-top) + 6px) 10px calc(var(--safe-bottom) + 8px);
+  padding: 0;
   background: #0d1526;
   color: #fff;
   overscroll-behavior: none;
 }
 
 .city-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: calc(var(--safe-top) + 8px) 12px 22px;
+  background: linear-gradient(#0d1526e6, #0d152600);
+  pointer-events: none;
+}
+
+.city-top > * {
+  pointer-events: auto;
 }
 
 .city-icon {
@@ -2651,8 +2662,8 @@ svg {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  margin-top: 8px;
-  border-radius: 20px;
+  margin: 0;
+  border-radius: 0;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
@@ -2687,9 +2698,10 @@ svg {
 
 .city-bar {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
+  bottom: calc(var(--safe-bottom) + 58px);
+  left: 12px;
+  right: 12px;
+  z-index: 2;
 }
 
 /* Kompass: zeigt, wie weit die Stadt gedreht ist. Antippen dreht zurück nach Norden. */
@@ -3174,10 +3186,16 @@ svg {
 }
 
 .city-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
   display: grid;
   gap: 6px;
   width: 100%;
-  margin-top: 8px;
+  padding: 18px 14px calc(var(--safe-bottom) + 10px);
+  background: linear-gradient(#0d152600, #0d1526e6 55%);
 }
 
 .city-foot .bar {
@@ -3978,99 +3996,9 @@ svg {
   top: 54px;
 }
 
-/* ================= Lernwelten auf Start- und Auswahlseite =================
+/* ================= Kurs-Aktivitäten im Random Mode =================
    Die eigentlichen Kursseiten bringen ihr eigenes Stylesheet mit (src/lernen/ui/lernen.css). */
 
-.lw-streifen .section-title {
-  margin-top: 22px;
-}
-
-.lw-kurs-karten {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.lw-kurs-karte {
-  --k: var(--primary);
-  --k-weich: var(--primary-soft);
-  display: grid;
-  gap: 2px;
-  padding: 14px 14px 12px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow:
-    inset 0 3px 0 var(--k),
-    var(--shadow);
-  text-align: left;
-  transition: transform 0.08s ease;
-}
-
-.lw-kurs-karte:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-}
-
-.lw-kurs-karte:active {
-  transform: translateY(2px);
-}
-
-.lw-kurs-emoji {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 4px;
-  border-radius: 14px;
-  background: var(--k-weich);
-  font-size: 26px;
-}
-
-.lw-kurs-karte strong {
-  font-size: 17px;
-  font-weight: 900;
-}
-
-.lw-kurs-karte small {
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
-.lw-kurs-karte .bar {
-  margin-top: 6px;
-  height: 6px;
-}
-
-.lw-kurs-karte .bar > span {
-  background: var(--k);
-}
-
-.lw-kurs-karte.kurs-deutsch {
-  --k: #c9a227;
-  --k-weich: rgb(201 162 39 / 0.16);
-}
-
-.lw-kurs-karte.kurs-englisch {
-  --k: #0f9d9a;
-  --k-weich: rgb(15 157 154 / 0.14);
-}
-
-.lw-kurs-karte.kurs-franzoesisch {
-  --k: #d6456b;
-  --k-weich: rgb(214 69 107 / 0.13);
-}
-
-.lw-kurs-karte.kurs-bank {
-  --k: #0f6b50;
-  --k-weich: rgb(15 107 80 / 0.14);
-}
-
-.lw-kurs-karte.kurs-it {
-  --k: #16a36a;
-  --k-weich: rgb(22 163 106 / 0.15);
-}
-
-/* Kopf einer Kurs-Aktivität im Random Mode */
 .lern-kopf {
   display: flex;
   align-items: center;
@@ -4106,4 +4034,511 @@ svg {
   color: var(--muted);
   font-weight: 800;
   text-align: center;
+}
+
+/* ================= Startseite: Stand, Stadt, zwei Wege ================= */
+
+.home {
+  gap: 14px;
+}
+
+/* Der eigene Stand – groß, damit man ihn beim Öffnen sofort sieht */
+.held {
+  display: grid;
+  gap: 14px;
+  padding: 18px 16px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.held-rang {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.held-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.held-name {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.held-level {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.held-xp {
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.held-bar {
+  display: grid;
+  gap: 6px;
+}
+
+.held-fortschritt {
+  width: 100%;
+  margin: 0;
+  height: 10px;
+}
+
+.held-bar small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.held-zahlen {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.held-zahlen > div {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+}
+
+.held-zahlen dt {
+  order: 2;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.held-zahlen dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.held-zahlen dd small {
+  color: var(--faint);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* Die Stadt: Name, Motto, Kasse – und der Weg hinein */
+.stadtkarte {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px 14px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: linear-gradient(150deg, #1d2a4a, #0f1830 70%);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.stadtkarte-emblem {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.12);
+  font-size: 30px;
+}
+
+.stadtkarte-kopf {
+  display: grid;
+  gap: 2px;
+  align-content: center;
+  min-width: 0;
+}
+
+.stadtkarte-kopf strong {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.stadtkarte-motto {
+  color: rgb(255 255 255 / 0.72);
+  font-size: 13px;
+  font-weight: 700;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stadtkarte-zahlen {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.08);
+}
+
+.stadtkarte-zahlen > div {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+}
+
+.stadtkarte-zahlen dt {
+  order: 2;
+  color: rgb(255 255 255 / 0.6);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stadtkarte-zahlen dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.stadtkarte-knopf {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.stadtkarte.is-neu .stadtkarte-kopf strong {
+  font-size: 20px;
+}
+
+/* Zwei Wege ins Spiel */
+.wege {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.weg {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 16px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+  transition: transform 0.08s ease;
+}
+
+.weg:active {
+  transform: scale(0.98);
+}
+
+.weg-emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.weg strong {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.weg-text {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.weg-lohn {
+  margin-top: 6px;
+  color: var(--warn-strong);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.weg-schnell {
+  background: linear-gradient(160deg, #fff5d9, #ffe7ad);
+}
+
+.weg-lernen {
+  background: linear-gradient(160deg, #e8e9ff, #d7d8ff);
+}
+
+.weg-schnell strong,
+.weg-lernen strong {
+  color: #20253a;
+}
+
+.weg-schnell .weg-text,
+.weg-lernen .weg-text {
+  color: #4a5169;
+}
+
+/* Auf den hellen Karten braucht der Lohn einen kräftigeren Ton */
+.weg-schnell .weg-lohn,
+.weg-lernen .weg-lohn {
+  color: #7a4300;
+}
+
+.weg-lernen .weg-lohn {
+  color: #3b3a86;
+}
+
+/* ================= Listen: Quiz und Kurse ================= */
+
+.quiz-liste,
+.kurs-liste {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quiz-karte,
+.kurs-zeile {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.quiz-karte:active,
+.kurs-zeile:active {
+  background: var(--surface-2);
+}
+
+.quiz-emoji,
+.kurs-zeile-emoji {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  font-size: 26px;
+}
+
+.quiz-text,
+.kurs-zeile-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.quiz-text strong,
+.kurs-zeile-text strong {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.quiz-text small,
+.kurs-zeile-text small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.quiz-bar,
+.kurs-zeile-bar {
+  margin: 4px 0 2px;
+}
+
+.quiz-lohn,
+.kurs-zeile-lohn {
+  color: var(--warn-strong);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.quiz-karte.is-random .quiz-emoji {
+  background: var(--primary-soft);
+}
+
+.quiz-karte.is-mathrunner .quiz-emoji {
+  background: var(--good-soft);
+}
+
+.kurse-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.kurs-zeile-fakten {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 2px;
+}
+
+.kurs-chip {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Jeder Kurs behält seine Farbe – aber nur als Akzent, nicht als eigene Gestaltung */
+.kurs-zeile .kurs-zeile-emoji {
+  background: var(--lw-weich, var(--surface-2));
+}
+
+.kurs-zeile .bar > span {
+  background: var(--lw-akzent, var(--primary));
+}
+
+/* Betreten: Wappen und Name kurz groß, dann gibt die Karte den Blick frei */
+.city-eintritt {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px;
+  background: radial-gradient(120% 90% at 50% 40%, #1b2b4d, #0a1120 70%);
+  text-align: center;
+  animation: stadt-tor 1500ms ease forwards;
+}
+
+.city-eintritt-emblem {
+  font-size: 72px;
+  line-height: 1;
+  animation: stadt-wappen 1500ms cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+}
+
+.city-eintritt strong {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+.city-eintritt em {
+  color: rgb(255 255 255 / 0.75);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.city-eintritt small {
+  color: rgb(255 255 255 / 0.55);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+@keyframes stadt-tor {
+  0% {
+    opacity: 1;
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes stadt-wappen {
+  0% {
+    transform: scale(0.4) translateY(18px);
+    opacity: 0;
+  }
+  45% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.05) translateY(-6px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .city-eintritt {
+    animation-duration: 600ms;
+  }
+
+  .city-eintritt-emblem {
+    animation: none;
+  }
+}
+
+/* Perfektlauf: Fortschritt im Lauf und der Jubel, wenn der Jackpot fällt */
+.hud-perfekt {
+  color: var(--warn);
+}
+
+.jackpot-pop {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #ffd76a, #ffb01f);
+  color: #4a2f00;
+  font-size: 14px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  animation: jackpot-zeigen 2600ms ease forwards;
+}
+
+@keyframes jackpot-zeigen {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.9);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.98);
+  }
+}
+
+.record-banner.is-jackpot {
+  background: linear-gradient(120deg, #fff1cd, #ffe0a1);
+  color: #4a2f00;
 }
