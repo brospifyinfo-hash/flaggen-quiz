@@ -449,19 +449,7 @@ svg {
   transform: scale(1.55);
 }
 
-/* ================= Startseite ================= */
-
-.home-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0 18px;
-}
-
-.home-head .icon-btn {
-  margin: -4px -8px 0 0;
-}
+/* ================= Geteilte Kleinteile ================= */
 
 .eyebrow {
   color: var(--primary);
@@ -469,38 +457,6 @@ svg {
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.home-head h1 {
-  margin-top: 4px;
-  font-size: 30px;
-  font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: -0.01em;
-}
-
-.summary {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-
-.summary-text strong {
-  display: block;
-  font-size: 17px;
-  line-height: 1.25;
-}
-
-.summary-text span {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 700;
 }
 
 .resume {
@@ -4036,146 +3992,116 @@ svg {
   text-align: center;
 }
 
-/* ================= Startseite: Stand, Stadt, zwei Wege ================= */
+/* ================= Startseite: die eigene Stadt im Rücken =================
+   Die Stadt läuft als Kulisse über den ganzen Schirm, davor schweben die Tafeln.
+   Darum sind die Farben hier fest dunkel – unabhängig von hell oder dunkel. */
 
 .home {
-  gap: 14px;
-}
-
-/* Der eigene Stand – groß, damit man ihn beim Öffnen sofort sieht */
-.held {
-  display: grid;
-  gap: 14px;
-  padding: 18px 16px 16px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-
-.held-rang {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.held-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.held-name {
-  font-size: 30px;
-  font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: -0.01em;
-}
-
-.held-level {
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.held-xp {
-  color: var(--primary);
-  font-size: 15px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
-
-.held-bar {
-  display: grid;
-  gap: 6px;
-}
-
-.held-fortschritt {
-  width: 100%;
-  margin: 0;
-  height: 10px;
-}
-
-.held-bar small {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.held-zahlen {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin: 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.held-zahlen > div {
-  display: grid;
-  gap: 2px;
-  text-align: center;
-}
-
-.held-zahlen dt {
-  order: 2;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.held-zahlen dd {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
-
-.held-zahlen dd small {
-  color: var(--faint);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-/* Die Stadt: Name, Motto, Kasse – und der Weg hinein */
-.stadtkarte {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 12px 14px;
-  padding: 16px;
-  border-radius: var(--radius);
-  background: linear-gradient(150deg, #1d2a4a, #0f1830 70%);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #0b1120;
   color: #fff;
-  box-shadow: var(--shadow);
+  animation: fade-in 0.22s ease both;
 }
 
-.stadtkarte-emblem {
+.home-kulisse {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Ohne Schleier verschwindet die Schrift auf hellen Dächern */
+.home-schleier {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    #070d1ae8 0%,
+    #070d1a99 30%,
+    #070d1a33 48%,
+    #070d1ab8 74%,
+    #070d1af5 100%
+  );
+  pointer-events: none;
+}
+
+.home.ohne-stadt .home-schleier {
+  background: linear-gradient(#070d1aee 0%, #070d1ac4 40%, #070d1ac4 60%, #070d1af8 100%);
+}
+
+.home-inhalt {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 12px) 16px calc(var(--safe-bottom) + 14px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Die schwebenden Tafeln. Kein Weichzeichner: Darunter läuft ein Bild,
+   das sonst bei jedem Einzelbild neu unscharf gerechnet werden müsste. */
+.glas {
+  border: 1px solid rgb(255 255 255 / 0.13);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgb(13 20 38 / 0.82), rgb(8 13 26 / 0.74));
+  box-shadow: 0 14px 34px -18px rgb(0 0 0 / 0.9);
+  color: #fff;
+}
+
+/* ---- Kopf: Wappen, Name, Motto, Einstellungen ---- */
+
+.home-kopf {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.home-stadt {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 14px 10px 10px;
+}
+
+.home-wappen {
   display: grid;
+  flex: none;
   place-items: center;
-  width: 54px;
-  height: 54px;
-  border-radius: 16px;
-  background: rgb(255 255 255 / 0.12);
-  font-size: 30px;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: rgb(255 255 255 / 0.1);
+  font-size: 24px;
 }
 
-.stadtkarte-kopf {
+.home-stadt-text {
   display: grid;
-  gap: 2px;
-  align-content: center;
+  gap: 1px;
   min-width: 0;
 }
 
-.stadtkarte-kopf strong {
-  font-size: 22px;
+.home-stadt-text strong {
+  font-size: 20px;
   font-weight: 900;
   line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.stadtkarte-motto {
-  color: rgb(255 255 255 / 0.72);
-  font-size: 13px;
+.home-stadt-text small {
+  color: rgb(255 255 255 / 0.66);
+  font-size: 12.5px;
   font-weight: 700;
   font-style: italic;
   overflow: hidden;
@@ -4183,123 +4109,358 @@ svg {
   white-space: nowrap;
 }
 
-.stadtkarte-zahlen {
-  grid-column: 1 / -1;
+.home-zahnrad {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin: 0;
-  padding: 12px;
-  border-radius: 14px;
-  background: rgb(255 255 255 / 0.08);
+  flex: none;
+  place-items: center;
+  width: 46px;
+  color: #fff;
+  transition: transform 0.12s ease;
 }
 
-.stadtkarte-zahlen > div {
+.home-zahnrad:active {
+  transform: scale(0.94);
+}
+
+/* ---- Rang: das größte Stück auf der Seite ---- */
+
+.home-rang {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.home-rang-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.home-rang-text strong {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.home-rang-zeile {
+  color: rgb(255 255 255 / 0.72);
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-bar {
+  width: 100%;
+  height: 9px;
+  margin: 3px 0 0;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.home-bar > span {
+  background: linear-gradient(90deg, #8a8cff, #5a5cf0);
+}
+
+.home-rang-text small {
+  color: rgb(255 255 255 / 0.56);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* ---- Kasse, Einwohner und der eigene Stand ---- */
+
+.home-stand {
+  display: grid;
+  gap: 10px;
+  padding: 12px 10px;
+}
+
+.home-werte {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0;
+}
+
+.home-werte > div {
   display: grid;
   gap: 2px;
   text-align: center;
 }
 
-.stadtkarte-zahlen dt {
+.home-werte dt {
   order: 2;
   color: rgb(255 255 255 / 0.6);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
-.stadtkarte-zahlen dd {
+.home-werte dd {
   margin: 0;
-  font-size: 18px;
+  font-size: 21px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+/* Der Spielstand als Reihe kleiner Marken, eine Linie unter der Kasse */
+.home-marken {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 0 0;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+  list-style: none;
+}
+
+.home-marken li {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(255 255 255 / 0.66);
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.home-marken b {
+  color: #fff;
+  font-size: 12px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
 
-.stadtkarte-knopf {
-  grid-column: 1 / -1;
-  margin: 0;
+/* Hier schaut man der Stadt beim Leben zu */
+.home-luft {
+  flex: 1 1 auto;
+  min-height: 40px;
 }
 
-.stadtkarte.is-neu .stadtkarte-kopf strong {
-  font-size: 20px;
+/* ---- Die Wege weiter ---- */
+
+.home-wege {
+  display: grid;
+  gap: 10px;
 }
 
-/* Zwei Wege ins Spiel */
-.wege {
+.home-weiter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.home-weiter-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: rgb(112 114 255 / 0.32);
+  color: #fff;
+}
+
+.home-weiter-text {
+  display: grid;
+  flex: 1;
+  gap: 1px;
+  min-width: 0;
+}
+
+.home-weiter-text small {
+  color: rgb(255 255 255 / 0.6);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.home-weiter-text strong {
+  font-size: 15px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-weiter-zahl {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.12);
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-tor {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 0 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #7d7fff, #4f51e4);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  box-shadow:
+    0 10px 26px -12px rgb(90 92 240 / 0.9),
+    inset 0 1px 0 rgb(255 255 255 / 0.28);
+  transition: transform 0.1s ease;
+}
+
+.home-tor:active {
+  transform: scale(0.985);
+}
+
+.home-tor-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.home-paar {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 
-.weg {
+.home-weg {
   display: grid;
   align-content: start;
-  gap: 4px;
-  padding: 16px 14px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  gap: 2px;
+  padding: 12px 13px 13px;
   text-align: left;
-  transition: transform 0.08s ease;
+  transition: transform 0.1s ease;
 }
 
-.weg:active {
+.home-weg:active {
   transform: scale(0.98);
 }
 
-.weg-emoji {
-  font-size: 30px;
-  line-height: 1;
+.home-weg-emoji {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 5px;
+  border-radius: 11px;
+  background: rgb(255 255 255 / 0.09);
+  font-size: 18px;
 }
 
-.weg strong {
-  font-size: 17px;
+.home-weg strong {
+  font-size: 15px;
   font-weight: 900;
 }
 
-.weg-text {
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.weg-lohn {
-  margin-top: 6px;
-  color: var(--warn-strong);
-  font-size: 12px;
+.home-weg small {
+  margin-top: 3px;
+  font-size: 11.5px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  line-height: 1.3;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.weg-schnell {
-  background: linear-gradient(160deg, #fff5d9, #ffe7ad);
+.home-weg em {
+  color: rgb(255 255 255 / 0.5);
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
-.weg-lernen {
-  background: linear-gradient(160deg, #e8e9ff, #d7d8ff);
+/* Beide Wege tragen ihre eigene Farbe – dunkel genug, dass die Stadt dahinter ruhig bleibt */
+.home-weg.is-spiel {
+  border-color: rgb(255 206 102 / 0.3);
+  background: linear-gradient(180deg, rgb(44 32 12 / 0.86), rgb(10 14 26 / 0.78));
 }
 
-.weg-schnell strong,
-.weg-lernen strong {
-  color: #20253a;
+.home-weg.is-spiel .home-weg-emoji {
+  background: rgb(255 196 84 / 0.18);
 }
 
-.weg-schnell .weg-text,
-.weg-lernen .weg-text {
-  color: #4a5169;
+.home-weg.is-spiel small {
+  color: #ffd076;
 }
 
-/* Auf den hellen Karten braucht der Lohn einen kräftigeren Ton */
-.weg-schnell .weg-lohn,
-.weg-lernen .weg-lohn {
-  color: #7a4300;
+.home-weg.is-lernen {
+  border-color: rgb(150 152 255 / 0.32);
+  background: linear-gradient(180deg, rgb(28 28 62 / 0.86), rgb(10 13 26 / 0.78));
 }
 
-.weg-lernen .weg-lohn {
-  color: #3b3a86;
+.home-weg.is-lernen .home-weg-emoji {
+  background: rgb(140 142 255 / 0.2);
+}
+
+.home-weg.is-lernen small {
+  color: #b9baff;
+}
+
+/* Auf kurzen Geräten zählt jeder Millimeter – die Stadt soll trotzdem durchschauen */
+@media (max-height: 700px) {
+  .home-inhalt {
+    gap: 8px;
+    padding-top: calc(var(--safe-top) + 8px);
+    padding-bottom: calc(var(--safe-bottom) + 10px);
+  }
+
+  .home-rang {
+    gap: 12px;
+    padding: 10px 14px;
+  }
+
+  .home-rang .crest {
+    width: 48px;
+    height: 54px;
+  }
+
+  .home-rang-text strong {
+    font-size: 22px;
+  }
+
+  .home-stand {
+    gap: 8px;
+    padding: 10px 8px;
+  }
+
+  .home-marken {
+    padding-top: 8px;
+  }
+
+  .home-werte dd {
+    font-size: 19px;
+  }
+
+  .home-luft {
+    min-height: 14px;
+  }
+
+  .home-tor {
+    min-height: 50px;
+    font-size: 17px;
+  }
+
+  .home-weg {
+    padding: 10px 11px 11px;
+  }
+
+  .home-weg-emoji {
+    width: 28px;
+    height: 28px;
+    margin-bottom: 3px;
+    font-size: 16px;
+  }
 }
 
 /* ================= Listen: Quiz und Kurse ================= */

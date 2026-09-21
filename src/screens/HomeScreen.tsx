@@ -1,8 +1,13 @@
-import { cityTitle, statsOf } from '../city/state'
+// Die Startseite ist der Blick über die eigene Stadt: Sie läuft als Kulisse im Hintergrund,
+// davor steht, wie weit man ist – und die drei Wege weiter: in die Stadt, ins schnelle Spiel,
+// in die Lernkurse.
+import { useMemo } from 'react'
+import { StadtKulisse } from '../city/StadtKulisse'
+import { cityTitle, createCity, statsOf } from '../city/state'
 import { IconPlay, IconSettings } from '../components/Icons'
 import { haptic } from '../haptics'
 import { RankCrest } from '../components/RankCrest'
-import { KURSE, kursById } from '../lernen/kurse'
+import { kursById } from '../lernen/kurse'
 import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, PERFEKT_LOHN, PERFEKT_LOHN_KURS, rankFor, totalAnswered } from '../progression'
 import { navigate } from '../router'
 import { getMode } from '../modes/registry'
@@ -18,153 +23,151 @@ export function HomeScreen({ data }: { data: SaveData }) {
   const runMode = run ? (run.mode === RANDOM ? null : getMode(run.mode)) : null
   const kursLaeuft = data.lernen?.sitzung
   const stadt = data.city
+  // Wer noch keine Stadt hat, sieht trotzdem eine: die Siedlung, mit der jede Stadt beginnt
+  const beispiel = useMemo(() => createCity('Deine Stadt', '', '🏙️', 0), [])
+  const kulisse = stadt ?? beispiel
   const einwohner = stadt ? statsOf(stadt).population : 0
 
+  const gehe = (ziel: Parameters<typeof navigate>[0]) => {
+    haptic('soft')
+    navigate(ziel)
+  }
+
   return (
-    <main className="screen home">
-      <header className="home-head">
-        <div>
-          <p className="eyebrow">Weltwissen</p>
-          <h1>{stadt ? 'Schön, dass du da bist' : 'Was möchtest du spielen?'}</h1>
-        </div>
-        <button className="icon-btn" aria-label="Einstellungen" onClick={() => navigate({ name: 'settings' })}>
-          <IconSettings />
-        </button>
-      </header>
+    <main className={`home${stadt ? '' : ' ohne-stadt'}`}>
+      <StadtKulisse city={kulisse} />
+      <div className="home-schleier" aria-hidden="true" />
 
-      {/* Der Rang steht groß oben – darunter alles, was den eigenen Stand ausmacht */}
-      <section className="held">
-        <div className="held-rang">
-          <RankCrest rank={rank} />
-          <div className="held-text">
-            <strong className="held-name">{rank.name}</strong>
-            <span className="held-level">Level {level.level}</span>
-            <span className="held-xp">{zahl(data.xp)} XP</span>
+      <div className="home-inhalt">
+        <header className="home-kopf">
+          <div className="glas home-stadt">
+            <span className="home-wappen" aria-hidden="true">
+              {kulisse.emblem}
+            </span>
+            <span className="home-stadt-text">
+              <strong>{stadt ? stadt.name : 'Deine Stadt'}</strong>
+              <small>
+                {stadt ? stadt.motto || `${cityTitle(stadt.level)} · Stufe ${stadt.level}` : 'Noch nicht gegründet'}
+              </small>
+            </span>
           </div>
-        </div>
-        <div className="held-bar">
-          <span className="bar held-fortschritt">
-            <span style={{ width: `${next ? (into / needed) * 100 : 100}%` }} />
-          </span>
-          <small>{next ? `noch ${zahl(needed - into)} XP bis ${next.name}` : 'Höchster Rang erreicht'}</small>
-        </div>
-        <dl className="held-zahlen">
-          <div>
-            <dt>Fragen</dt>
-            <dd>{zahl(totalAnswered(data))}</dd>
-          </div>
-          <div>
-            <dt>Beste Combo</dt>
-            <dd>{bestComboOverall(data)}</dd>
-          </div>
-          <div>
-            <dt>Mastery</dt>
-            <dd>{Math.round(overallMastery(data) * 100)} %</dd>
-          </div>
-          <div>
-            <dt>Erfolge</dt>
-            <dd>
-              {Object.keys(data.achievements).length}
-              <small>/{ACHIEVEMENTS.length}</small>
-            </dd>
-          </div>
-        </dl>
-      </section>
+          <button className="glas home-zahnrad" aria-label="Einstellungen" onClick={() => gehe({ name: 'settings' })}>
+            <IconSettings />
+          </button>
+        </header>
 
-      {/* Die Stadt: Name, Motto, Kasse, Einwohner – und der Weg hinein */}
-      <section className={`stadtkarte${stadt ? '' : ' is-neu'}`}>
-        <span className="stadtkarte-emblem" aria-hidden="true">
-          {stadt?.emblem ?? '🏙️'}
-        </span>
-        <div className="stadtkarte-kopf">
-          <strong>{stadt ? stadt.name : 'Deine Stadt'}</strong>
-          <span className="stadtkarte-motto">
-            {stadt ? stadt.motto || `${cityTitle(stadt.level)} · Stufe ${stadt.level}` : 'Gründen und aus jedem Spiel aufbauen'}
-          </span>
-        </div>
-        {stadt && (
-          <dl className="stadtkarte-zahlen">
+        <section className="glas home-rang">
+          <RankCrest rank={rank} size={58} />
+          <div className="home-rang-text">
+            <strong>{rank.name}</strong>
+            <span className="home-rang-zeile">
+              Level {level.level} · {zahl(data.xp)} XP
+            </span>
+            <span className="bar home-bar">
+              <span style={{ width: `${next ? (into / needed) * 100 : 100}%` }} />
+            </span>
+            <small>{next ? `noch ${zahl(needed - into)} XP bis ${next.name}` : 'Höchster Rang erreicht'}</small>
+          </div>
+        </section>
+
+        <section className="glas home-stand">
+          <dl className="home-werte">
             <div>
-              <dt>Münzen</dt>
-              <dd>🪙 {zahl(stadt.coins)}</dd>
+              <dt>👥 Einwohner</dt>
+              <dd>{zahl(einwohner)}</dd>
             </div>
             <div>
-              <dt>Steine</dt>
-              <dd>🧱 {zahl(stadt.materials)}</dd>
+              <dt>🪙 Münzen</dt>
+              <dd>{zahl(stadt?.coins ?? 0)}</dd>
             </div>
             <div>
-              <dt>Einwohner</dt>
-              <dd>👥 {zahl(einwohner)}</dd>
+              <dt>🧱 Steine</dt>
+              <dd>{zahl(stadt?.materials ?? 0)}</dd>
             </div>
           </dl>
-        )}
-        <button
-          className="btn btn-primary stadtkarte-knopf"
-          onClick={() => {
-            haptic('soft')
-            navigate({ name: 'city' })
-          }}
-        >
-          {stadt ? '🏙️ Stadt betreten' : '🏙️ Stadt gründen'}
-        </button>
-      </section>
+          <ul className="home-marken">
+            <li>
+              <b>{zahl(totalAnswered(data))}</b> Fragen
+            </li>
+            <li>
+              <b>{bestComboOverall(data)}</b> Combo
+            </li>
+            <li>
+              <b>{Math.round(overallMastery(data) * 100)} %</b> Mastery
+            </li>
+            <li>
+              <b>
+                {Object.keys(data.achievements).length}/{ACHIEVEMENTS.length}
+              </b>{' '}
+              Erfolge
+            </li>
+          </ul>
+        </section>
 
-      {run && (
-        <button className="resume" onClick={() => navigate({ name: 'run' })}>
-          <span className="resume-icon">
-            <IconPlay />
-          </span>
-          <span className="resume-text">
-            <small>Run läuft</small>
-            <strong>{runMode ? `${runMode.emoji} ${runMode.name}` : '🎲 Random Mode'}</strong>
-          </span>
-          <span className="resume-count">{run.answered}</span>
-        </button>
-      )}
+        <div className="home-luft" />
 
-      {kursLaeuft && (
-        <button className="resume" onClick={() => navigate({ name: 'kursSitzung' })}>
-          <span className="resume-icon">
-            <IconPlay />
-          </span>
-          <span className="resume-text">
-            <small>Session läuft</small>
-            <strong>
-              {kursById(kursLaeuft.kurs)?.emoji} {kursById(kursLaeuft.kurs)?.titel}
-            </strong>
-          </span>
-          <span className="resume-count">
-            {Math.min(kursLaeuft.index + 1, kursLaeuft.laenge)}/{kursLaeuft.laenge}
-          </span>
-        </button>
-      )}
+        <div className="home-wege">
+          {run && (
+            <button className="glas home-weiter" onClick={() => gehe({ name: 'run' })}>
+              <span className="home-weiter-icon">
+                <IconPlay />
+              </span>
+              <span className="home-weiter-text">
+                <small>Run läuft</small>
+                <strong>{runMode ? `${runMode.emoji} ${runMode.name}` : '🎲 Random Mode'}</strong>
+              </span>
+              <span className="home-weiter-zahl">{run.answered}</span>
+            </button>
+          )}
 
-      {/* Zwei Wege ins Spiel: kurz und schnell – oder ein Kurs mit vielen Spielen */}
-      <h2 className="section-title">Spielen</h2>
-      <div className="wege">
-        <button className="weg weg-schnell" onClick={() => navigate({ name: 'specific' })}>
-          <span className="weg-emoji" aria-hidden="true">
-            ⚡
-          </span>
-          <strong>Schnelles Spiel</strong>
-          <span className="weg-text">Quizrunden, so lange du willst</span>
-          <span className="weg-lohn">
-            🪙 {zahl(PERFEKT_LOHN.coins)} · 🧱 {zahl(PERFEKT_LOHN.materials)} bei 100 %
-          </span>
-        </button>
-        <button className="weg weg-lernen" onClick={() => navigate({ name: 'kurse' })}>
-          <span className="weg-emoji" aria-hidden="true">
-            🧠
-          </span>
-          <strong>Lernkurse</strong>
-          <span className="weg-text">{KURSE.length} Kurse, viele Spielarten</span>
-          <span className="weg-lohn">
-            🪙 {zahl(PERFEKT_LOHN_KURS.coins)} · 🧱 {zahl(PERFEKT_LOHN_KURS.materials)} bei 100 %
-          </span>
-        </button>
+          {kursLaeuft && (
+            <button className="glas home-weiter" onClick={() => gehe({ name: 'kursSitzung' })}>
+              <span className="home-weiter-icon">
+                <IconPlay />
+              </span>
+              <span className="home-weiter-text">
+                <small>Session läuft</small>
+                <strong>
+                  {kursById(kursLaeuft.kurs)?.emoji} {kursById(kursLaeuft.kurs)?.titel}
+                </strong>
+              </span>
+              <span className="home-weiter-zahl">
+                {Math.min(kursLaeuft.index + 1, kursLaeuft.laenge)}/{kursLaeuft.laenge}
+              </span>
+            </button>
+          )}
+
+          <button className="home-tor" onClick={() => gehe({ name: 'city' })}>
+            <span className="home-tor-emoji" aria-hidden="true">
+              🏙️
+            </span>
+            <span>{stadt ? 'Stadt betreten' : 'Stadt gründen'}</span>
+          </button>
+
+          <div className="home-paar">
+            <button className="glas home-weg is-spiel" onClick={() => gehe({ name: 'specific' })}>
+              <span className="home-weg-emoji" aria-hidden="true">
+                ⚡
+              </span>
+              <strong>Schnelles Spiel</strong>
+              <small>
+                🪙 {zahl(PERFEKT_LOHN.coins)} · 🧱 {zahl(PERFEKT_LOHN.materials)}
+              </small>
+              <em>bei 100 %</em>
+            </button>
+            <button className="glas home-weg is-lernen" onClick={() => gehe({ name: 'kurse' })}>
+              <span className="home-weg-emoji" aria-hidden="true">
+                🧠
+              </span>
+              <strong>Lernen</strong>
+              <small>
+                🪙 {zahl(PERFEKT_LOHN_KURS.coins)} · 🧱 {zahl(PERFEKT_LOHN_KURS.materials)}
+              </small>
+              <em>bei 100 %</em>
+            </button>
+          </div>
+        </div>
       </div>
-
-      <p className="footnote">Dein Fortschritt wird automatisch auf diesem Gerät gespeichert – ohne Konto und auch offline.</p>
     </main>
   )
 }
