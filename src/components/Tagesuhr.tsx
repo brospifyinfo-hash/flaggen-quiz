@@ -109,7 +109,8 @@ export interface TagesuhrProps {
 export function Tagesuhr({ zeit, size = 44, detail = false, onClick, className, title }: TagesuhrProps) {
   const grad = zeit.anteil * 360
   const [zx, zy] = punkt(grad, R_AUSSEN - 4)
-  const [zx0, zy0] = punkt(grad + 180, 6)
+  // In der großen Ansicht läuft der Zeiger nur über den Ring, damit die Schrift in der Mitte frei bleibt
+  const [zx0, zy0] = detail ? punkt(grad, R_INNEN + 1.5) : punkt(grad + 180, 6)
   const info = phaseInfo(zeit.phase)
   const kennung = `tu${size}${detail ? 'd' : ''}`
   const inhalt = (
@@ -193,9 +194,9 @@ export function Tagesuhr({ zeit, size = 44, detail = false, onClick, className, 
 
       {/* Zeiger */}
       <g filter={`url(#${kennung}-schatten)`}>
-        <line x1={zx0} y1={zy0} x2={zx} y2={zy} stroke="#ffffff" strokeWidth={detail ? 2.2 : 3} strokeLinecap="round" />
-        <circle cx={zx} cy={zy} r={detail ? 2.4 : 3} fill="#ffd166" stroke="#0a0d1c" strokeWidth="0.8" />
-        <circle cx={M} cy={M} r={detail ? 3.2 : 4} fill="#ffd166" stroke="#0a0d1c" strokeWidth="1" />
+        <line x1={zx0} y1={zy0} x2={zx} y2={zy} stroke="#ffffff" strokeWidth={detail ? 2.6 : 3} strokeLinecap="round" />
+        <circle cx={zx} cy={zy} r={detail ? 2.6 : 3} fill="#ffd166" stroke="#0a0d1c" strokeWidth="0.8" />
+        {!detail && <circle cx={M} cy={M} r={4} fill="#ffd166" stroke="#0a0d1c" strokeWidth="1" />}
       </g>
     </svg>
   )
