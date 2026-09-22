@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#141a2a" />
+    <title>Schattenstadt – Städtebau mit Rotlicht</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+
+      <header id="hud">
+        <div class="cash-box">
+          <div class="cash" id="hud-cash">0 €</div>
+          <div class="income" id="hud-income">+0 €/s</div>
+        </div>
+        <div class="hint" id="hud-hint">Tippe auf das Rathaus, um die Stadt-Statistiken zu sehen.</div>
+      </header>
+
+      <div id="view-controls">
+        <button id="zoom-in" title="Vergrößern" aria-label="Vergrößern">+</button>
+        <button id="zoom-out" title="Verkleinern" aria-label="Verkleinern">−</button>
+        <button id="center" title="Zum Rathaus" aria-label="Zum Rathaus">⌂</button>
+      </div>
+
+      <div id="toasts" aria-live="polite"></div>
+
+      <aside id="panel" class="sheet" hidden></aside>
+
+      <nav id="buildbar">
+        <div class="tabs" id="build-tabs"></div>
+        <div class="items" id="build-items"></div>
+      </nav>
+
+      <div id="modal-backdrop" hidden>
+        <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
