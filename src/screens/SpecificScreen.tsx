@@ -4,7 +4,8 @@ import { IconBack, IconChevron } from '../components/Icons'
 import { haptic } from '../haptics'
 import { ladeAlle } from '../lernen/kurse'
 import { quizModes } from '../modes/registry'
-import { PERFEKT_LOHN, PERFEKTLAUF } from '../progression'
+import { zeitText } from '../city/zeit'
+import { PERFEKT_ZEIT, PERFEKTLAUF } from '../progression'
 import { goBack, navigate } from '../router'
 import { RANDOM, endRun, startRun } from '../run'
 import { setState } from '../store'
@@ -13,7 +14,7 @@ import type { SaveData } from '../types'
 const zahl = (n: number) => n.toLocaleString('de-DE')
 
 export function SpecificScreen({ data }: { data: SaveData }) {
-  const lohn = `🪙 ${zahl(PERFEKT_LOHN.coins)} · 🧱 ${zahl(PERFEKT_LOHN.materials)} bei ${PERFEKTLAUF} fehlerfreien Fragen`
+  const lohn = `⏩ ${zeitText(PERFEKT_ZEIT)} Zeitvorsprung bei ${PERFEKTLAUF} fehlerfreien Fragen`
 
   const starteRandom = () => {
     haptic('soft')
@@ -97,8 +98,8 @@ export function SpecificScreen({ data }: { data: SaveData }) {
       </ul>
 
       <p className="footnote">
-        Ein Lauf endet, wann du willst. Die ersten {PERFEKTLAUF} Fragen ohne Fehler bringen den Jackpot für deine Stadt –
-        einmal pro Lauf.
+        Ein Lauf endet, wann du willst. Jede richtige Antwort spult die Uhr deiner Stadt vor – und die ersten{' '}
+        {PERFEKTLAUF} Fragen ohne Fehler springen zusätzlich {zeitText(PERFEKT_ZEIT)} weiter, einmal pro Lauf.
       </p>
     </main>
   )

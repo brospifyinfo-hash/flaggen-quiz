@@ -13,9 +13,10 @@ import {
 } from './catalog'
 import type { Seite } from './geo'
 import { leerstandSchritt, leerstandVon, leerstandZuruecksetzen } from './leerstand'
-import { REQUEST_COINS, REQUEST_MATERIALS, sanitizeRequest } from './requests'
+import { REQUEST_ZEIT, sanitizeRequest } from './requests'
 import { gesellschaft, KLASSEN, kriminalitaetBei, STEUER_MAX, STEUER_MIN, STEUER_START, steuerVon } from './society'
 import { DEFAULT_THEME, themeById } from './themes'
+import { MAX_TAGE, TAG_MS, vorspulen } from './zeit'
 import {
   CITY_VERSION,
   type CityState,
@@ -25,10 +26,12 @@ import {
   type Placed,
 } from './types'
 
-/** So lange dauert ein Wirtschaftszyklus */
-export const CYCLE_MS = 3 * 60 * 60 * 1000
-/** So viele Zyklen werden höchstens nachgeholt – niemand soll tagelang Ertrag stapeln */
-export const MAX_CYCLES = 8
+/** Ein Wirtschaftszyklus ist ein Tag der Stadt – siehe src/city/zeit.ts */
+export const CYCLE_MS = TAG_MS
+/** So viele Tage werden höchstens nachgeholt */
+export const MAX_CYCLES = MAX_TAGE
+/** Ziegel, die der Bauhof am Rathaus jeden Tag liefert – auch ohne Ziegelei */
+export const BAUHOF_ZIEGEL = 6
 /** Ab dieser Stimmung ziehen Menschen zu */
 export const MOVE_IN_MOOD = 55
 /** Darunter ziehen sie weg */
@@ -406,13 +409,8 @@ export function expand(city: CityState): CityState {
 /** Eine Bitte wurde gelöst: Belohnung, Dankbarkeit, Bitte schließen */
 export function solveRequest(city: CityState): CityState {
   if (!city.request) return city
-  return withLevel({
-    ...city,
-    request: null,
-    helped: city.helped + 1,
-    coins: city.coins + REQUEST_COINS,
-    materials: city.materials + REQUEST_MATERIALS,
-  })
+  // Der Dank ist Zeit: Die Uhr der Stadt springt vor, siehe zeit.ts
+  return withLevel(vorspulen({ ...city, request: null, helped: city.helped + 1 }, REQUEST_ZEIT))
 }
 
 /** Aussehen der Stadt wechseln */
@@ -583,6 +581,20 @@ export function incomeBreakdown(city: CityState): { total: number; parts: Part[]
   return { total, parts }
 }
 
+/** Woher die Ziegel eines Tages kommen: Bauhof am Rathaus, dazu jede Ziegelei und Grube */
+export function ziegelBreakdown(city: CityState): { total: number; parts: Part[] } {
+  const parts: Part[] = [{ label: 'Bauhof am Rathaus', value: BAUHOF_ZIEGEL + Math.floor(city.level / 2) }]
+  const werke = new Map<string, number>()
+  for (const placed of city.buildings) {
+    const def = buildingDef(placed.type)
+    if (!def || placed.verlassen) continue
+    const ziegel = effectsOf(def, placed.level).ziegel ?? 0
+    if (ziegel > 0) werke.set(def.name, (werke.get(def.name) ?? 0) + ziegel)
+  }
+  for (const [name, wert] of [...werke.entries()].sort((a, b) => b[1] - a[1])) parts.push({ label: name, value: wert })
+  return { total: parts.reduce((sum, part) => sum + part.value, 0), parts }
+}
+
 /** Was die Bürger gerade stört – daraus werden freiwillige Ziele */
 export function problemsOf(city: CityState): string[] {
   const sums = totals(city)
@@ -635,6 +647,7 @@ export function statsOf(city: CityState): CityStats {
     education: sums.education,
     environment: Math.max(0, Math.min(100, 50 + sums.environment)),
     income: incomeBreakdown(city).total,
+    ziegel: ziegelBreakdown(city).total,
     jobs: sums.jobs,
     buildings: city.buildings.length,
   }
@@ -659,9 +672,10 @@ export const wohnplatz = (city: CityState): number => {
 }
 
 /**
- * Holt die Zyklen seit dem letzten Besuch nach: Einnahmen, Zuzug, Wegzug – und was
- * die Bürger in der Zeit selbst getan haben: Häuser gebaut, dunkle Geschäfte eröffnet,
- * und was die Polizei davon ausgehoben hat. Es wird höchstens ein Tag nachgeholt.
+ * Holt die Tage seit dem letzten Besuch nach – jeder Tagesabschluss bringt Einnahmen und
+ * Ziegel, dazu Zuzug, Wegzug und was die Bürger in der Zeit selbst getan haben: Häuser
+ * gebaut, dunkle Geschäfte eröffnet, und was die Polizei davon ausgehoben hat.
+ * Es wird höchstens eine Woche nachgeholt.
  */
 export function runCycles(city: CityState, now = Date.now()): { city: CityState; report: CycleReport | null } {
   const last = city.lastTick > 0 ? city.lastTick : now
@@ -672,6 +686,7 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
   const zufall = zufallAus(last + city.nextId * 7919)
   let next: CityState = { ...city }
   let coins = 0
+  let materials = 0
   let movedIn = 0
   let movedOut = 0
   const gebaut: string[] = []
@@ -680,7 +695,9 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
   for (let i = 0; i < cycles; i++) {
     const zeit = last + (i + 1) * CYCLE_MS
     const income = incomeBreakdown(next)
+    const ziegel = ziegelBreakdown(next).total
     coins += income.total
+    materials += ziegel
     const mood = happinessBreakdown(next).total
     const platz = wohnplatz(next)
 
@@ -699,7 +716,7 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
       population -= wegzug
       movedOut += wegzug
     }
-    next = { ...next, population, coins: next.coins + income.total }
+    next = { ...next, population, coins: next.coins + income.total, materials: next.materials + ziegel }
 
     // Wer sich schon lange beschwert, ist bis zum nächsten Zyklus ausgezogen; neue
     // Beschwerden entstehen, wo die Wohnlage nicht stimmt
@@ -746,7 +763,17 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
   next.lastTick = elapsed > MAX_CYCLES * CYCLE_MS ? now : last + cycles * CYCLE_MS
   return {
     city: withLevel(next),
-    report: { cycles, coins, movedIn, movedOut, income: incomeBreakdown(next).parts, gebaut, meldungen },
+    report: {
+      cycles,
+      coins,
+      materials,
+      movedIn,
+      movedOut,
+      income: incomeBreakdown(next).parts,
+      ziegel: ziegelBreakdown(next).parts,
+      gebaut,
+      meldungen,
+    },
   }
 }
 

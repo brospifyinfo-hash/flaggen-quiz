@@ -6,6 +6,7 @@ import { setBlick } from './iso'
 import { anpassen, createLife, signatureOf, stepLife, type Life } from './life'
 import { cityFrame, drawCity, type Camera } from './render'
 import type { CityState } from './types'
+import { tageszeit } from './zeit'
 
 /** Näher dran als im Stadtbildschirm: Die Kulisse darf über den Rand hinauslaufen. */
 const NAEHE = 1.3
@@ -61,6 +62,7 @@ export function StadtKulisse({ city }: { city: CityState }) {
         blick: 0,
         life,
         time: now / 1000,
+        stunde: tageszeit(stadt.current).stunde,
       })
     }
 

@@ -1,6 +1,6 @@
 // Run-Engine: endlose Runden für Random Mode und für einzelne Modi.
 import { getMode, pickRandomMode } from './modes/registry'
-import { checkAchievements, creditXp, grantCity, modeProgress, overallMastery, PERFEKT_LOHN, PERFEKTLAUF, rankFor, xpForAnswer } from './progression'
+import { checkAchievements, creditXp, grantZeit, modeProgress, overallMastery, PERFEKT_ZEIT, PERFEKTLAUF, rankFor, xpForAnswer } from './progression'
 import type { Judgement, ModeProgress, ModeQuestion, Run, RunResult, SaveData } from './types'
 
 /** Modus-ID des Random Mode */
@@ -128,7 +128,7 @@ export function answerRun(data: SaveData, answer: string, now = Date.now()): Sav
     modes: { ...next.modes, [question.modeId]: progress },
     run: updated,
   }
-  if (perfektJetzt) next = grantCity(next, PERFEKT_LOHN.coins, PERFEKT_LOHN.materials)
+  if (perfektJetzt) next = grantZeit(next, PERFEKT_ZEIT)
 
   const checked = checkAchievements(next, now)
   if (checked.unlocked.length === 0) return next
@@ -192,7 +192,7 @@ export function endRun(data: SaveData, now = Date.now()): SaveData {
     achievements: run.earned,
     records,
     rankUp: rankAfter !== rankBefore ? rankAfter : null,
-    ...(run.perfekt ? { perfekt: PERFEKT_LOHN } : {}),
+    ...(run.perfekt ? { perfekt: { zeit: PERFEKT_ZEIT } } : {}),
     finishedAt: now,
   }
 

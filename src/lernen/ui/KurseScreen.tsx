@@ -3,7 +3,8 @@
 import { IconBack, IconChevron } from '../../components/Icons'
 import { haptic } from '../../haptics'
 import { domainById, knowledgeLevel, pointsOf } from '../../knowledge'
-import { PERFEKT_LOHN_KURS } from '../../progression'
+import { zeitText } from '../../city/zeit'
+import { PERFEKT_ZEIT_KURS } from '../../progression'
 import { goBack, navigate } from '../../router'
 import type { SaveData } from '../../types'
 import { naechstesStadtZiel } from '../belohnung'
@@ -70,7 +71,7 @@ export function KurseScreen({ data }: { data: SaveData }) {
                     </span>
                   </span>
                   <small className="kurs-zeile-lohn">
-                    🪙 {zahl(PERFEKT_LOHN_KURS.coins)} · 🧱 {zahl(PERFEKT_LOHN_KURS.materials)} für eine fehlerfreie Session
+                    ⏩ {zeitText(PERFEKT_ZEIT_KURS)} Vorsprung für eine fehlerfreie Session
                     {stadt ? ` · baut ${stadt.def.name}` : ''}
                   </small>
                 </span>
@@ -82,8 +83,8 @@ export function KurseScreen({ data }: { data: SaveData }) {
       </ul>
 
       <p className="footnote">
-        Jede Session zahlt XP für den Rang, Münzen und Steine für die Stadt und Wissen für das Fach – eine fehlerfreie
-        Session zusätzlich den Jackpot.
+        Jede Session zahlt XP für den Rang, Wissen für das Fach – und spult die Uhr deiner Stadt vor, damit der
+        Tagesabschluss mit Münzen und Ziegeln früher kommt. Eine fehlerfreie Session springt zusätzlich acht Stunden.
       </p>
     </main>
   )

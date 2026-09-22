@@ -62,14 +62,16 @@ import {
   wachsen,
   wachstumsTakt,
   wohnplatz,
+  ziegelBreakdown,
 } from '../city/state'
+import { MAX_TAGE, phaseInfo, tagFaellig, tageszeit, zeitText } from '../city/zeit'
+import { Tagesuhr, useTageszeit } from '../components/Tagesuhr'
 import { anpassen, createLife, signatureOf, stepLife, type Ereignis, type Life } from '../city/life'
 import { bewohnerVon, euro, gesellschaft, KLASSEN, STEUER_MAX, STEUER_MIN } from '../city/society'
 import { BauBlatt, KLASSE_NAME } from './CityBuildSheet'
 import {
-  REQUEST_COINS,
-  REQUEST_MATERIALS,
   REQUEST_XP,
+  REQUEST_ZEIT,
   dueRequest,
   judgeRequest,
   makeRequest,
@@ -78,7 +80,7 @@ import {
 import type { CycleReport, Placed } from '../city/types'
 import { DOMAINS, knowledgeLevel, levels as knowledgeLevels, pointsOf } from '../knowledge'
 import { getMode } from '../modes/registry'
-import { creditXp } from '../progression'
+import { creditXp, PERFEKT_ZEIT, PERFEKT_ZEIT_KURS, ZEIT_PRO_XP } from '../progression'
 import { haptic } from '../haptics'
 import { goBack, navigate } from '../router'
 import { getState, setState } from '../store'
@@ -86,7 +88,7 @@ import type { SaveData } from '../types'
 
 const EMBLEMS = ['🏙️', '🌆', '🏛️', '🌳', '⚓', '⛰️', '🔭', '🎓', '🚀', '🦉']
 
-type Mode = 'view' | 'build' | 'place' | 'select' | 'road' | 'roadPick' | 'land' | 'report'
+type Mode = 'view' | 'build' | 'place' | 'select' | 'road' | 'roadPick' | 'land' | 'report' | 'uhr'
 
 export function CityScreen({ data }: { data: SaveData }) {
   if (!data.city) return <CitySetup kasse={data.stadtkasse} />
@@ -211,7 +213,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const [cycle, setCycle] = useState<CycleReport | null>(null)
   const [shownRequest, setShownRequest] = useState<CityRequest | null>(null)
   const [answer, setAnswer] = useState<string | null>(null)
-  const [reward, setReward] = useState<{ coins: number; materials: number } | null>(null)
+  const [reward, setReward] = useState<{ zeit: number } | null>(null)
+  const tag = useTageszeit(city, 5_000)
   const [newName, setNewName] = useState(city.name)
   const [newMotto, setNewMotto] = useState(city.motto)
   /** Kurzes Willkommen beim Betreten – wer es eilig hat, tippt es weg */
@@ -319,6 +322,16 @@ function CityWorld({ data }: { data: SaveData }) {
       const stadt = getState().city
       if (!stadt) return
       const stimmung = happinessBreakdown(stadt).total
+
+      // Der Zeiger steht wieder oben: Tagesabschluss, während man zusieht
+      if (tagFaellig(stadt)) {
+        const ergebnis = runCycles(stadt)
+        if (ergebnis.report) {
+          setState((current) => (current.city === stadt ? { ...current, city: ergebnis.city } : current))
+          setCycle(ergebnis.report)
+          haptic('celebrate')
+        }
+      }
 
       // Wo die Wohnlage nicht stimmt, wird gemurrt – und wer lange genug murrt, geht
       if (jetzt >= naechsteBeschwerde) {
@@ -468,6 +481,7 @@ function CityWorld({ data }: { data: SaveData }) {
         kriminalitaet: state.krimKarte,
         bubble: bitte ? { buildingId: bitte.buildingId, emoji: bitte.citizen.emoji } : null,
         time: now / 1000,
+        stunde: tageszeit(state.city).stunde,
       })
     }
     raf = requestAnimationFrame(frame)
@@ -672,7 +686,7 @@ function CityWorld({ data }: { data: SaveData }) {
         haptic('soft')
       } else {
         setSelected(null)
-        if (state.mode === 'select' || state.mode === 'report') setMode('view')
+        if (state.mode === 'select' || state.mode === 'report' || state.mode === 'uhr') setMode('view')
       }
     }
 
@@ -875,13 +889,13 @@ function CityWorld({ data }: { data: SaveData }) {
     setAnswer(id)
     if (judgeRequest(shownRequest, id)) {
       haptic('celebrate')
-      const vorher = { coins: city.coins, materials: city.materials }
+      const vorher = city.lastTick
       setState((current) =>
         current.city ? creditXp({ ...current, city: solveRequest(current.city) }, REQUEST_XP) : current,
       )
-      // Genau das anzeigen, was wirklich ankam – die XP werden ja selbst zu Münzen
+      // Genau das anzeigen, was wirklich ankam – die XP spulen ja selbst die Uhr vor
       const jetzt = getState().city
-      if (jetzt) setReward({ coins: jetzt.coins - vorher.coins, materials: jetzt.materials - vorher.materials })
+      if (jetzt) setReward({ zeit: Math.max(0, vorher - jetzt.lastTick) })
     } else {
       haptic('error')
     }
@@ -938,6 +952,19 @@ function CityWorld({ data }: { data: SaveData }) {
           <span>🪙 {city.coins.toLocaleString('de-DE')}</span>
           <span>🧱 {city.materials.toLocaleString('de-DE')}</span>
         </div>
+        {tag && (
+          <Tagesuhr
+            zeit={tag}
+            size={44}
+            className="city-uhr"
+            title={`${phaseInfo(tag.phase).name} – antippen für den Tagesabschluss`}
+            onClick={() => {
+              setSelected(null)
+              setMode(mode === 'uhr' ? 'view' : 'uhr')
+              haptic('soft')
+            }}
+          />
+        )}
       </div>
 
       <div className="city-stage" ref={wrap}>
@@ -1039,8 +1066,7 @@ function CityWorld({ data }: { data: SaveData }) {
               <div className="city-ask-end">
                 {judgeRequest(shownRequest, answer) ? (
                   <p className="city-summary">
-                    🎉 Danke! 🪙 +{(reward?.coins ?? REQUEST_COINS).toLocaleString('de-DE')} · 🧱 +
-                    {reward?.materials ?? REQUEST_MATERIALS} · ⭐ +{REQUEST_XP} XP
+                    🎉 Danke! ⏩ {zeitText(reward?.zeit ?? REQUEST_ZEIT + REQUEST_XP * ZEIT_PRO_XP)} Vorsprung · ⭐ +{REQUEST_XP} XP
                   </p>
                 ) : (
                   <p className="city-summary">
@@ -1213,14 +1239,16 @@ function CityWorld({ data }: { data: SaveData }) {
         {cycle && (
           <div className="city-detail">
             <div className="city-detail-head">
-              <span className="city-card-emoji">🕒</span>
+              <span className="city-card-emoji">🌅</span>
               <span className="city-card-body">
-                <strong>Während du weg warst</strong>
+                <strong>Tagesabschluss</strong>
                 <span>
-                  {cycle.cycles} {cycle.cycles === 1 ? 'Zyklus' : 'Zyklen'} à 3 Stunden
+                  {cycle.cycles === 1 ? 'Ein Tag der Stadt ist vorbei' : `${cycle.cycles} Tage der Stadt sind vorbei`}
+                  {cycle.cycles >= MAX_TAGE ? ' – mehr wird nicht nachgeholt' : ''}
                 </span>
               </span>
             </div>
+            <p className="city-label-line">🪙 Einnahmen je Tag</p>
             <ul className="city-effects">
               {cycle.income.map((part) => (
                 <li key={part.label}>
@@ -1228,8 +1256,17 @@ function CityWorld({ data }: { data: SaveData }) {
                 </li>
               ))}
             </ul>
+            <p className="city-label-line">🧱 Ziegel je Tag</p>
+            <ul className="city-effects">
+              {cycle.ziegel.map((part) => (
+                <li key={part.label}>
+                  {part.label} <strong>+{part.value}</strong>
+                </li>
+              ))}
+            </ul>
             <p className="city-summary">
-              🪙 <strong>+{cycle.coins.toLocaleString('de-DE')}</strong> Münzen
+              🪙 <strong>+{cycle.coins.toLocaleString('de-DE')}</strong> Münzen · 🧱 <strong>+{cycle.materials.toLocaleString('de-DE')}</strong>{' '}
+              Ziegel
               {cycle.movedIn > 0 && (
                 <>
                   {' · '}👥 <strong>+{cycle.movedIn}</strong> zugezogen
@@ -1264,6 +1301,67 @@ function CityWorld({ data }: { data: SaveData }) {
           </div>
         )}
 
+        {mode === 'uhr' && !cycle && tag && (
+          <div className="city-sheet city-uhr-blatt">
+            <div className="city-sheet-head">
+              <strong>Der Tag der Stadt</strong>
+              <button
+                className="city-close"
+                aria-label="Schließen"
+                onClick={() => {
+                  setMode('view')
+                  haptic('tick')
+                }}
+              >
+                <IconClose />
+              </button>
+            </div>
+            <div className="city-list">
+              <div className="city-uhr-buehne">
+                <Tagesuhr zeit={tag} size={168} detail />
+                <div className="city-uhr-text">
+                  <strong>{phaseInfo(tag.phase).name}</strong>
+                  <span>{phaseInfo(tag.phase).text}</span>
+                </div>
+              </div>
+
+              <p className="city-label-line">🌅 Beim Tagesabschluss bekommst du</p>
+              <ul className="city-effects">
+                <li>
+                  🪙 Münzen <strong>+{incomeBreakdown(city).total.toLocaleString('de-DE')}</strong>
+                </li>
+                <li>
+                  🧱 Ziegel <strong>+{ziegelBreakdown(city).total.toLocaleString('de-DE')}</strong>
+                </li>
+              </ul>
+              <p className="city-hint">
+                Ein Tag der Stadt dauert 24 Stunden und läuft weiter, wenn du weg bist. Steht der Zeiger oben, wird
+                abgerechnet – höchstens {MAX_TAGE} Tage auf einmal.
+              </p>
+
+              <p className="city-label-line">⏩ So spulst du die Uhr vor</p>
+              <ul className="city-effects">
+                <li>
+                  Jeder XP-Punkt aus Quiz, Kursen und Math Runner <strong>+{zeitText(ZEIT_PRO_XP)}</strong>
+                </li>
+                <li>
+                  Perfektlauf im schnellen Spiel <strong>+{zeitText(PERFEKT_ZEIT)}</strong>
+                </li>
+                <li>
+                  Fehlerfreie Kurs-Session <strong>+{zeitText(PERFEKT_ZEIT_KURS)}</strong>
+                </li>
+                <li>
+                  Einem Bürger geholfen <strong>+{zeitText(REQUEST_ZEIT)}</strong>
+                </li>
+              </ul>
+              <p className="city-hint">
+                Quiz und Kurse bringen kein Geld mehr direkt – sie bringen Zeit. Je mehr du lernst, desto öfter zahlt
+                die Stadt aus.
+              </p>
+            </div>
+          </div>
+        )}
+
         {mode === 'report' && !cycle && (
           <div className="city-sheet">
             <div className="city-sheet-head">
@@ -1294,7 +1392,7 @@ function CityWorld({ data }: { data: SaveData }) {
                 ))}
               </ul>
 
-              <p className="city-label-line">🪙 Einnahmen je Zyklus</p>
+              <p className="city-label-line">🪙 Einnahmen je Tag</p>
               <ul className="city-effects">
                 {incomeBreakdown(city).parts.map((part) => (
                   <li key={part.label}>
@@ -1306,12 +1404,27 @@ function CityWorld({ data }: { data: SaveData }) {
                 </li>
               </ul>
 
+              <p className="city-label-line">🧱 Ziegel je Tag</p>
+              <ul className="city-effects">
+                {ziegelBreakdown(city).parts.map((part) => (
+                  <li key={part.label}>
+                    {part.label} <strong>+{part.value}</strong>
+                  </li>
+                ))}
+                <li>
+                  Zusammen <strong>{ziegelBreakdown(city).total}</strong>
+                </li>
+              </ul>
+              <p className="city-hint">
+                Ziegel gibt es nur am Tagesabschluss. Lehmgrube, Ziegelei, Steinbruch und Baustoffwerk im Gewerbe liefern mehr.
+              </p>
+
               <p className="city-label-line">💸 Steuern</p>
               <div className="city-steuer">
                 <div className="city-steuer-zeile">
                   <strong>{city.tax} %</strong>
                   <span>
-                    {incomeBreakdown(city).total.toLocaleString('de-DE')} 🪙 je Zyklus · Stimmung {stats.happiness} %
+                    {incomeBreakdown(city).total.toLocaleString('de-DE')} 🪙 je Tag · Stimmung {stats.happiness} %
                   </span>
                 </div>
                 <input
@@ -1688,7 +1801,7 @@ function CityWorld({ data }: { data: SaveData }) {
           <span style={{ width: `${Math.min(100, (progress.into / progress.need) * 100)}%` }} />
         </span>
         <span className="city-foot-text">
-          🏛️ Stadtbericht im Rathaus · 😊 {stats.happiness}% · 🪙 {stats.income}/Zyklus
+          🏛️ Stadtbericht im Rathaus · 😊 {stats.happiness}% · 🪙 {stats.income} · 🧱 {stats.ziegel} je Tag
           {beschwerdenVon(city) > 0 && ` · 😠 ${beschwerdenVon(city)}`}
           {leerstandVon(city) > 0 && ` · 🏚️ ${leerstandVon(city)}`}
         </span>
@@ -1747,7 +1860,8 @@ function wirkungsListe(e: ReturnType<typeof effectsOf>): [string, string][] {
   const liste: [string, string][] = []
   if (e.capacity) liste.push(['👥 Wohnraum', zahl(e.capacity)])
   if (e.jobs) liste.push(['💼 Arbeit', zahl(e.jobs)])
-  if (e.income) liste.push([e.income > 0 ? '🪙 Einnahmen' : '🪙 Unterhalt', zahl(e.income)])
+  if (e.income) liste.push([e.income > 0 ? '🪙 Einnahmen je Tag' : '🪙 Unterhalt je Tag', zahl(e.income)])
+  if (e.ziegel) liste.push(['🧱 Ziegel je Tag', zahl(e.ziegel)])
   if (e.black) liste.push(['💰 Schwarzgeld', zahl(e.black)])
   if (e.education) liste.push(['🎓 Bildung', zahl(e.education)])
   if (e.happiness) liste.push(['😊 Stimmung', zahl(e.happiness)])

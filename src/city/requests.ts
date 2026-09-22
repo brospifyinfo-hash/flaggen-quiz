@@ -24,9 +24,8 @@ export interface CityRequest {
   at: number
 }
 
-/** Belohnung für eine gelöste Bitte */
-export const REQUEST_COINS = 140
-export const REQUEST_MATERIALS = 3
+/** Dank für eine gelöste Bitte: XP – und die Uhr der Stadt springt eine Stunde vor */
+export const REQUEST_ZEIT = 60 * 60 * 1000
 export const REQUEST_XP = 25
 /** So lange dauert es mindestens bis zur nächsten Bitte */
 export const REQUEST_PAUSE = 25 * 60 * 1000

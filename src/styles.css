@@ -4708,3 +4708,73 @@ svg {
   background: linear-gradient(120deg, #fff1cd, #ffe0a1);
   color: #4a2f00;
 }
+
+/* ---------- Die Tagesuhr der Stadt ---------- */
+.tagesuhr {
+  display: block;
+  flex: none;
+  overflow: visible;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.35));
+}
+
+.tagesuhr-phase {
+  fill: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.tagesuhr-klein {
+  fill: rgb(255 255 255 / 0.55);
+  font-size: 4.6px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tagesuhr-knopf {
+  display: grid;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease;
+}
+
+.tagesuhr-knopf:active {
+  transform: scale(0.94);
+}
+
+.home-stadt .home-uhr {
+  margin-left: auto;
+}
+
+.city-uhr-blatt .city-uhr-buehne {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 8px 0 14px;
+  text-align: center;
+}
+
+.city-uhr-text {
+  display: grid;
+  gap: 4px;
+  max-width: 34ch;
+}
+
+.city-uhr-text strong {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.city-uhr-text span {
+  color: rgb(255 255 255 / 0.7);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}

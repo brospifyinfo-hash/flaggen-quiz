@@ -1,6 +1,6 @@
 // XP, Level, Mastery und Achievements – gelten für alle Spielmodi gemeinsam.
 // Alle Regeln stehen hier oben und lassen sich einzeln ändern.
-import { grant } from './city/state'
+import { STUNDE_MS, vorspulen } from './city/zeit'
 import { CONTINENTS, COUNTRIES } from './data/countries'
 import { addKnowledge } from './knowledge'
 import { KURS_ERFOLGE } from './lernen/erfolge'
@@ -17,16 +17,23 @@ export function xpForAnswer(comboBefore: number): number {
   return XP_BASE + Math.min(comboBefore, XP_COMBO_CAP) * XP_PER_COMBO
 }
 
-/** Aus einem XP-Gewinn wird Baumaterial – Steine sind knapper als Münzen, aber nicht so knapp wie früher */
-export const MATERIAL_PRO_XP = 1 / 6
+/**
+ * Aus einem XP-Gewinn wird Zeit: Jeder Punkt spult die Uhr der Stadt um eine halbe Minute
+ * vor. Ein guter Run von 300 XP bringt so zweieinhalb Stunden – der Tagesabschluss mit
+ * Münzen und Ziegeln kommt entsprechend früher.
+ */
+export const ZEIT_PRO_XP = 30_000
+
+/** So viel Zeit bringt ein XP-Gewinn */
+export const zeitFuerXp = (xp: number): number => Math.max(0, Math.round(xp)) * ZEIT_PRO_XP
 
 /**
- * Der einzige Weg, XP zu vergeben: Sie zählen für den Rang und fließen zugleich
- * als Münzen und Material in die Stadt. Jedes Spiel nutzt diese eine Kette.
+ * Der einzige Weg, XP zu vergeben: Sie zählen für den Rang und spulen zugleich die Uhr
+ * der Stadt vor. Jedes Spiel nutzt diese eine Kette.
  */
 export function creditXp(data: SaveData, gained: number, modeId?: string): SaveData {
   if (gained <= 0) return data
-  const city = data.city ? grant(data.city, gained, Math.round(gained * MATERIAL_PRO_XP)) : undefined
+  const city = data.city ? vorspulen(data.city, zeitFuerXp(gained)) : undefined
   const mitXp: SaveData = { ...data, xp: data.xp + gained, ...(city ? { city } : {}) }
   return addKnowledge(mitXp, modeId, gained)
 }
@@ -36,18 +43,18 @@ export const PERFEKTLAUF = 15
 
 /**
  * Der Jackpot für einen Perfektlauf: einmal je Run, sichtbar schon auf der Startseite.
- * Er läuft bewusst nicht über die XP-Kette – hier geht es um den Aufbau der Stadt,
- * nicht um den Rang.
+ * Er läuft bewusst nicht über die XP-Kette – hier geht es um den Tag der Stadt,
+ * nicht um den Rang: Die Uhr springt um sechs Stunden vor.
  */
-export const PERFEKT_LOHN = { coins: 1200, materials: 180 }
+export const PERFEKT_ZEIT = 6 * STUNDE_MS
 
-/** Dasselbe für eine fehlerfreie Kurs-Session */
-export const PERFEKT_LOHN_KURS = { coins: 1600, materials: 240 }
+/** Dasselbe für eine fehlerfreie Kurs-Session – acht Stunden */
+export const PERFEKT_ZEIT_KURS = 8 * STUNDE_MS
 
-/** Münzen und Material gutschreiben, ohne XP zu vergeben (Jackpots, Stadtereignisse) */
-export function grantCity(data: SaveData, coins: number, materials: number): SaveData {
-  if (!data.city) return data
-  return { ...data, city: grant(data.city, coins, materials) }
+/** Die Uhr der Stadt vorspulen, ohne XP zu vergeben (Jackpots, Stadtereignisse) */
+export function grantZeit(data: SaveData, ms: number): SaveData {
+  if (!data.city || ms <= 0) return data
+  return { ...data, city: vorspulen(data.city, ms) }
 }
 
 /** XP aus Spielen außerhalb der Quiz-Runs, z. B. dem Math Runner */

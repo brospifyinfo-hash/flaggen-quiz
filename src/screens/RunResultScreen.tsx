@@ -2,7 +2,8 @@ import { useEffect } from 'react'
 import { Confetti } from '../components/Confetti'
 import { RankCrest } from '../components/RankCrest'
 import { getMode } from '../modes/registry'
-import { achievementById, modeProgress, rankById } from '../progression'
+import { achievementById, modeProgress, PERFEKT_ZEIT, rankById } from '../progression'
+import { zeitText } from '../city/zeit'
 import { navigate } from '../router'
 import { RANDOM, startRun } from '../run'
 import { haptic } from '../haptics'
@@ -50,7 +51,7 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
         <div className="record-banner is-jackpot">
           <span aria-hidden="true">✨</span>
           <span>
-            Perfektlauf: <strong>🪙 {result.perfekt.coins.toLocaleString('de-DE')} · 🧱 {result.perfekt.materials}</strong> für deine Stadt
+            Perfektlauf: Die Uhr deiner Stadt springt <strong>⏩ {zeitText(result.perfekt.zeit ?? PERFEKT_ZEIT)}</strong> vor
           </span>
         </div>
       )}

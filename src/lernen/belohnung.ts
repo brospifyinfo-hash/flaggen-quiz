@@ -1,5 +1,5 @@
 // Belohnungen der Lernwelten – ausschließlich über die zentrale Kette in progression.ts:
-// creditXp vergibt XP für den Rang, Münzen und Material für die Stadt und Wissen für das Fach.
+// creditXp vergibt XP für den Rang, Zeitvorsprung für die Stadt und Wissen für das Fach.
 // Hier wird nur ausgerechnet, wie viel, und gemessen, was wirklich ankam.
 import { BUILDINGS, unlockInfo, type BuildingDef } from '../city/catalog'
 import { knowledgeLevel, levels, pointsOf } from '../knowledge'
@@ -48,22 +48,21 @@ export function wertung(punkte: number): Wertung {
 export interface Gutschrift {
   data: SaveData
   xp: number
-  muenzen: number
-  material: number
+  /** wie weit die Uhr der Stadt vorgesprungen ist, in ms */
+  zeit: number
   wissen: number
 }
 
 /** XP über die zentrale Kette gutschreiben und messen, was davon in Stadt und Fach ankam */
 export function gutschreiben(data: SaveData, xp: number, kurs: KursDef): Gutschrift {
   const menge = Math.max(0, Math.round(xp))
-  if (menge === 0) return { data, xp: 0, muenzen: 0, material: 0, wissen: 0 }
-  const vorher = { muenzen: data.city?.coins ?? 0, material: data.city?.materials ?? 0, wissen: pointsOf(data, kurs.domain) }
+  if (menge === 0) return { data, xp: 0, zeit: 0, wissen: 0 }
+  const vorher = { tick: data.city?.lastTick ?? 0, wissen: pointsOf(data, kurs.domain) }
   const nachher = creditXp(data, menge, modusVon(kurs.id))
   return {
     data: nachher,
     xp: menge,
-    muenzen: data.city ? (nachher.city?.coins ?? 0) - vorher.muenzen : 0,
-    material: data.city ? (nachher.city?.materials ?? 0) - vorher.material : 0,
+    zeit: data.city ? Math.max(0, vorher.tick - (nachher.city?.lastTick ?? vorher.tick)) : 0,
     wissen: pointsOf(nachher, kurs.domain) - vorher.wissen,
   }
 }

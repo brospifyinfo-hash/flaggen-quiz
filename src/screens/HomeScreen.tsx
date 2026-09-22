@@ -8,7 +8,9 @@ import { IconPlay, IconSettings } from '../components/Icons'
 import { haptic } from '../haptics'
 import { RankCrest } from '../components/RankCrest'
 import { kursById } from '../lernen/kurse'
-import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, PERFEKT_LOHN, PERFEKT_LOHN_KURS, rankFor, totalAnswered } from '../progression'
+import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, PERFEKT_ZEIT, PERFEKT_ZEIT_KURS, rankFor, totalAnswered } from '../progression'
+import { Tagesuhr, useTageszeit } from '../components/Tagesuhr'
+import { phaseInfo, zeitText } from '../city/zeit'
 import { navigate } from '../router'
 import { getMode } from '../modes/registry'
 import { RANDOM } from '../run'
@@ -27,6 +29,7 @@ export function HomeScreen({ data }: { data: SaveData }) {
   const beispiel = useMemo(() => createCity('Deine Stadt', '', '🏙️', 0), [])
   const kulisse = stadt ?? beispiel
   const einwohner = stadt ? statsOf(stadt).population : 0
+  const tag = useTageszeit(stadt)
 
   const gehe = (ziel: Parameters<typeof navigate>[0]) => {
     haptic('soft')
@@ -47,9 +50,12 @@ export function HomeScreen({ data }: { data: SaveData }) {
             <span className="home-stadt-text">
               <strong>{stadt ? stadt.name : 'Deine Stadt'}</strong>
               <small>
-                {stadt ? stadt.motto || `${cityTitle(stadt.level)} · Stufe ${stadt.level}` : 'Noch nicht gegründet'}
+                {stadt && tag
+                  ? `${phaseInfo(tag.phase).name} · ${cityTitle(stadt.level)} · Stufe ${stadt.level}`
+                  : 'Noch nicht gegründet'}
               </small>
             </span>
+            {tag && <Tagesuhr zeit={tag} size={38} className="home-uhr" />}
           </div>
           <button className="glas home-zahnrad" aria-label="Einstellungen" onClick={() => gehe({ name: 'settings' })}>
             <IconSettings />
@@ -150,9 +156,7 @@ export function HomeScreen({ data }: { data: SaveData }) {
                 ⚡
               </span>
               <strong>Schnelles Spiel</strong>
-              <small>
-                🪙 {zahl(PERFEKT_LOHN.coins)} · 🧱 {zahl(PERFEKT_LOHN.materials)}
-              </small>
+              <small>⏩ {zeitText(PERFEKT_ZEIT)} Vorsprung</small>
               <em>bei 100 %</em>
             </button>
             <button className="glas home-weg is-lernen" onClick={() => gehe({ name: 'kurse' })}>
@@ -160,9 +164,7 @@ export function HomeScreen({ data }: { data: SaveData }) {
                 🧠
               </span>
               <strong>Lernen</strong>
-              <small>
-                🪙 {zahl(PERFEKT_LOHN_KURS.coins)} · 🧱 {zahl(PERFEKT_LOHN_KURS.materials)}
-              </small>
+              <small>⏩ {zeitText(PERFEKT_ZEIT_KURS)} Vorsprung</small>
               <em>bei 100 %</em>
             </button>
           </div>

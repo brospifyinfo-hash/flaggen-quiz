@@ -1,10 +1,11 @@
-// Die Bilanz einer Session: Combo, XP, Münzen, Wissen, was sich verbessert hat – und was das
+// Die Bilanz einer Session: Combo, XP, Zeitvorsprung, Wissen, was sich verbessert hat – und was das
 // für die Stadt bedeutet. Wurde ein Gebäude frei, geht es mit einem Tipp direkt ans Bauen.
 import { useEffect } from 'react'
 import { buildingDef, unlockInfo } from '../../city/catalog'
 import { merkeBau } from '../../city/vormerkung'
 import { Confetti } from '../../components/Confetti'
 import { levels } from '../../knowledge'
+import { zeitText } from '../../city/zeit'
 import { achievementById } from '../../progression'
 import { navigate } from '../../router'
 import { setState } from '../../store'
@@ -70,12 +71,8 @@ export function ErgebnisScreen({ data }: { data: SaveData }) {
           <small>XP{b.bonus > 0 ? ` (inkl. +${b.bonus} Bonus)` : ''}</small>
         </span>
         <span>
-          <strong>🪙 +{b.muenzen.toLocaleString('de-DE')}</strong>
-          <small>{data.city ? 'Münzen' : 'Münzen, sobald du eine Stadt hast'}</small>
-        </span>
-        <span>
-          <strong>🧱 +{b.material}</strong>
-          <small>Material</small>
+          <strong>⏩ {data.city ? zeitText(b.zeit) : '–'}</strong>
+          <small>{data.city ? 'Uhr der Stadt vorgespult' : 'Zeitvorsprung, sobald du eine Stadt hast'}</small>
         </span>
         <span>
           <strong>🧠 +{b.wissen.toLocaleString('de-DE')}</strong>

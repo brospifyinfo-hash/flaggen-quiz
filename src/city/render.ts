@@ -12,6 +12,7 @@ import { kriminalitaetsfeld } from './society'
 import { nextExpansion, roadAt, seiteZurStrasse, tilesOf } from './state'
 import { themeById, type Theme } from './themes'
 import type { CityState, Placed } from './types'
+import { tagesLicht } from './zeit'
 
 export interface Camera {
   /** Weltpunkt, der in der Bildmitte liegt */
@@ -53,6 +54,8 @@ export interface DrawOptions {
   blick?: Blick
   /** Kriminalität je Kachel als rote Tönung zeigen */
   kriminalitaet?: boolean
+  /** Tagesstunde der Stadt (0 bis 24) – färbt das Licht über der Karte */
+  stunde?: number
 }
 
 /**
@@ -728,6 +731,19 @@ export function drawCity(
   }
 
   ctx.restore()
+
+  // Das Licht des Tages: morgens rosig, abends golden, nachts blau – über allem
+  if (options.stunde !== undefined) {
+    const licht = tagesLicht(options.stunde)
+    if (licht.alpha > 0.005) {
+      ctx.save()
+      ctx.globalCompositeOperation = 'multiply'
+      const [r, g, b] = licht.farbe
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${licht.alpha.toFixed(3)})`
+      ctx.fillRect(0, 0, view.w, view.h)
+      ctx.restore()
+    }
+  }
 }
 
 /**

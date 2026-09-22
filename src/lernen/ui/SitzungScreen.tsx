@@ -225,7 +225,7 @@ export function SitzungScreen({ data }: { data: SaveData }) {
       {fragen && (
         <ConfirmDialog
           title="Session beenden?"
-          text="Was du schon gespielt hast, bleibt dir – XP, Münzen und Wissen sind gutgeschrieben."
+          text="Was du schon gespielt hast, bleibt dir – XP, Zeitvorsprung und Wissen sind gutgeschrieben."
           confirmLabel="Beenden"
           onConfirm={aufhoeren}
           onCancel={() => setFragen(false)}

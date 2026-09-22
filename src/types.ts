@@ -166,8 +166,8 @@ export interface RunResult {
   records: string[]
   /** ID des neuen Rangs, falls in diesem Run aufgestiegen */
   rankUp: string | null
-  /** Perfektlauf geschafft: Münzen und Material aus dem Jackpot */
-  perfekt?: { coins: number; materials: number }
+  /** Perfektlauf geschafft: so viel Zeit ist die Uhr der Stadt vorgesprungen (ms) */
+  perfekt?: { zeit: number }
   finishedAt: number
 }
 

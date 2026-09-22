@@ -1,8 +1,9 @@
 // Ein Bürger bittet um Hilfe – mit einer Aufgabe aus einem Kurs. Gelöst gibt es Dank, XP,
-// Münzen, Wissen und bessere Stimmung (Nachbarschaftshilfe). Daneben fragt er später noch einmal.
+// Zeitvorsprung, Wissen und bessere Stimmung (Nachbarschaftshilfe). Daneben fragt er später noch einmal.
 import { useEffect, useRef, useState } from 'react'
 import { makeRequest, REQUEST_XP, type CityRequest } from '../../city/requests'
 import { setRequest, solveRequest } from '../../city/state'
+import { zeitText } from '../../city/zeit'
 import { IconBack } from '../../components/Icons'
 import { goBack, navigate } from '../../router'
 import { setState } from '../../store'
@@ -23,8 +24,8 @@ const GEHOLFEN_AB = 0.6
 interface Dank {
   geholfen: boolean
   xp: number
-  muenzen: number
-  material: number
+  /** wie weit die Uhr der Stadt vorgesprungen ist, in ms */
+  zeit: number
   wissen: number
 }
 
@@ -50,7 +51,7 @@ export function BitteScreen({ data }: { data: SaveData }) {
     erledigt.current = true
     const jetzt = Date.now()
     const geholfen = !e.uebersprungen && e.punkte >= GEHOLFEN_AB
-    let ergebnis: Dank = { geholfen, xp: 0, muenzen: 0, material: 0, wissen: 0 }
+    let ergebnis: Dank = { geholfen, xp: 0, zeit: 0, wissen: 0 }
     setState((current) => {
       const offen = current.city?.request as CityRequest | null | undefined
       if (!current.city || !offen || offen.id !== bitte.id) return current
@@ -61,14 +62,13 @@ export function BitteScreen({ data }: { data: SaveData }) {
         const frisch = kursBitte(next, bitte.buildingId, jetzt, { spiel: akt.spiel, wer }) ?? makeRequest(next, bitte.buildingId, jetzt)
         return { ...next, city: setRequest(next.city!, frisch ? { ...frisch, citizen: bitte.citizen } : null, jetzt) }
       }
-      const vorher = { muenzen: next.city!.coins, material: next.city!.materials }
+      const vorher = next.city!.lastTick
       next = { ...next, city: solveRequest(next.city!) }
       const gut = gutschreiben(next, REQUEST_XP + xpFuer(e.punkte, akt.stufe, 0, umfangVon(akt)), kurs)
       ergebnis = {
         geholfen,
         xp: gut.xp,
-        muenzen: (gut.data.city?.coins ?? 0) - vorher.muenzen,
-        material: (gut.data.city?.materials ?? 0) - vorher.material,
+        zeit: Math.max(0, vorher - (gut.data.city?.lastTick ?? vorher)),
         wissen: gut.wissen,
       }
       return gut.data
@@ -113,7 +113,7 @@ export function BitteScreen({ data }: { data: SaveData }) {
           <h2>{dank.geholfen ? `${bitte.citizen.name} ist dir dankbar!` : 'Nicht ganz – aber danke fürs Versuchen'}</h2>
           {dank.geholfen ? (
             <p className="lw-dank-beute">
-              ⭐ +{dank.xp} XP · 🪙 +{dank.muenzen.toLocaleString('de-DE')} · 🧱 +{dank.material} · 🧠 +{dank.wissen} {kurs.wissen}
+              ⭐ +{dank.xp} XP · ⏩ {zeitText(dank.zeit)} Vorsprung · 🧠 +{dank.wissen} {kurs.wissen}
             </p>
           ) : (
             <p className="lw-dank-beute">{bitte.citizen.name} fragt später noch einmal – mit einer neuen Aufgabe.</p>

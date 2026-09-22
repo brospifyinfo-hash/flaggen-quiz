@@ -21,7 +21,7 @@ export const KLASSE_NAME: Record<Klasse, string> = {
 
 const HINWEIS: Partial<Record<Category, string>> = {
   wohnen: 'Bei guter Stimmung bauen Zugezogene auch selbst – ohne dass du etwas bezahlst.',
-  handel: 'Arbeitsplätze gegen Arbeitslosigkeit, Einnahmen für die Stadtkasse. Jeder Betrieb lässt sich mehrfach ausbauen.',
+  handel: 'Arbeitsplätze und Einnahmen am Tagesabschluss. Lehmgrube, Ziegelei, Steinbruch und Baustoffwerk liefern Ziegel. Jeder Betrieb lässt sich mehrfach ausbauen.',
   dienste: 'Wachen rücken in ihrer Reichweite aus, wenn etwas passiert. Sie kosten Unterhalt. Ausbau vergrößert die Reichweite.',
   unterwelt:
     'Bringt Schwarzgeld und zieht Kriminalität an – Nachbarn beschweren sich und ziehen aus. Die Polizei hebt aus, was in ihrer Reichweite liegt. Die Hanfplantage hat 20 Ausbaustufen.',
@@ -36,6 +36,7 @@ function kurzwirkung(def: BuildingDef): string[] {
   if (e.police) liste.push(`🚓 ${e.police} Felder`)
   if (e.fire) liste.push(`🚒 ${e.fire} Felder`)
   if (e.health) liste.push(`🏥 ${e.health} Felder`)
+  if (e.ziegel) liste.push(`🧱 +${e.ziegel}/Tag`)
   if (e.black) liste.push(`💰 +${e.black}`)
   if (e.crime && e.crime > 0) liste.push(`🚨 +${e.crime}`)
   if (e.income && e.income > 0) liste.push(`🪙 +${e.income}`)

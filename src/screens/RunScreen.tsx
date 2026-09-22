@@ -3,7 +3,8 @@ import { IconCheck, IconClose, IconCross } from '../components/Icons'
 import { haptic } from '../haptics'
 import { ladeAlle } from '../lernen/kurse'
 import { getMode } from '../modes/registry'
-import { PERFEKT_LOHN, PERFEKTLAUF } from '../progression'
+import { PERFEKT_ZEIT, PERFEKTLAUF } from '../progression'
+import { zeitText } from '../city/zeit'
 import { requestPersistentStorage } from '../pwa'
 import { goBack, navigate } from '../router'
 import { RANDOM, answerRun, endRun, nextRunQuestion } from '../run'
@@ -114,7 +115,7 @@ export function RunScreen({ run }: { run: Run }) {
         )}
         {run.perfekt && run.answered === PERFEKTLAUF && (
           <span className="jackpot-pop" role="status">
-            Perfektlauf! 🪙 {PERFEKT_LOHN.coins.toLocaleString('de-DE')} · 🧱 {PERFEKT_LOHN.materials}
+            Perfektlauf! ⏩ {zeitText(PERFEKT_ZEIT)} Zeitvorsprung
           </span>
         )}
       </header>

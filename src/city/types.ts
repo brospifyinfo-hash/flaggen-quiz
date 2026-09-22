@@ -9,7 +9,9 @@
 // Version 7: Steuern, Zuzug mit eigenem Hausbau, Häuser, die Bürger selbst gebaut haben.
 // Version 8: Rathaus, Beschwerden und Leerstand – Bewohner ziehen aus, Häuser verfallen.
 // Version 9: Leerstand entschärft – nur noch wegen konkreter Nachbarn, nie mehr als ein Fünftel.
-export const CITY_VERSION = 9
+// Version 10: Der Tag der Stadt – ein Zyklus dauert 24 Stunden, bringt Münzen und Ziegel,
+//             Quiz und Kurse spulen die Uhr vor statt Geld zu bringen.
+export const CITY_VERSION = 10
 
 /** Eine laufende Beschwerde der Bewohner eines Hauses */
 export interface Beschwerde {
@@ -58,7 +60,7 @@ export interface CityState {
   roads: Record<string, string>
   /** Menschen, die wirklich hier wohnen – höchstens so viele wie Wohnraum da ist */
   population: number
-  /** Zeitpunkt des letzten Wirtschaftszyklus */
+  /** Beginn des laufenden Tages der Stadt – Vorspulen rückt ihn nach hinten, siehe zeit.ts */
   lastTick: number
   /** offene Bitte eines Bürgers, siehe src/city/requests.ts */
   request: unknown
@@ -82,11 +84,15 @@ export interface Part {
 
 /** Was seit dem letzten Besuch passiert ist */
 export interface CycleReport {
+  /** abgeschlossene Tage */
   cycles: number
   coins: number
+  /** gelieferte Ziegel */
+  materials: number
   movedIn: number
   movedOut: number
   income: Part[]
+  ziegel: Part[]
   /** was Bürger in der Zwischenzeit selbst gebaut haben */
   gebaut: string[]
   /** Razzien, neue dunkle Geschäfte, Auszüge und anderes, das man wissen sollte */
@@ -100,7 +106,10 @@ export interface CityStats {
   happiness: number
   education: number
   environment: number
+  /** Münzen je Tag */
   income: number
+  /** Ziegel je Tag */
+  ziegel: number
   jobs: number
   buildings: number
 }

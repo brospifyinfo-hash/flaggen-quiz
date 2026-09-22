@@ -1,7 +1,7 @@
 // Die Session als Zustandsmaschine – reine Funktionen auf dem Spielstand.
 // Starten → Aktivität spielen → abrechnen → nächste → … → Bilanz. Jede Aktivität wird genau
 // einmal abgerechnet; wer mittendrin aufhört, behält, was schon verdient ist.
-import { checkAchievements, grantCity, PERFEKT_LOHN_KURS } from '../progression'
+import { checkAchievements, grantZeit, PERFEKT_ZEIT_KURS } from '../progression'
 import { pointsOf } from '../knowledge'
 import type { ModeProgress, SaveData } from '../types'
 import { GESCHAFFT_AB, gutschreiben, modusVon, neuFreigeschaltet, PERFEKT_BONUS, xpFuer } from './belohnung'
@@ -140,8 +140,7 @@ export function starteSitzung(
     combo: 0,
     bestCombo: 0,
     xp: 0,
-    muenzen: 0,
-    material: 0,
+    zeit: 0,
     wissen: 0,
     vorher: { ziele: vorherZiele, punkte: pointsOf(data, kurs.domain) },
     gesehen: itemIds(aktuell),
@@ -178,8 +177,7 @@ export function schliesseAb(data: SaveData, roh: AktivitaetsErgebnis, jetzt = Da
     bestCombo: Math.max(s.bestCombo, combo),
     bilanz: [...s.bilanz, { spiel: akt.spiel, ziel: akt.ziel, stufe: akt.stufe, punkte: ergebnis.punkte, xp: gut.xp }],
     xp: s.xp + gut.xp,
-    muenzen: s.muenzen + gut.muenzen,
-    material: s.material + gut.material,
+    zeit: s.zeit + gut.zeit,
     wissen: s.wissen + gut.wissen,
     erfolge: [...s.erfolge, ...geprueft.unlocked],
   }
@@ -236,8 +234,8 @@ export function beende(data: SaveData, jetzt = Date.now()): SaveData {
   const perfekt = s.bilanz.length === s.laenge && s.laenge >= 3 && s.bilanz.every((b) => b.punkte >= 0.9)
   const bonus = perfekt ? gutschreiben(data, PERFEKT_BONUS, kurs) : null
   let next = bonus?.data ?? data
-  // Dazu der Jackpot für die Stadt – Münzen und Steine, ohne den Rang zu verzerren
-  if (perfekt) next = grantCity(next, PERFEKT_LOHN_KURS.coins, PERFEKT_LOHN_KURS.materials)
+  // Dazu der Jackpot für die Stadt – die Uhr springt vor, ohne den Rang zu verzerren
+  if (perfekt) next = grantZeit(next, PERFEKT_ZEIT_KURS)
   next = mitKurs(next, s.kurs, (stand) => ({
     ...stand,
     sitzungen: stand.sitzungen + 1,
@@ -260,8 +258,7 @@ export function beende(data: SaveData, jetzt = Date.now()): SaveData {
     laenge: s.laenge,
     aktivitaeten: s.bilanz,
     xp: s.xp + (bonus?.xp ?? 0),
-    muenzen: s.muenzen + (bonus?.muenzen ?? 0) + (perfekt ? PERFEKT_LOHN_KURS.coins : 0),
-    material: s.material + (bonus?.material ?? 0) + (perfekt ? PERFEKT_LOHN_KURS.materials : 0),
+    zeit: s.zeit + (bonus?.zeit ?? 0) + (perfekt && data.city ? PERFEKT_ZEIT_KURS : 0),
     wissen: s.wissen + (bonus?.wissen ?? 0),
     bestCombo: s.bestCombo,
     perfekt,

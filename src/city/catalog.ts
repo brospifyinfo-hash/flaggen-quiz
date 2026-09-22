@@ -216,6 +216,8 @@ export interface Effects {
   health?: number
   /** Unversteuerte Einnahmen aus dunklen Geschäften */
   black?: number
+  /** Ziegel, die dieses Werk jeden Tag liefert */
+  ziegel?: number
 }
 
 /** Ein Wissensgebiet auf einer Mindeststufe */
@@ -766,6 +768,7 @@ function ausbauFuer(def: BuildingDef): Ausbau[] | undefined {
         (s) => ({
           ...e,
           income: wachs(e.income, 1.55, s),
+          ziegel: wachs(e.ziegel, 1.5, s),
           jobs: wachs(e.jobs, 1.35, s),
           happiness: e.happiness === undefined ? undefined : e.happiness + Math.floor(s / 2) * Math.sign(e.happiness || 1),
           capacity: wachs(e.capacity, 1.3, s),

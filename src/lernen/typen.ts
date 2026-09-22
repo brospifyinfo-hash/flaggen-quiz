@@ -546,8 +546,8 @@ export interface KursSitzung {
   combo: number
   bestCombo: number
   xp: number
-  muenzen: number
-  material: number
+  /** Zeitvorsprung für die Stadt in dieser Session, in ms */
+  zeit: number
   wissen: number
   vorher: { ziele: Record<string, number>; punkte: number }
   /** in dieser Session schon gezeigte Inhalte – kommen nicht noch einmal */
@@ -562,8 +562,8 @@ export interface SitzungsBilanz {
   laenge: number
   aktivitaeten: AktivitaetsBilanz[]
   xp: number
-  muenzen: number
-  material: number
+  /** Zeitvorsprung für die Stadt, in ms */
+  zeit: number
   wissen: number
   bestCombo: number
   perfekt: boolean
