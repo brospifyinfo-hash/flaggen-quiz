@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { IconBack, IconCheck, IconClose } from '../components/Icons'
 import {
+  RATHAUS,
   ROADS,
   buildingDef,
   effectsOf,
@@ -11,6 +12,7 @@ import {
   unlockInfo,
   type Category,
 } from '../city/catalog'
+import { AUSZUG_NACH, beschwerdenVon, leerstandSchritt, leerstandVon, wohnlageVon } from '../city/leerstand'
 import { nimmVorgemerkt } from '../city/vormerkung'
 import { istKursBitte } from '../lernen/bitten'
 import { ladeAlle } from '../lernen/kurse'
@@ -31,9 +33,12 @@ import {
   paveCost,
   place,
   problemsOf,
+  rathausVon,
   remove,
   rename,
   roadKey,
+  sanieren,
+  sanierungsKosten,
   setTheme,
   statsOf,
   unpave,
@@ -66,7 +71,7 @@ import {
   makeRequest,
   type CityRequest,
 } from '../city/requests'
-import type { CycleReport } from '../city/types'
+import type { CycleReport, Placed } from '../city/types'
 import { DOMAINS, knowledgeLevel, levels as knowledgeLevels, pointsOf } from '../knowledge'
 import { getMode } from '../modes/registry'
 import { creditXp } from '../progression'
@@ -234,13 +239,18 @@ function CityWorld({ data }: { data: SaveData }) {
     for (const e of liste) {
       if (e.art === 'razzia') {
         let beute = 0
+        let zerstoert = true
+        let name = ''
         setState((current) => {
           if (!current.city) return current
+          name = buildingDef(current.city.buildings.find((b) => b.id === e.ort)?.type ?? '')?.name ?? ''
           const r = razzia(current.city, e.ort)
           beute = r.beute
+          zerstoert = r.zerstoert
           return r.beute > 0 ? { ...current, city: r.city } : current
         })
-        melde(beute > 0 ? `${e.text} ${beute} 🪙 beschlagnahmt.` : e.text)
+        if (beute > 0 && !zerstoert) melde(`🚔 Razzia: ${name} verliert eine Ausbaustufe, ${beute} 🪙 beschlagnahmt.`)
+        else melde(beute > 0 ? `${e.text} ${beute} 🪙 beschlagnahmt.` : e.text)
         haptic('success')
       } else {
         melde(e.text)
@@ -292,11 +302,23 @@ function CityWorld({ data }: { data: SaveData }) {
     let naechsterZuzug = start + 12_000
     let naechsterBau = start + 18_000
     let naechsteUnterwelt = start + 100_000
+    let naechsteBeschwerde = start + 20_000
     const takt = window.setInterval(() => {
       const jetzt = performance.now()
       const stadt = getState().city
       if (!stadt) return
       const stimmung = happinessBreakdown(stadt).total
+
+      // Wo die Wohnlage nicht stimmt, wird gemurrt – und wer lange genug murrt, geht
+      if (jetzt >= naechsteBeschwerde) {
+        naechsteBeschwerde = jetzt + 25_000
+        const schritt = leerstandSchritt(stadt, Date.now(), stimmung)
+        if (schritt.city !== stadt) {
+          setState((current) => (current.city === stadt ? { ...current, city: schritt.city } : current))
+          for (const text of schritt.meldungen) melde(text)
+          if (schritt.meldungen.some((m) => m.startsWith('🏚️'))) haptic('strong')
+        }
+      }
 
       if (jetzt >= naechsterZuzug) {
         naechsterZuzug = jetzt + 15_000
@@ -634,11 +656,12 @@ function CityWorld({ data }: { data: SaveData }) {
       const hit = hitTest(state.city, punkt.wx, punkt.wy)
       if (hit) {
         setSelected(hit.id)
-        setMode('select')
+        // Das Rathaus öffnet den Stadtbericht – der einzige Weg dorthin
+        setMode(hit.type === RATHAUS ? 'report' : 'select')
         haptic('soft')
       } else {
         setSelected(null)
-        if (state.mode === 'select') setMode('view')
+        if (state.mode === 'select' || state.mode === 'report') setMode('view')
       }
     }
 
@@ -744,12 +767,35 @@ function CityWorld({ data }: { data: SaveData }) {
   }
 
   const doRemove = () => {
-    if (!chosen) return
+    if (!chosen || chosen.type === RATHAUS) return
     const id = chosen.id
     haptic('strong')
     setState((current) => (current.city ? { ...current, city: remove(current.city, id) } : current))
     setSelected(null)
     setMode('view')
+  }
+
+  const doSanieren = () => {
+    if (!chosen || !chosen.verlassen) return
+    const kosten = sanierungsKosten(chosen)
+    if (city.coins < kosten.coins || city.materials < kosten.materials) {
+      say(`Für die Sanierung fehlen dir ${Math.max(0, kosten.coins - city.coins)} Münzen und ${Math.max(0, kosten.materials - city.materials)} Materialien.`)
+      return
+    }
+    const id = chosen.id
+    haptic('celebrate')
+    setState((current) => (current.city ? { ...current, city: sanieren(current.city, id) } : current))
+    melde('🔨 Das Haus ist saniert. Bei guter Wohnlage ziehen bald wieder Menschen ein.')
+  }
+
+  /** Kamera zum Rathaus – dort ist der Stadtbericht */
+  const zumRathaus = () => {
+    const rathaus = rathausVon(city)
+    if (!rathaus) return
+    const ziel = toScreen(rathaus.x + 1, rathaus.y + 1)
+    camera.current = { x: ziel.sx, y: ziel.sy - 20, zoom: Math.max(camera.current.zoom, 1.4) }
+    setSelected(rathaus.id)
+    haptic('tick')
   }
 
   const doExpand = () => {
@@ -1210,12 +1256,24 @@ function CityWorld({ data }: { data: SaveData }) {
         {mode === 'report' && !cycle && (
           <div className="city-sheet">
             <div className="city-sheet-head">
-              <strong>Stadtbericht</strong>
-              <button className="city-close" aria-label="Schließen" onClick={() => setMode('view')}>
+              <strong>🏛️ Rathaus · Stadtbericht</strong>
+              <button
+                className="city-close"
+                aria-label="Schließen"
+                onClick={() => {
+                  setSelected(null)
+                  setMode('view')
+                }}
+              >
                 <IconClose />
               </button>
             </div>
             <div className="city-list">
+              <p className="city-hint">
+                {cityTitle(city.level)} · Stufe {city.level} · Rathaus-Ausbau {rathausVon(city)?.level ?? 1} von{' '}
+                {maxLevel(buildingDef(RATHAUS)!)}. Das Rathaus wächst alle drei Stadt-Stufen um einen Anbau.
+              </p>
+
               <p className="city-label-line">😊 Stimmung {stats.happiness} %</p>
               <ul className="city-effects">
                 {happinessBreakdown(city).parts.map((part) => (
@@ -1369,6 +1427,26 @@ function CityWorld({ data }: { data: SaveData }) {
                 })}
               </ul>
 
+              <p className="city-label-line">🏚️ Wohnen und Leerstand</p>
+              <ul className="city-effects">
+                <li>
+                  👥 Bewohner <strong>{stats.population.toLocaleString('de-DE')}</strong>
+                </li>
+                <li>
+                  🏠 Wohnraum <strong>{stats.capacity.toLocaleString('de-DE')}</strong>
+                </li>
+                <li>
+                  😠 Häuser mit Beschwerden <strong>{beschwerdenVon(city)}</strong>
+                </li>
+                <li>
+                  🏚️ Leerstehende Häuser <strong>{leerstandVon(city)}</strong>
+                </li>
+              </ul>
+              <p className="city-hint">
+                Wer sich beschwert, zieht nach ein paar Minuten aus, wenn sich nichts ändert. Das Haus bleibt als Ruine stehen –
+                du kannst es sanieren oder abreißen.
+              </p>
+
               <p className="city-label-line">
                 👥 {stats.population.toLocaleString('de-DE')} von {stats.capacity.toLocaleString('de-DE')} Plätzen belegt
               </p>
@@ -1475,11 +1553,13 @@ function CityWorld({ data }: { data: SaveData }) {
         {mode === 'select' && chosen && chosenDef && (
           <div className="city-detail">
             <div className="city-detail-head">
-              <span className="city-card-emoji">{chosenDef.emoji}</span>
+              <span className="city-card-emoji">{chosen.verlassen ? '🏚️' : chosenDef.emoji}</span>
               <span className="city-card-body">
-                <strong>{chosenDef.name}</strong>
+                <strong>{chosen.verlassen ? `${chosenDef.name} – verlassen` : chosenDef.name}</strong>
                 <span>
-                  Stufe {chosen.level} von {maxLevel(chosenDef)}
+                  {chosen.verlassen
+                    ? `Leer seit ${dauerText(Date.now() - chosen.verlassen)}`
+                    : `Stufe ${chosen.level} von ${maxLevel(chosenDef)}`}
                 </span>
               </span>
               <button
@@ -1493,14 +1573,34 @@ function CityWorld({ data }: { data: SaveData }) {
                 <IconClose />
               </button>
             </div>
-            <ul className="city-effects">
-              {wirkungsListe(effectsOf(chosenDef, chosen.level)).map(([label, wert]) => (
-                <li key={label}>
-                  {label} <strong>{wert}</strong>
-                </li>
-              ))}
-            </ul>
-            {chosenDef.category === 'wohnen' && chosenDef.effects.klasse && (
+            {chosen.verlassen ? (
+              <p className="city-hint">
+                🏚️ Die Bewohner sind ausgezogen. Das Haus bringt nichts mehr, zieht Gesindel an und drückt die Stimmung der Nachbarn.
+                Sanieren kostet die Hälfte des Neupreises – danach ziehen wieder Menschen ein, wenn die Wohnlage stimmt.
+              </p>
+            ) : (
+              <ul className="city-effects">
+                {wirkungsListe(effectsOf(chosenDef, chosen.level)).map(([label, wert]) => (
+                  <li key={label}>
+                    {label} <strong>{wert}</strong>
+                  </li>
+                ))}
+                {nextUpgrade(chosenDef, chosen.level) && chosen.type !== RATHAUS && (
+                  <li className="city-naechste-stufe">
+                    ⬆ Nächste Stufe:{' '}
+                    {wirkungsListe(nextUpgrade(chosenDef, chosen.level)!.effects)
+                      .filter(([l]) => /Einnahmen|Schwarzgeld|Wohnraum|Arbeit|Bildung|Reichweite/.test(l))
+                      .slice(0, 3)
+                      .map(([l, w]) => `${l.replace(/^\S+\s/, '')} ${w}`)
+                      .join(' · ')}
+                  </li>
+                )}
+              </ul>
+            )}
+            {!chosen.verlassen && chosenDef.category === 'wohnen' && chosenDef.effects.capacity && (
+              <WohnlageZeile city={city} placed={chosen} stimmung={stats.happiness} />
+            )}
+            {!chosen.verlassen && chosenDef.category === 'wohnen' && chosenDef.effects.klasse && (
               <ul className="city-bewohner">
                 {[0, 1].map((nr) => {
                   const b = bewohnerVon(chosen, nr, chosenDef.effects.klasse!)
@@ -1514,44 +1614,112 @@ function CityWorld({ data }: { data: SaveData }) {
                 <li className="city-bewohner-klasse">{WOHNLAGE[chosenDef.effects.klasse]}</li>
               </ul>
             )}
-            {chosen.auto && <p className="city-hint">🏡 Von Zugezogenen selbst gebaut.</p>}
+            {chosen.auto && !chosen.verlassen && <p className="city-hint">🏡 Von Zugezogenen selbst gebaut.</p>}
             {chosenDef.category === 'unterwelt' && (
               <p className="city-hint">
                 {razziaMoeglich(city, chosen)
-                  ? '🚔 Eine Polizeiwache ist in Reichweite – hier droht eine Razzia.'
+                  ? chosen.level > 1
+                    ? '🚔 Eine Polizeiwache ist in Reichweite – bei einer Razzia verliert der Betrieb eine Ausbaustufe.'
+                    : '🚔 Eine Polizeiwache ist in Reichweite – hier droht eine Razzia.'
                   : '🕶️ Keine Polizei in Reichweite. Noch.'}
               </p>
             )}
-            <div className="city-place-row">
-              <button className="city-btn" onClick={startMoving}>
-                ✥ Versetzen
-              </button>
-              {nextUpgrade(chosenDef, chosen.level) ? (
-                <button className="city-btn city-btn-main" onClick={doUpgrade}>
-                  ⬆ Ausbauen · 🪙 {nextUpgrade(chosenDef, chosen.level)?.coins}
+            {chosen.type === RATHAUS ? (
+              <div className="city-place-row">
+                <button className="city-btn" onClick={startMoving}>
+                  ✥ Versetzen
                 </button>
-              ) : (
-                <span className="city-btn is-flat">Voll ausgebaut</span>
-              )}
-              <button className="city-btn city-btn-bad" onClick={doRemove}>
-                Abreißen
-              </button>
-            </div>
+                <button className="city-btn city-btn-main" onClick={() => setMode('report')}>
+                  📊 Stadtbericht
+                </button>
+              </div>
+            ) : chosen.verlassen ? (
+              <div className="city-place-row">
+                <button className="city-btn city-btn-main" onClick={doSanieren}>
+                  🔨 Sanieren · 🪙 {sanierungsKosten(chosen).coins}
+                  {sanierungsKosten(chosen).materials > 0 && ` · 🧱 ${sanierungsKosten(chosen).materials}`}
+                </button>
+                <button className="city-btn city-btn-bad" onClick={doRemove}>
+                  Abreißen
+                </button>
+              </div>
+            ) : (
+              <div className="city-place-row">
+                <button className="city-btn" onClick={startMoving}>
+                  ✥ Versetzen
+                </button>
+                {nextUpgrade(chosenDef, chosen.level) ? (
+                  <button className="city-btn city-btn-main" onClick={doUpgrade}>
+                    ⬆ Ausbauen · 🪙 {nextUpgrade(chosenDef, chosen.level)?.coins.toLocaleString('de-DE')}
+                  </button>
+                ) : (
+                  <span className="city-btn is-flat">Voll ausgebaut</span>
+                )}
+                <button className="city-btn city-btn-bad" onClick={doRemove}>
+                  Abreißen
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      <button className="city-foot" onClick={() => setMode(mode === 'report' ? 'view' : 'report')}>
+      <button className="city-foot" onClick={zumRathaus} aria-label="Zum Rathaus – dort steht der Stadtbericht">
         <span className="bar">
           <span style={{ width: `${Math.min(100, (progress.into / progress.need) * 100)}%` }} />
         </span>
         <span className="city-foot-text">
-          😊 {stats.happiness}% · 🪙 {stats.income}/Zyklus · 🎓 {stats.education} · 🛣️{' '}
-          {Object.keys(city.roads).length} · 🏗️ {stats.buildings}
+          🏛️ Stadtbericht im Rathaus · 😊 {stats.happiness}% · 🪙 {stats.income}/Zyklus
+          {beschwerdenVon(city) > 0 && ` · 😠 ${beschwerdenVon(city)}`}
+          {leerstandVon(city) > 0 && ` · 🏚️ ${leerstandVon(city)}`}
         </span>
       </button>
     </main>
   )
+}
+
+/** Die Wohnlage eines Hauses, aufgeschlüsselt – und ob die Bewohner murren */
+function WohnlageZeile({ city, placed, stimmung }: { city: NonNullable<SaveData['city']>; placed: Placed; stimmung: number }) {
+  const lage = wohnlageVon(city, placed, stimmung)
+  const farbe = lage.wert >= 48 ? '#3ce08a' : lage.wert >= 38 ? '#ffb020' : '#ff5f7a'
+  const rest = placed.beschwerde ? Math.max(0, AUSZUG_NACH - (Date.now() - placed.beschwerde.seit)) : 0
+  return (
+    <div className="city-wohnlage">
+      <div className="city-sicherheit-zeile">
+        <span>🏡 Wohnlage</span>
+        <span className="bar">
+          <span style={{ width: `${lage.wert}%`, background: farbe }} />
+        </span>
+        <strong>{lage.wert} %</strong>
+      </div>
+      <ul className="city-effects">
+        {lage.parts.map((part) => (
+          <li key={part.label}>
+            {part.label} <strong>{part.value > 0 ? `+${part.value}` : part.value}</strong>
+          </li>
+        ))}
+      </ul>
+      {placed.beschwerde ? (
+        <p className="city-hint city-hint-warn">
+          😠 Die Bewohner beschweren sich über {placed.beschwerde.grund}. Ändert sich nichts, ziehen sie in etwa{' '}
+          {dauerText(rest)} aus.
+        </p>
+      ) : lage.wert < 48 ? (
+        <p className="city-hint">Die Wohnlage ist knapp. Sinkt sie unter 38 %, beginnen die Beschwerden.</p>
+      ) : null}
+    </div>
+  )
+}
+
+/** "3 Minuten", "40 Sekunden", "2 Stunden" */
+function dauerText(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000))
+  if (s < 60) return `${s} Sekunden`
+  const m = Math.round(s / 60)
+  if (m < 60) return m === 1 ? 'einer Minute' : `${m} Minuten`
+  const h = Math.round(m / 60)
+  if (h < 48) return h === 1 ? 'einer Stunde' : `${h} Stunden`
+  return `${Math.round(h / 24)} Tagen`
 }
 
 /** Was ein Gebäude bewirkt, lesbar – Klasse und Reichweiten eigens beschrieben */

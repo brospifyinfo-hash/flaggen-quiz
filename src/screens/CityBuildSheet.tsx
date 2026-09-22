@@ -21,9 +21,10 @@ export const KLASSE_NAME: Record<Klasse, string> = {
 
 const HINWEIS: Partial<Record<Category, string>> = {
   wohnen: 'Bei guter Stimmung bauen Zugezogene auch selbst – ohne dass du etwas bezahlst.',
-  handel: 'Arbeitsplätze gegen Arbeitslosigkeit, Einnahmen für die Stadtkasse.',
-  dienste: 'Wachen rücken in ihrer Reichweite aus, wenn etwas passiert. Sie kosten Unterhalt.',
-  unterwelt: 'Bringt Schwarzgeld und zieht Kriminalität an. Die Polizei hebt aus, was in ihrer Reichweite liegt.',
+  handel: 'Arbeitsplätze gegen Arbeitslosigkeit, Einnahmen für die Stadtkasse. Jeder Betrieb lässt sich mehrfach ausbauen.',
+  dienste: 'Wachen rücken in ihrer Reichweite aus, wenn etwas passiert. Sie kosten Unterhalt. Ausbau vergrößert die Reichweite.',
+  unterwelt:
+    'Bringt Schwarzgeld und zieht Kriminalität an – Nachbarn beschweren sich und ziehen aus. Die Polizei hebt aus, was in ihrer Reichweite liegt. Die Hanfplantage hat 20 Ausbaustufen.',
 }
 
 /** Die zwei, drei Zahlen, auf die es bei diesem Gebäude ankommt */

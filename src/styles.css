@@ -3862,6 +3862,29 @@ svg {
   border-radius: 99px;
 }
 
+/* Wohnlage eines Hauses in der Detailkarte */
+.city-wohnlage {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.city-wohnlage .city-effects {
+  margin: 0;
+}
+
+.city-hint-warn {
+  color: #ffb3c0;
+}
+
+.city-naechste-stufe {
+  flex-basis: 100%;
+  color: rgb(255 255 255 / 0.6);
+}
+
 /* Bewohner in der Detailkarte */
 .city-bewohner {
   display: grid;

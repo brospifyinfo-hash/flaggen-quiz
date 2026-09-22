@@ -22,7 +22,7 @@ const FLACH = new Set(['baum', 'bank', 'laterne', 'blumen', 'hecke', 'felsen', '
 
 /** Höhe eines Bauwerks in Bildpunkten. Jede Stufe legt spürbar zu. */
 export function bauHoehe(look: Look, level: number): number {
-  return TILE_H * (look.height + (level - 1) * 0.45)
+  return TILE_H * (look.height + (level - 1) * (look.stufenHoehe ?? 0.45))
 }
 
 /**
@@ -757,8 +757,116 @@ export function drawBuilding(
 ): void {
   const def = buildingDef(placed.type)
   if (!def) return
+  if (placed.verlassen) {
+    zeichneRuine(ctx, placed, def.look, time, theme, fein, vorn)
+    return
+  }
+  zeichneBauwerk(ctx, placed, def.look, time, theme, fein, vorn)
+}
+
+/** Gedeckte, abgeblätterte Töne für Häuser, in denen niemand mehr wohnt */
+const RUINENFARBEN = ['#8a8478', '#7d7a70', '#8f8677', '#7a7f7c', '#888078']
+const RUINENDACH = ['#4a4744', '#54504a', '#454a4c']
+
+/**
+ * Ein verlassenes Haus: Der Putz ist grau, die Fenster sind dunkel oder vernagelt,
+ * Efeu und Graffiti an der Wand, Müll und Unkraut davor. Niemand geht hinein.
+ */
+function zeichneRuine(
+  ctx: CanvasRenderingContext2D,
+  placed: Placed,
+  look: Look,
+  time: number,
+  theme: Theme,
+  fein: boolean,
+  vorn: Seite,
+): void {
+  const def = buildingDef(placed.type)
+  if (!def) return
   const [w, h] = footprint(def, placed.rot)
-  const look = def.look
+  const seed = hashOf(placed.id + placed.type)
+  const stufe = Math.max(1, placed.level)
+
+  const verfallen: Look = {
+    ...look,
+    wall: RUINENFARBEN[seed % RUINENFARBEN.length],
+    roof: RUINENDACH[seed % RUINENDACH.length],
+    accent: '#3a3835',
+    stil: look.stil
+      ? {
+          ...look.stil,
+          farben: RUINENFARBEN,
+          dachfarben: RUINENDACH,
+          fenster: 'dunkel',
+          extras: [...(look.stil.extras ?? []).filter((e) => !['solar', 'pool', 'tische', 'markise', 'leuchtschrift', 'schild', 'fahrrad'].includes(e)), 'graffiti', 'muell', 'efeu'],
+          vielleicht: [],
+          neon: undefined,
+          schild: undefined,
+        }
+      : undefined,
+  }
+  zeichneBauwerk(ctx, { ...placed, at: 0 }, verfallen, time, theme, fein, vorn)
+
+  // Unkraut am Rand des Grundstücks und vernagelte Fenster, wenn man nah genug dran ist
+  if (!fein) return
+  const ein = einzug(look, stufe)
+  const grund: Grund = { x: placed.x + ein, y: placed.y + ein, w: w - ein * 2, h: h - ein * 2 }
+  const hoehe = bauHoehe(look, stufe)
+  ctx.save()
+  ctx.fillStyle = 'rgba(78,110,52,0.85)'
+  for (let i = 0; i < 6 + w * h * 2; i++) {
+    const u = wobble(seed, 200 + i)
+    const v = wobble(seed, 300 + i)
+    const rand = i % 2 === 0
+    const px = placed.x + (rand ? u : v < 0.5 ? 0.05 : 0.95) * w
+    const py = placed.y + (rand ? (v < 0.5 ? 0.05 : 0.95) : u) * h
+    const p = toScreen(px, py)
+    ctx.beginPath()
+    ctx.ellipse(p.sx, p.sy, 2.4 + u * 2, 1.6 + v * 1.4, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(p.sx, p.sy)
+    ctx.lineTo(p.sx - 1.5 + u * 3, p.sy - 4 - v * 3)
+    ctx.strokeStyle = 'rgba(78,110,52,0.9)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
+  // Bretter über den Fenstern der sichtbaren Wände
+  const wandListe = waende(grund)
+  ctx.strokeStyle = '#5c4a36'
+  ctx.lineWidth = 2
+  ctx.lineCap = 'round'
+  for (const seite of SEITEN) {
+    const wand = wandListe[seite]
+    if (!wand.sichtbar) continue
+    const n = Math.max(1, Math.round(Math.hypot(wand.b.sx - wand.a.sx, wand.b.sy - wand.a.sy) / 22))
+    for (let i = 0; i < n; i++) {
+      if (wobble(seed, 400 + i + seite.charCodeAt(0)) < 0.35) continue
+      const m = mix(wand.a, wand.b, (i + 0.5) / n)
+      const y = m.sy - hoehe * (0.35 + 0.3 * wobble(seed, 500 + i))
+      ctx.beginPath()
+      ctx.moveTo(m.sx - 5, y - 5)
+      ctx.lineTo(m.sx + 5, y + 5)
+      ctx.moveTo(m.sx + 5, y - 5)
+      ctx.lineTo(m.sx - 5, y + 5)
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+}
+
+function zeichneBauwerk(
+  ctx: CanvasRenderingContext2D,
+  placed: Placed,
+  look: Look,
+  time: number,
+  theme: Theme,
+  fein: boolean,
+  vorn: Seite,
+): void {
+  const def = buildingDef(placed.type)
+  if (!def) return
+  const [w, h] = footprint(def, placed.rot)
   const seed = hashOf(placed.id + placed.type)
   const stufe = Math.max(1, placed.level)
 

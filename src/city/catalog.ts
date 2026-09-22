@@ -192,6 +192,8 @@ export interface Look {
   floors?: number
   /** Nur bei kind 'bau': woraus das Gebäude zusammengesetzt ist */
   stil?: Stil
+  /** Wie viel das Gebäude je Ausbaustufe an Höhe zulegt, in Kachelhöhen (Standard 0.45) */
+  stufenHoehe?: number
 }
 
 export interface Effects {
@@ -239,9 +241,20 @@ export interface BuildingDef {
   /** Kurzbeschreibung in der Bauauswahl */
   note: string
   look: Look
-  /** Ausbaustufen: Aufpreis und was besser wird */
-  upgrades?: { coins: number; materials: number; effects: Effects }[]
+  /** Ausbaustufen: Aufpreis und was besser wird. Fehlen sie, werden sie aus der Wirkung abgeleitet. */
+  upgrades?: Ausbau[]
+  /** Steht von Anfang an in der Stadt und taucht nicht im Baumenü auf – das Rathaus */
+  nichtBaubar?: boolean
 }
+
+export interface Ausbau {
+  coins: number
+  materials: number
+  effects: Effects
+}
+
+/** Das Rathaus: einmalig, wächst mit der Stadt-Stufe, öffnet den Stadtbericht */
+export const RATHAUS = 'rathaus'
 
 export const BUILDINGS: BuildingDef[] = [
   // ---------- Wohnen ----------
@@ -655,6 +668,46 @@ export const BUILDINGS: BuildingDef[] = [
     look: { kind: 'fahne', height: 1.1, wall: '#d7dbe2', roof: '#e0623d', accent: '#ffd23f' },
   },
 
+  // ---------- Rathaus ----------
+  {
+    id: RATHAUS,
+    name: 'Rathaus',
+    category: 'dienste',
+    emoji: '🏛️',
+    size: [2, 2],
+    coins: 0,
+    materials: 0,
+    effects: { jobs: 6, happiness: 3 },
+    nichtBaubar: true,
+    note: 'Sitz der Verwaltung. Antippen zeigt den Stadtbericht. Wächst mit jeder Stadt-Stufe.',
+    look: {
+      kind: 'bau',
+      height: 1.5,
+      wall: '#efe3c8',
+      roof: '#5a6b7a',
+      accent: '#8c6f3f',
+      floors: 2,
+      stufenHoehe: 0.32,
+      stil: {
+        dach: 'walm',
+        fassade: 'stein',
+        fenster: 'bogen',
+        unten: 'eingang',
+        farben: ['#efe3c8'],
+        dachfarben: ['#5a6b7a'],
+        extras: ['saeulen', 'fahnenmast', 'schild'],
+        schild: '🏛️',
+        koerper: { tiefe: 0.8, breite: 0.9 },
+      },
+    },
+    // Die Stufen setzt die Stadt selbst – aus ihrer eigenen Stufe. Sie kosten nichts.
+    upgrades: Array.from({ length: 9 }, (_, i) => ({
+      coins: 0,
+      materials: 0,
+      effects: { jobs: 6 + (i + 1) * 4, happiness: 3 + Math.round((i + 1) * 1.5) },
+    })),
+  },
+
   // ---------- Wege ----------
   {
     id: 'platz',
@@ -675,6 +728,95 @@ export const BUILDINGS: BuildingDef[] = [
 BUILDINGS.push(...WOHNEN, ...GEWERBE, ...DIENSTE, ...UNTERWELT, ...LERNWELTEN)
 const REIHENFOLGE = CATEGORIES.map((entry) => entry.id)
 BUILDINGS.sort((a, b) => REIHENFOLGE.indexOf(a.category) - REIHENFOLGE.indexOf(b.category))
+
+/**
+ * Jedes Unternehmen, jedes Haus und jede Wache soll wachsen können. Wer im Katalog
+ * keine eigenen Stufen hat, bekommt sie hier aus seiner Wirkung abgeleitet: Einnahmen,
+ * Schwarzgeld und Wohnraum steigen mit jeder Stufe, der Preis ebenso.
+ */
+function ausbauFuer(def: BuildingDef): Ausbau[] | undefined {
+  if (def.upgrades || def.nichtBaubar) return def.upgrades
+  const e = def.effects
+  const r = Math.round
+  const wachs = (wert: number | undefined, faktor: number, stufe: number) =>
+    wert === undefined ? undefined : r(wert * Math.pow(faktor, stufe))
+  const stufen = (anzahl: number, preis: (stufe: number) => number, wirkung: (stufe: number) => Effects): Ausbau[] =>
+    Array.from({ length: anzahl }, (_, i) => {
+      const stufe = i + 1
+      const faktor = preis(stufe)
+      return {
+        coins: Math.max(10, r(def.coins * faktor)),
+        materials: r(def.materials * faktor * 0.9),
+        effects: wirkung(stufe),
+      }
+    })
+
+  switch (def.category) {
+    case 'wohnen':
+      if (!e.capacity) return undefined
+      return stufen(
+        3,
+        (s) => 1.7 * Math.pow(1.6, s - 1),
+        (s) => ({ ...e, capacity: wachs(e.capacity, 1.45, s), happiness: (e.happiness ?? 0) + ((e.happiness ?? 0) >= 0 ? s : 0) }),
+      )
+    case 'handel':
+      return stufen(
+        5,
+        (s) => 1.5 * Math.pow(1.6, s - 1),
+        (s) => ({
+          ...e,
+          income: wachs(e.income, 1.55, s),
+          jobs: wachs(e.jobs, 1.35, s),
+          happiness: e.happiness === undefined ? undefined : e.happiness + Math.floor(s / 2) * Math.sign(e.happiness || 1),
+          capacity: wachs(e.capacity, 1.3, s),
+        }),
+      )
+    case 'bildung':
+      return stufen(
+        3,
+        (s) => 1.6 * Math.pow(1.6, s - 1),
+        (s) => ({
+          ...e,
+          education: wachs(e.education, 1.4, s),
+          income: wachs(e.income, 1.45, s),
+          jobs: wachs(e.jobs, 1.3, s),
+          capacity: wachs(e.capacity, 1.3, s),
+          happiness: e.happiness === undefined ? undefined : e.happiness + s,
+        }),
+      )
+    case 'dienste':
+      return stufen(
+        3,
+        (s) => 1.6 * Math.pow(1.6, s - 1),
+        (s) => ({
+          ...e,
+          police: e.police === undefined ? undefined : e.police + s,
+          fire: e.fire === undefined ? undefined : e.fire + s,
+          health: e.health === undefined ? undefined : e.health + s,
+          jobs: wachs(e.jobs, 1.3, s),
+          income: wachs(e.income, 1.3, s),
+          crime: wachs(e.crime, 1.3, s),
+          happiness: e.happiness === undefined ? undefined : e.happiness + s,
+        }),
+      )
+    case 'unterwelt':
+      return stufen(
+        6,
+        (s) => 1.6 * Math.pow(1.62, s - 1),
+        (s) => ({
+          ...e,
+          black: wachs(e.black, 1.6, s),
+          income: wachs(e.income, 1.5, s),
+          jobs: wachs(e.jobs, 1.3, s),
+          crime: e.crime === undefined ? undefined : Math.max(e.crime + s, r(e.crime * Math.pow(1.15, s))),
+          happiness: e.happiness === undefined ? undefined : e.happiness - Math.floor(s / 2),
+        }),
+      )
+    default:
+      return undefined
+  }
+}
+for (const def of BUILDINGS) def.upgrades = ausbauFuer(def)
 
 const BY_ID = new Map(BUILDINGS.map((entry) => [entry.id, entry]))
 

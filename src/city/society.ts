@@ -122,7 +122,12 @@ export function kriminalitaetsfeld(city: CityState): Float32Array {
     const def = buildingDef(placed.type)
     if (!def) continue
     const m = mitte(placed)
-    const e = def.effects
+    // Eine Ruine zieht Gesindel an
+    if (placed.verlassen) {
+      quellen.push({ ...m, staerke: 10, reichweite: 3 })
+      continue
+    }
+    const e = effectsOf(def, placed.level)
     if (e.crime && e.crime > 0) quellen.push({ ...m, staerke: e.crime * 3.2, reichweite: 6 })
     if (e.crime && e.crime < 0) quellen.push({ ...m, staerke: e.crime * 3, reichweite: (e.police ?? 6) + 1 })
     if (e.police) quellen.push({ ...m, staerke: -28, reichweite: e.police })
@@ -162,7 +167,7 @@ function basis(city: CityState): Omit<Gesellschaft, 'kriminalitaet' | 'steuern' 
   let bildungsPunkte = 0
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
-    if (!def) continue
+    if (!def || placed.verlassen) continue
     const e = effectsOf(def, placed.level)
     const klasse = def.effects.klasse
     if (klasse && e.capacity) kap[klasse] += e.capacity
@@ -219,7 +224,7 @@ function abdeckungVon(city: CityState): Gesellschaft['abdeckung'] {
   let feuer = 0
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
-    if (!def || def.category === 'natur' || def.category === 'schmuck' || def.category === 'wege') continue
+    if (!def || def.category === 'natur' || def.category === 'schmuck' || def.category === 'wege' || placed.verlassen) continue
     const m = mitte(placed)
     bauten++
     feuer += abgedeckt(city, m.x, m.y, 'fire') > 0 ? 1 : 0
@@ -252,7 +257,7 @@ export function gesellschaft(city: CityState): Gesellschaft {
   let schwarz = 0
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
-    if (!def) continue
+    if (!def || placed.verlassen) continue
     const e = effectsOf(def, placed.level)
     const m = mitte(placed)
     const wert = feld[Math.min(n - 1, Math.floor(m.y)) * n + Math.min(n - 1, Math.floor(m.x))]
@@ -260,7 +265,7 @@ export function gesellschaft(city: CityState): Gesellschaft {
       summe += wert * e.capacity
       gewicht += e.capacity
     }
-    if (def.effects.black) schwarz += def.effects.black * (1 - 0.6 * abgedeckt(city, m.x, m.y, 'police'))
+    if (e.black) schwarz += e.black * (1 - 0.6 * abgedeckt(city, m.x, m.y, 'police'))
   }
   const kriminalitaet = gewicht > 0 ? Math.round(summe / gewicht) : 0
 

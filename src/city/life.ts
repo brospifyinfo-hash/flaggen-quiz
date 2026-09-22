@@ -102,7 +102,7 @@ function gewichtet<T>(liste: T[], gewicht: (e: T) => number): T | null {
 }
 
 export const signatureOf = (city: CityState) =>
-  `${city.buildings.length}:${city.buildings.map((b) => `${b.id}${b.x}${b.y}${b.rot}${b.level}`).join(',')}:${Object.keys(city.roads).length}:${city.population}:${city.land}`
+  `${city.buildings.length}:${city.buildings.map((b) => `${b.id}${b.x}${b.y}${b.rot}${b.level}${b.verlassen ? 'v' : ''}`).join(',')}:${Object.keys(city.roads).length}:${city.population}:${city.land}`
 
 const wegeStandOf = (city: CityState) => Object.keys(city.roads).sort().join('|')
 
@@ -166,6 +166,8 @@ const FREIZEIT = new Set(['park', 'teich', 'brunnen', 'platz', 'kino', 'museum',
 function ortVon(city: CityState, placed: Placed): Ort | null {
   const def = buildingDef(placed.type)
   if (!def) return null
+  // In eine Ruine geht niemand hinein, und niemand kommt heraus
+  if (placed.verlassen) return null
   const zugang = zugangVon(city, placed)
   if (!zugang) return null
   const [w, h] = footprint(def, placed.rot)

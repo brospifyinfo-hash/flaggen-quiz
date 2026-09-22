@@ -227,6 +227,22 @@ function drawBubble(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string
   ctx.restore()
 }
 
+/** Ein stilles Zeichen über einem Bauwerk – ohne Sprechblase, halb durchsichtig */
+function drawMarke(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string, alpha: number): void {
+  const def = buildingDef(placed.type)
+  if (!def) return
+  const [w, h] = footprint(def, placed.rot)
+  const top = toScreen(placed.x + w / 2, placed.y + h / 2)
+  const y = top.sy - bauHoehe(def.look, placed.level) - 14
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.font = '16px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(emoji, top.sx, y)
+  ctx.restore()
+}
+
 /**
  * Wie weit vorn ein Bauwerk steht: gemessen an seiner vordersten Kachel, nicht an
  * der Ecke, an der es verankert ist. Welche Kachel vorn liegt, hängt vom Blick ab.
@@ -650,6 +666,15 @@ export function drawCity(
   figuren(danach)
 
   if (options.kriminalitaet) kriminalitaetMarken(ctx, city)
+
+  // Wer sich beschwert, sagt es über dem Dach – und eine Ruine trägt ihr Zeichen
+  for (const placed of sorted) {
+    if (placed.verlassen) {
+      if (fein) drawMarke(ctx, placed, '🏚️', 0.7)
+    } else if (placed.beschwerde) {
+      drawBubble(ctx, placed, zeit % 2 < 1 ? '😠' : '💢', zeit)
+    }
+  }
 
   if (options.bubble) {
     const haus = city.buildings.find((placed) => placed.id === options.bubble?.buildingId)

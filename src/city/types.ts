@@ -7,7 +7,16 @@
 // Version 4: Bürger bitten um Hilfe.
 // Version 5: Die Stadt hat ein Thema und Schmuck.
 // Version 7: Steuern, Zuzug mit eigenem Hausbau, Häuser, die Bürger selbst gebaut haben.
-export const CITY_VERSION = 7
+// Version 8: Rathaus, Beschwerden und Leerstand – Bewohner ziehen aus, Häuser verfallen.
+export const CITY_VERSION = 8
+
+/** Eine laufende Beschwerde der Bewohner eines Hauses */
+export interface Beschwerde {
+  /** seit wann */
+  seit: number
+  /** worüber, lesbar – "den Lärm aus dem Stripclub" */
+  grund: string
+}
 
 /** Eine Kachel ist der kleinste Bauplatz. Gebäude belegen ein Rechteck aus Kacheln. */
 export interface Placed {
@@ -25,6 +34,10 @@ export interface Placed {
   at: number
   /** von zugezogenen Bürgern selbst gebaut, nicht von dir */
   auto?: boolean
+  /** Die Bewohner sind unzufrieden und sagen es – Vorstufe zum Auszug */
+  beschwerde?: Beschwerde
+  /** Seit wann das Haus leer steht. Ein verlassenes Haus verfällt, bringt nichts und stört die Nachbarn. */
+  verlassen?: number
 }
 
 export interface CityState {
@@ -75,7 +88,7 @@ export interface CycleReport {
   income: Part[]
   /** was Bürger in der Zwischenzeit selbst gebaut haben */
   gebaut: string[]
-  /** Razzien, neue dunkle Geschäfte und anderes, das man wissen sollte */
+  /** Razzien, neue dunkle Geschäfte, Auszüge und anderes, das man wissen sollte */
   meldungen: string[]
 }
 

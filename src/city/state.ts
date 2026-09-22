@@ -2,6 +2,7 @@
 // Alles hier ist reine Rechnung ohne Browser – dadurch in der Simulation prüfbar.
 import {
   BUILDINGS,
+  RATHAUS,
   buildingDef,
   effectsOf,
   footprint,
@@ -11,6 +12,7 @@ import {
   unlockInfo,
 } from './catalog'
 import type { Seite } from './geo'
+import { leerstandSchritt, leerstandVon } from './leerstand'
 import { REQUEST_COINS, REQUEST_MATERIALS, sanitizeRequest } from './requests'
 import { gesellschaft, KLASSEN, kriminalitaetBei, STEUER_MAX, STEUER_MIN, STEUER_START, steuerVon } from './society'
 import { DEFAULT_THEME, themeById } from './themes'
@@ -83,8 +85,10 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
   for (let x = 3; x <= 8; x++) city.roads[roadKey(x, 6)] = 'strasse'
   city.roads[roadKey(5, 7)] = 'weg'
 
-  // Eine kleine Siedlung, die schon beim ersten Blick etwas hermacht
+  // Eine kleine Siedlung, die schon beim ersten Blick etwas hermacht – mit dem Rathaus
+  // am Platz, das mit der Stadt wächst
   const start: [string, number, number][] = [
+    [RATHAUS, 5, 3],
     ['platz', 5, 5],
     ['platz', 6, 5],
     ['haus', 4, 4],
@@ -212,13 +216,13 @@ export function moveTo(city: CityState, id: string, x: number, y: number, rot: 0
   }
 }
 
-/** Abreißen gibt die Hälfte zurück */
+/** Abreißen gibt die Hälfte zurück – bei Ruinen nichts, die sind nichts mehr wert */
 export function remove(city: CityState, id: string): CityState {
   const placed = city.buildings.find((entry) => entry.id === id)
   const def = placed ? buildingDef(placed.type) : undefined
-  if (!placed || !def) return city
+  if (!placed || !def || def.id === RATHAUS) return city
   // Was Zugezogene selbst gebaut haben, hast du nicht bezahlt – dafür gibt es nichts zurück
-  const zurueck = placed.auto ? 0 : 1
+  const zurueck = placed.auto || placed.verlassen ? 0 : 1
   return withLevel({
     ...city,
     coins: city.coins + Math.round(def.coins / 2) * zurueck,
@@ -230,7 +234,7 @@ export function remove(city: CityState, id: string): CityState {
 export function upgrade(city: CityState, id: string): CityState {
   const placed = city.buildings.find((entry) => entry.id === id)
   const def = placed ? buildingDef(placed.type) : undefined
-  if (!placed || !def) return city
+  if (!placed || !def || def.id === RATHAUS || placed.verlassen) return city
   const step = nextUpgrade(def, placed.level)
   if (!step) return city
   if (city.coins < step.coins || city.materials < step.materials) return city
@@ -242,6 +246,41 @@ export function upgrade(city: CityState, id: string): CityState {
       entry.id === id ? { ...entry, level: Math.min(maxLevel(def), entry.level + 1) } : entry,
     ),
   })
+}
+
+/** Was eine Sanierung kostet: die Hälfte des Neupreises */
+export function sanierungsKosten(placed: Placed): { coins: number; materials: number } {
+  const def = buildingDef(placed.type)
+  if (!def) return { coins: 0, materials: 0 }
+  return { coins: Math.round(def.coins / 2), materials: Math.ceil(def.materials / 2) }
+}
+
+/** Eine Ruine wieder bewohnbar machen – danach können Menschen einziehen, wenn die Lage passt */
+export function sanieren(city: CityState, id: string): CityState {
+  const placed = city.buildings.find((entry) => entry.id === id)
+  if (!placed || !placed.verlassen) return city
+  const kosten = sanierungsKosten(placed)
+  if (city.coins < kosten.coins || city.materials < kosten.materials) return city
+  return withLevel({
+    ...city,
+    coins: city.coins - kosten.coins,
+    materials: city.materials - kosten.materials,
+    buildings: city.buildings.map((entry) => {
+      if (entry.id !== id) return entry
+      const { verlassen: _weg, beschwerde: _auch, ...frisch } = entry
+      return frisch
+    }),
+  })
+}
+
+/** Das Rathaus der Stadt – es gibt genau eines */
+export const rathausVon = (city: CityState): Placed | undefined => city.buildings.find((b) => b.type === RATHAUS)
+
+/** Auf welcher Ausbaustufe das Rathaus bei dieser Stadt-Stufe steht: alle drei Stufen ein Anbau */
+export function rathausStufe(cityLevel: number): number {
+  const def = buildingDef(RATHAUS)
+  const max = def ? maxLevel(def) : 1
+  return Math.max(1, Math.min(max, 1 + Math.floor((cityLevel - 1) / 3)))
 }
 
 // ---------- Straßen ----------
@@ -413,6 +452,11 @@ function totals(city: CityState) {
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
     if (!def) continue
+    // Eine Ruine bietet keinen Wohnraum und macht niemanden froh
+    if (placed.verlassen) {
+      happy -= 2
+      continue
+    }
     const effects = effectsOf(def, placed.level)
     capacity += effects.capacity ?? 0
     happy += effects.happiness ?? 0
@@ -469,6 +513,10 @@ export function happinessBreakdown(city: CityState): { total: number; parts: Par
   if (g.kriminalitaet >= 6) parts.push({ label: 'Kriminalität', value: -Math.round(g.kriminalitaet / 4) })
   if (g.obdachlose > 0) parts.push({ label: 'Obdachlosigkeit', value: -Math.min(10, Math.ceil(g.obdachlose / 3)) })
 
+  // Verlassene Häuser: Wer an Ruinen vorbeigeht, fühlt sich nicht wohl
+  const ruinen = leerstandVon(city)
+  if (ruinen > 0) parts.push({ label: 'Leerstand', value: -Math.min(12, ruinen * 2) })
+
   // Dienste: wer abgedeckt ist, fühlt sich sicherer – wer lange ohne auskommen muss, nicht
   if (city.population >= 40) {
     if (g.abdeckung.polizei > 0) parts.push({ label: 'Sicherheit', value: Math.round(5 * g.abdeckung.polizei) })
@@ -496,7 +544,7 @@ export function incomeBreakdown(city: CityState): { total: number; parts: Part[]
   let dienste = 0
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
-    if (!def) continue
+    if (!def || placed.verlassen) continue
     const einnahme = effectsOf(def, placed.level).income ?? 0
     if (einnahme >= 0) handel += einnahme
     else dienste += einnahme
@@ -534,6 +582,14 @@ export function problemsOf(city: CityState): string[] {
     list.push(`🚨 Kriminalität ${g.kriminalitaet} %. Polizeiwachen und Schulen drücken sie.`)
   }
   if (g.abdeckung.polizei === 0 && city.population >= 60) list.push('🚓 Es gibt keine Polizei.')
+  const ruinen = leerstandVon(city)
+  if (ruinen > 0) {
+    list.push(`🏚️ ${ruinen} ${ruinen === 1 ? 'Haus steht' : 'Häuser stehen'} leer und verfallen. Abreißen oder sanieren – und die Ursache beseitigen.`)
+  }
+  const beschwerden = city.buildings.filter((b) => b.beschwerde && !b.verlassen).length
+  if (beschwerden > 0) {
+    list.push(`😠 In ${beschwerden} ${beschwerden === 1 ? 'Haus beschweren' : 'Häusern beschweren'} sich die Bewohner. Tippe das Haus an, um den Grund zu sehen.`)
+  }
   if (g.obdachlose > 0) {
     list.push(`🛏️ ${g.obdachlose} ${g.obdachlose === 1 ? 'Mensch schläft' : 'Menschen schlafen'} auf der Straße. Arbeit und günstiger Wohnraum helfen.`)
   }
@@ -626,6 +682,14 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
     }
     next = { ...next, population, coins: next.coins + income.total }
 
+    // Wer sich schon lange beschwert, ist bis zum nächsten Zyklus ausgezogen; neue
+    // Beschwerden entstehen, wo die Wohnlage nicht stimmt
+    const leer = leerstandSchritt(next, zeit, mood, 3)
+    if (leer.city !== next) {
+      next = leer.city
+      meldungen.push(...leer.meldungen.filter((m) => m.startsWith('🏚️')))
+    }
+
     // Bei guter Stimmung bauen Zugezogene selbst – je besser, desto mehr
     const bauten = mood >= WACHSTUM_STIMMUNG ? 1 + Math.floor((mood - WACHSTUM_STIMMUNG) / 12) : 0
     for (let b = 0; b < bauten; b++) {
@@ -650,7 +714,11 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
       if (!abgedeckt || zufall() > 0.3) continue
       const r = razzia(next, placed.id)
       next = r.city
-      meldungen.push(`🚔 Razzia: ${def.name} ausgehoben, ${r.beute} 🪙 beschlagnahmt.`)
+      meldungen.push(
+        r.zerstoert
+          ? `🚔 Razzia: ${def.name} ausgehoben, ${r.beute} 🪙 beschlagnahmt.`
+          : `🚔 Razzia: ${def.name} verliert eine Ausbaustufe, ${r.beute} 🪙 beschlagnahmt.`,
+      )
       coins += r.beute
     }
   }
@@ -701,6 +769,10 @@ function lageBei(city: CityState, x: number, y: number): number {
     if (d > 5) continue
     const f = 1 - d / 5
     if (def.category === 'natur') lage += 1.4 * f
+    if (placed.verlassen) {
+      lage -= 2.5 * f
+      continue
+    }
     if (def.effects.klasse === 'reich' || def.effects.klasse === 'superreich') lage += 2 * f
     if (def.effects.klasse === 'arm') lage -= 1.2 * f
     if ((def.effects.environment ?? 0) < 0) lage -= 2 * f
@@ -826,15 +898,31 @@ export function razziaMoeglich(city: CityState, placed: Placed): boolean {
   })
 }
 
-/** Die Polizei hebt ein dunkles Geschäft aus: Es verschwindet, die Beute geht an die Stadt */
-export function razzia(city: CityState, id: string): { city: CityState; beute: number } {
+/**
+ * Die Polizei hebt ein dunkles Geschäft aus. Ein kleiner Betrieb verschwindet ganz;
+ * ein ausgebauter verliert eine Stufe – die Anlage ist zu groß, um sie über Nacht
+ * abzuräumen. Die Beute geht in jedem Fall an die Stadt.
+ */
+export function razzia(city: CityState, id: string): { city: CityState; beute: number; zerstoert: boolean } {
   const placed = city.buildings.find((b) => b.id === id)
   const def = placed ? buildingDef(placed.type) : undefined
-  if (!placed || def?.category !== 'unterwelt') return { city, beute: 0 }
-  const beute = Math.round((def.effects.black ?? 0) * 2)
+  if (!placed || def?.category !== 'unterwelt') return { city, beute: 0, zerstoert: false }
+  const beute = Math.round((effectsOf(def, placed.level).black ?? 0) * 2)
+  if (placed.level > 1) {
+    return {
+      city: withLevel({
+        ...city,
+        buildings: city.buildings.map((b) => (b.id === id ? { ...b, level: b.level - 1 } : b)),
+        coins: city.coins + beute,
+      }),
+      beute,
+      zerstoert: false,
+    }
+  }
   return {
     city: withLevel({ ...city, buildings: city.buildings.filter((b) => b.id !== id), coins: city.coins + beute }),
     beute,
+    zerstoert: true,
   }
 }
 
@@ -914,7 +1002,58 @@ export function levelOf(stats: CityStats): number {
   return level
 }
 
-const withLevel = (city: CityState): CityState => ({ ...city, level: levelOf(statsOf(city)) })
+/** Stadt-Stufe nachrechnen – und das Rathaus wächst mit */
+const withLevel = (city: CityState): CityState => {
+  const level = levelOf(statsOf(city))
+  const rathaus = rathausVon(city)
+  const stufe = rathausStufe(level)
+  if (!rathaus || rathaus.level === stufe) return { ...city, level }
+  return {
+    ...city,
+    level,
+    buildings: city.buildings.map((b) => (b.id === rathaus.id ? { ...b, level: stufe, at: Date.now() } : b)),
+  }
+}
+
+/**
+ * Ältere Stände haben kein Rathaus. Es kommt auf den ersten freien Platz nahe der
+ * Mitte – notfalls wird dafür ein Baum oder eine Bank versetzt, nie ein Haus.
+ */
+export function mitRathaus(city: CityState, now = Date.now()): CityState {
+  if (rathausVon(city)) return city
+  const def = buildingDef(RATHAUS)
+  if (!def) return city
+  const m = Math.floor(city.land / 2)
+  const kandidaten: { x: number; y: number; d: number }[] = []
+  for (let y = 0; y + 2 <= city.land; y++) {
+    for (let x = 0; x + 2 <= city.land; x++) kandidaten.push({ x, y, d: Math.hypot(x + 1 - m, y + 1 - m) })
+  }
+  kandidaten.sort((a, b) => a.d - b.d)
+  const weich = new Set(['natur', 'schmuck', 'wege'])
+  for (const k of kandidaten) {
+    if (canPlace(city, RATHAUS, k.x, k.y, 0, { free: true }).ok) {
+      return withLevel({
+        ...city,
+        buildings: [...city.buildings, { id: `b${city.nextId}`, type: RATHAUS, x: k.x, y: k.y, rot: 0, level: 1, at: now }],
+        nextId: city.nextId + 1,
+      })
+    }
+  }
+  // Kein freier 2×2-Platz: dann weicht Kleinkram – Bäume, Bänke, Pflaster
+  for (const k of kandidaten) {
+    const tiles = [`${k.x}:${k.y}`, `${k.x + 1}:${k.y}`, `${k.x}:${k.y + 1}`, `${k.x + 1}:${k.y + 1}`]
+    if (tiles.some((t) => city.roads[t])) continue
+    const stoeren = city.buildings.filter((b) => tilesOf(b).some((t) => tiles.includes(roadKey(t.x, t.y))))
+    if (stoeren.some((b) => !weich.has(buildingDef(b.type)?.category ?? ''))) continue
+    const rest = city.buildings.filter((b) => !stoeren.includes(b))
+    return withLevel({
+      ...city,
+      buildings: [...rest, { id: `b${city.nextId}`, type: RATHAUS, x: k.x, y: k.y, rot: 0, level: 1, at: now }],
+      nextId: city.nextId + 1,
+    })
+  }
+  return city
+}
 
 /** Wie weit ist die Stadt zur nächsten Stufe? */
 export function levelProgress(city: CityState): { level: number; into: number; need: number } {
@@ -942,7 +1081,7 @@ export function cityTitle(level: number): string {
 
 /** Der Katalog einer Kategorie – gesperrte Bauwerke bleiben sichtbar, mit Begründung */
 export function catalogFor(city: CityState, levels: Record<string, number>, category: string) {
-  return BUILDINGS.filter((def) => def.category === category).map((def) => ({
+  return BUILDINGS.filter((def) => def.category === category && !def.nichtBaubar).map((def) => ({
     def,
     lock: unlockInfo(def, city.level, levels),
   }))
@@ -997,7 +1136,13 @@ export function sanitizeCity(input: unknown): CityState | null {
         level: Math.max(1, Math.min(maxLevel(def), int(item.level, 1))),
         at: int(item.at, 0),
         ...(item.auto === true ? { auto: true } : {}),
+        ...(typeof item.verlassen === 'number' && item.verlassen > 0 ? { verlassen: int(item.verlassen) } : {}),
+        ...(typeof item.beschwerde === 'object' && item.beschwerde !== null && typeof (item.beschwerde as Record<string, unknown>).grund === 'string'
+          ? { beschwerde: { seit: int((item.beschwerde as Record<string, unknown>).seit), grund: (item.beschwerde as Record<string, unknown>).grund as string } }
+          : {}),
       }
+      // Ein Rathaus gibt es nur einmal
+      if (def.id === RATHAUS && buildings.some((b) => b.type === RATHAUS)) continue
       const [w, h] = footprint(def, placed.rot)
       if (placed.x < 0 || placed.y < 0 || placed.x + w > land || placed.y + h > land) continue
       // Doppelt belegte Kacheln können nur durch kaputte Daten entstehen – dann gewinnt das erste
@@ -1036,7 +1181,7 @@ export function sanitizeCity(input: unknown): CityState | null {
   const platz = statsOf(city).capacity
   const gemeldet = typeof raw.population === 'number' ? Math.max(0, int(raw.population)) : platz
   city.population = Math.min(platz, gemeldet)
-  return withLevel(city)
+  return mitRathaus(withLevel(city))
 }
 
 /** Beim Zusammenführen zweier Stände gewinnt die weiter entwickelte Stadt */
