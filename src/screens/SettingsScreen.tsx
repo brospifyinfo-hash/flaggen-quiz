@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { neuAnfangen } from '../city/state'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { IconBack, IconCheck, IconDownload, IconTrash } from '../components/Icons'
 import { haptic, hapticSupport } from '../haptics'
@@ -19,6 +20,8 @@ const HAPTIC_NOTE: Record<typeof hapticSupport, string> = {
 export function SettingsScreen({ data }: { data: SaveData }) {
   const pwa = usePwaStatus()
   const [confirmReset, setConfirmReset] = useState(false)
+  const [confirmStadt, setConfirmStadt] = useState(false)
+  const [stadtNeu, setStadtNeu] = useState(false)
 
   return (
     <main className="screen">
@@ -184,6 +187,30 @@ export function SettingsScreen({ data }: { data: SaveData }) {
         </>
       )}
 
+      {data.city && (
+        <>
+          <h2 className="section-title">Stadt</h2>
+          <section className="list">
+            <div className="row row-stack">
+              <p>
+                Reißt alle Gebäude und Straßen ab und beginnt mit der Startsiedlung neu. Deine Münzen (🪙{' '}
+                {data.city.coins.toLocaleString('de-DE')}) und Materialien (🧱 {data.city.materials.toLocaleString('de-DE')})
+                bleiben – ebenso Name, Wahlspruch und Wappen.
+              </p>
+              {stadtNeu ? (
+                <span className="status">
+                  <IconCheck /> Stadt wurde neu angelegt
+                </span>
+              ) : (
+                <button className="btn btn-danger-outline" onClick={() => setConfirmStadt(true)}>
+                  <IconTrash /> Stadt zurücksetzen
+                </button>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+
       <h2 className="section-title">Zurücksetzen</h2>
       <section className="list">
         <div className="row row-stack">
@@ -193,6 +220,22 @@ export function SettingsScreen({ data }: { data: SaveData }) {
           </button>
         </div>
       </section>
+
+      {confirmStadt && data.city && (
+        <ConfirmDialog
+          danger
+          title={`${data.city.name} wirklich neu anfangen?`}
+          text="Alle Gebäude, Straßen und Einwohner werden entfernt, die Stadt startet wieder mit der kleinen Siedlung. Münzen und Materialien bleiben dir erhalten."
+          confirmLabel="Ja, Stadt zurücksetzen"
+          onCancel={() => setConfirmStadt(false)}
+          onConfirm={() => {
+            setConfirmStadt(false)
+            setState((current) => (current.city ? { ...current, city: neuAnfangen(current.city) } : current))
+            setStadtNeu(true)
+            haptic('strong')
+          }}
+        />
+      )}
 
       {confirmReset && (
         <ConfirmDialog

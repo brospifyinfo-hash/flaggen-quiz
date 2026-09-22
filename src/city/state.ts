@@ -113,6 +113,23 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
   return city
 }
 
+/**
+ * Die Stadt neu anfangen: Startsiedlung, Startgebiet, Stufe 1 – aber Name, Wahlspruch,
+ * Wappen, Aussehen und vor allem die Kasse bleiben. Wer sich verbaut hat, fängt so
+ * frisch an, ohne sein Geld zu verlieren.
+ */
+export function neuAnfangen(city: CityState, now = Date.now()): CityState {
+  const frisch = createCity(city.name, city.motto, city.emblem, now)
+  return withLevel({
+    ...frisch,
+    theme: city.theme,
+    coins: city.coins,
+    materials: city.materials,
+    helped: city.helped,
+    foundedAt: city.foundedAt,
+  })
+}
+
 /** Alle Kacheln, die ein Bauwerk belegt */
 export function tilesOf(placed: Placed): { x: number; y: number }[] {
   const def = buildingDef(placed.type)
