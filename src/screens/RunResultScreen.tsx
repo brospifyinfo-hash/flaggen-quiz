@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Confetti } from '../components/Confetti'
 import { RankCrest } from '../components/RankCrest'
 import { getMode } from '../modes/registry'
+import { herausforderungById, lohnVon } from '../herausforderungen'
 import { achievementById, modeProgress, PERFEKT_ZEIT, rankById } from '../progression'
 import { zeitText } from '../city/zeit'
 import { navigate } from '../router'
@@ -24,6 +25,8 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
   const records = result.records.map((record) => RECORD_LABEL[record] ?? record)
   const achievements = result.achievements.map(achievementById).filter((entry) => entry !== undefined)
   const newRank = result.rankUp ? rankById(result.rankUp) : null
+  const geschafft = (result.herausforderungen ?? []).map(herausforderungById).filter((entry) => entry !== undefined)
+  const beute = lohnVon(result.herausforderungen ?? [])
 
   useEffect(() => {
     haptic(records.length > 0 || newRank ? 'celebrate' : 'soft')
@@ -37,7 +40,7 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
 
   return (
     <main className="screen result">
-      {(records.length > 0 || newRank || result.perfekt) && <Confetti />}
+      {(records.length > 0 || newRank || result.perfekt || geschafft.length > 0) && <Confetti />}
 
       <section className="result-hero">
         <div className="result-emoji" aria-hidden="true">
@@ -105,6 +108,33 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
           <span>Mastery</span>
         </li>
       </ul>
+
+      {geschafft.length > 0 && (
+        <>
+          <h2 className="section-title">Herausforderungen geschafft</h2>
+          <div className="record-banner is-beute">
+            <span aria-hidden="true">🎯</span>
+            <span>
+              Für deine Stadt: <strong>🪙 +{beute.coins.toLocaleString('de-DE')} · 🧱 +{beute.materials.toLocaleString('de-DE')}</strong>
+            </span>
+          </div>
+          <ul className="achievements">
+            {geschafft.map((h) => (
+              <li key={h.id} className="achievement">
+                <span className="achievement-emoji" aria-hidden="true">
+                  {h.emoji}
+                </span>
+                <span>
+                  <strong>{h.titel}</strong>
+                  <span>
+                    {h.text} · 🪙 {h.lohn.coins.toLocaleString('de-DE')} · 🧱 {h.lohn.materials}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       {achievements.length > 0 && (
         <>

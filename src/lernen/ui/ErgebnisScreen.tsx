@@ -6,6 +6,7 @@ import { merkeBau } from '../../city/vormerkung'
 import { Confetti } from '../../components/Confetti'
 import { levels } from '../../knowledge'
 import { zeitText } from '../../city/zeit'
+import { herausforderungById, lohnVon } from '../../herausforderungen'
 import { achievementById } from '../../progression'
 import { navigate } from '../../router'
 import { setState } from '../../store'
@@ -158,6 +159,32 @@ export function ErgebnisScreen({ data }: { data: SaveData }) {
         </div>
       ) : (
         b.freigeschaltet.length === 0 && <p className="lw-stadt-fertig">🏙️ Dein Wissen hat alle {kurs.titel}-Gebäude freigeschaltet.</p>
+      )}
+
+      {(b.herausforderungen?.length ?? 0) > 0 && (
+        <>
+          <h2 className="section-title">Herausforderungen geschafft</h2>
+          <p className="lw-hinweis">
+            🎯 Für deine Stadt: 🪙 +{lohnVon(b.herausforderungen ?? []).coins.toLocaleString('de-DE')} · 🧱 +
+            {lohnVon(b.herausforderungen ?? []).materials.toLocaleString('de-DE')}
+          </p>
+          <ul className="lw-erfolge">
+            {(b.herausforderungen ?? []).map((id) => {
+              const h = herausforderungById(id)
+              return h ? (
+                <li key={id} className="is-erreicht">
+                  <span aria-hidden="true">{h.emoji}</span>
+                  <span>
+                    <strong>{h.titel}</strong>
+                    <small>
+                      {h.text} · 🪙 {h.lohn.coins.toLocaleString('de-DE')} · 🧱 {h.lohn.materials}
+                    </small>
+                  </span>
+                </li>
+              ) : null
+            })}
+          </ul>
+        </>
       )}
 
       {b.erfolge.length > 0 && (

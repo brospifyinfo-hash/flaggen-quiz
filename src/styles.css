@@ -4778,3 +4778,233 @@ svg {
   font-weight: 700;
   line-height: 1.4;
 }
+
+/* ---------- Herausforderungen ---------- */
+.hf-kopf {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.hf-kopf-zahl {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.hf-kopf-zahl strong {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.hf-kopf-zahl small {
+  color: rgb(255 255 255 / 0.65);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.hf-kopf-zahl span {
+  color: rgb(255 255 255 / 0.75);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hf-bar {
+  margin-top: 0;
+  height: 7px;
+  background: rgb(255 255 255 / 0.22);
+}
+
+.hf-bar > span {
+  background: #fff;
+}
+
+.hf-kopf-text {
+  margin: 0;
+  color: rgb(255 255 255 / 0.85);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.hf-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 14px -18px 0;
+  padding: 2px 18px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hf-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.hf-tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.hf-tab small {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.hf-tab.is-aktiv {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.hf-tab.is-aktiv small {
+  background: var(--primary);
+  color: #fff;
+}
+
+.hf-liste {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hf-karte {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.hf-emoji {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  font-size: 22px;
+}
+
+.hf-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hf-text strong {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.hf-text small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.hf-stand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.hf-stand-bar {
+  flex: 1;
+  height: 6px;
+  margin-top: 0;
+}
+
+.hf-stand em {
+  flex: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.hf-lohn {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  color: var(--warn-strong);
+  font-size: 12.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hf-karte.is-fertig {
+  background: var(--good-soft);
+  box-shadow: none;
+}
+
+.hf-karte.is-fertig .hf-emoji {
+  background: var(--good);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.hf-karte.is-fertig .hf-text strong {
+  color: var(--good-strong);
+}
+
+.hf-karte.is-fertig .hf-lohn {
+  color: var(--good-strong);
+}
+
+.hf-leer {
+  padding: 22px 16px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.quiz-karte.is-herausforderung .quiz-emoji {
+  background: var(--warn-soft);
+}
+
+.record-banner.is-beute {
+  background: var(--good-soft);
+  color: var(--good-strong);
+}
+
+.home-hf .home-weiter-icon {
+  background: rgb(255 196 84 / 0.35);
+}

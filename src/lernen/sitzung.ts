@@ -180,6 +180,7 @@ export function schliesseAb(data: SaveData, roh: AktivitaetsErgebnis, jetzt = Da
     zeit: s.zeit + gut.zeit,
     wissen: s.wissen + gut.wissen,
     erfolge: [...s.erfolge, ...geprueft.unlocked],
+    herausforderungen: [...(s.herausforderungen ?? []), ...geprueft.geschafft],
   }
   return mitLernen(geprueft.data, (l) => ({ ...l, sitzung }))
 }
@@ -266,6 +267,7 @@ export function beende(data: SaveData, jetzt = Date.now()): SaveData {
     ziele,
     freigeschaltet: neuFreigeschaltet({ [kurs.domain]: s.vorher.punkte }, next),
     erfolge: [...s.erfolge, ...geprueft.unlocked],
+    herausforderungen: [...(s.herausforderungen ?? []), ...geprueft.geschafft],
     ende: jetzt,
   }
   return mitLernen(next, (l) => ({ ...l, sitzung: null, letzte: bilanz }))

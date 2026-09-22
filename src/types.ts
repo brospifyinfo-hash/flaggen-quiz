@@ -143,6 +143,8 @@ export interface Run {
   judged: Judgement | null
   /** in diesem Run freigeschaltete Achievements */
   earned: string[]
+  /** in diesem Run geschaffte Herausforderungen */
+  geschafft?: string[]
   /** Der Perfektlauf-Jackpot wurde in diesem Run schon ausgezahlt */
   perfekt?: boolean
 }
@@ -166,6 +168,8 @@ export interface RunResult {
   records: string[]
   /** ID des neuen Rangs, falls in diesem Run aufgestiegen */
   rankUp: string | null
+  /** in diesem Run geschaffte Herausforderungen – Münzen und Ziegel für die Stadt */
+  herausforderungen?: string[]
   /** Perfektlauf geschafft: so viel Zeit ist die Uhr der Stadt vorgesprungen (ms) */
   perfekt?: { zeit: number }
   finishedAt: number
@@ -220,6 +224,7 @@ export type Route =
   | { name: 'kursSitzung' }
   | { name: 'kursErgebnis' }
   | { name: 'bitte' }
+  | { name: 'herausforderungen' }
 
 export interface SaveData {
   version: 2
@@ -235,6 +240,8 @@ export interface SaveData {
   modes: Record<string, ModeProgress>
   /** Achievement-ID → Zeitpunkt */
   achievements: Record<string, number>
+  /** Eingelöste Herausforderungen: ID → Zeitpunkt, siehe src/herausforderungen.ts */
+  herausforderungen?: Record<string, number>
   /** Lernstand je Modus und Thema, z. B. je Person */
   learn?: Record<string, Record<string, CountryStat>>
   /** Bestleistungen des Math Runners */

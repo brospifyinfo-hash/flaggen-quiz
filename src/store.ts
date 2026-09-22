@@ -268,6 +268,13 @@ function sanitize(input: unknown): SaveData | null {
     }
   }
 
+  const herausforderungen: Record<string, number> = {}
+  if (isObject(input.herausforderungen)) {
+    for (const [id, at] of Object.entries(input.herausforderungen)) {
+      if (typeof at === 'number') herausforderungen[id] = at
+    }
+  }
+
   const achievements: Record<string, number> = {}
   if (isObject(input.achievements)) {
     for (const [id, at] of Object.entries(input.achievements)) {
@@ -319,6 +326,7 @@ function sanitize(input: unknown): SaveData | null {
     xp: count(input.xp),
     modes,
     achievements,
+    ...(Object.keys(herausforderungen).length > 0 ? { herausforderungen } : {}),
     learn,
     ...(mathRunner ? { mathRunner } : {}),
     ...(city ? { city } : {}),
@@ -388,6 +396,10 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
   for (const [id, at] of Object.entries(current.achievements)) {
     achievements[id] = Math.min(at, achievements[id] ?? at)
   }
+  const herausforderungen = { ...older.herausforderungen }
+  for (const [id, at] of Object.entries(current.herausforderungen ?? {})) {
+    herausforderungen[id] = Math.min(at, herausforderungen[id] ?? at)
+  }
 
   const learn: SaveData['learn'] = { ...older.learn }
   for (const [modeId, subjects] of Object.entries(current.learn ?? {})) {
@@ -424,6 +436,7 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     progress,
     modes,
     achievements,
+    ...(Object.keys(herausforderungen).length > 0 ? { herausforderungen } : {}),
     learn,
     ...(mathRunner ? { mathRunner } : {}),
     xp: Math.max(current.xp, older.xp),

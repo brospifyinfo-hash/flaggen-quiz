@@ -202,6 +202,7 @@ function leseSitzung(value: unknown): KursSitzung | null {
     vorher: { ziele: vorherZiele, punkte: zahl(vorher.punkte) },
     gesehen: texte(value.gesehen, 120),
     erfolge: texte(value.erfolge, 40),
+    herausforderungen: texte(value.herausforderungen, 80),
     start: zahl(value.start),
   }
 }
@@ -230,6 +231,7 @@ function leseErgebnis(value: unknown): SitzungsBilanz | null {
     ziele,
     freigeschaltet: texte(value.freigeschaltet, 20),
     erfolge: texte(value.erfolge, 40),
+    herausforderungen: texte(value.herausforderungen, 80),
     ende: zahl(value.ende),
   }
 }

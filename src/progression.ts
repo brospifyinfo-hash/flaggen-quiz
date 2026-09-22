@@ -2,6 +2,7 @@
 // Alle Regeln stehen hier oben und lassen sich einzeln ändern.
 import { STUNDE_MS, vorspulen } from './city/zeit'
 import { CONTINENTS, COUNTRIES } from './data/countries'
+import { pruefeHerausforderungen } from './herausforderungen'
 import { addKnowledge } from './knowledge'
 import { KURS_ERFOLGE } from './lernen/erfolge'
 import { allModes } from './modes/registry'
@@ -190,15 +191,22 @@ export const ACHIEVEMENTS: Achievement[] = [
 
 export const achievementById = (id: string) => ACHIEVEMENTS.find((a) => a.id === id)
 
-/** Prüft alle Achievements und trägt neu erreichte ein */
-export function checkAchievements(data: SaveData, now: number): { data: SaveData; unlocked: string[] } {
+/**
+ * Prüft alle Achievements und trägt neu erreichte ein. Im selben Zug werden geschaffte
+ * Herausforderungen eingelöst – Münzen und Ziegel für die Stadt, jede nur einmal.
+ */
+export function checkAchievements(data: SaveData, now: number): { data: SaveData; unlocked: string[]; geschafft: string[] } {
   const unlocked: string[] = []
   for (const achievement of ACHIEVEMENTS) {
     if (data.achievements[achievement.id]) continue
     if (achievement.reached(data)) unlocked.push(achievement.id)
   }
-  if (unlocked.length === 0) return { data, unlocked }
-  const achievements = { ...data.achievements }
-  for (const id of unlocked) achievements[id] = now
-  return { data: { ...data, achievements }, unlocked }
+  let next = data
+  if (unlocked.length > 0) {
+    const achievements = { ...data.achievements }
+    for (const id of unlocked) achievements[id] = now
+    next = { ...data, achievements }
+  }
+  const h = pruefeHerausforderungen(next, now)
+  return { data: h.data, unlocked, geschafft: h.geschafft }
 }

@@ -6,6 +6,7 @@ import { StadtKulisse } from '../city/StadtKulisse'
 import { cityTitle, createCity, statsOf } from '../city/state'
 import { IconPlay, IconSettings } from '../components/Icons'
 import { haptic } from '../haptics'
+import { bilanz } from '../herausforderungen'
 import { RankCrest } from '../components/RankCrest'
 import { kursById } from '../lernen/kurse'
 import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, PERFEKT_ZEIT, PERFEKT_ZEIT_KURS, rankFor, totalAnswered } from '../progression'
@@ -30,6 +31,7 @@ export function HomeScreen({ data }: { data: SaveData }) {
   const kulisse = stadt ?? beispiel
   const einwohner = stadt ? statsOf(stadt).population : 0
   const tag = useTageszeit(stadt)
+  const hf = bilanz(data)
 
   const gehe = (ziel: Parameters<typeof navigate>[0]) => {
     haptic('soft')
@@ -148,6 +150,18 @@ export function HomeScreen({ data }: { data: SaveData }) {
               🏙️
             </span>
             <span>{stadt ? 'Stadt betreten' : 'Stadt gründen'}</span>
+          </button>
+
+          <button className="glas home-weiter home-hf" onClick={() => gehe({ name: 'herausforderungen' })}>
+            <span className="home-weiter-icon" aria-hidden="true">
+              🎯
+            </span>
+            <span className="home-weiter-text">
+              <small>Herausforderungen · {hf.geschafft}/{hf.gesamt}</small>
+              <strong>
+                Noch offen: 🪙 {zahl(hf.offen.coins)} · 🧱 {zahl(hf.offen.materials)}
+              </strong>
+            </span>
           </button>
 
           <div className="home-paar">

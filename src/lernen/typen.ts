@@ -554,6 +554,8 @@ export interface KursSitzung {
   gesehen: string[]
   /** in dieser Session erreichte Achievements */
   erfolge: string[]
+  /** in dieser Session geschaffte Herausforderungen */
+  herausforderungen?: string[]
   start: number
 }
 
@@ -572,6 +574,7 @@ export interface SitzungsBilanz {
   /** Gebäude, die das neue Wissen freigeschaltet hat */
   freigeschaltet: string[]
   erfolge: string[]
+  herausforderungen?: string[]
   ende: number
 }
 

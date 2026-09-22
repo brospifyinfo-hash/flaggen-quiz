@@ -131,8 +131,15 @@ export function answerRun(data: SaveData, answer: string, now = Date.now()): Sav
   if (perfektJetzt) next = grantZeit(next, PERFEKT_ZEIT)
 
   const checked = checkAchievements(next, now)
-  if (checked.unlocked.length === 0) return next
-  return { ...checked.data, run: { ...updated, earned: [...updated.earned, ...checked.unlocked] } }
+  if (checked.unlocked.length === 0 && checked.geschafft.length === 0) return next
+  return {
+    ...checked.data,
+    run: {
+      ...updated,
+      earned: [...updated.earned, ...checked.unlocked],
+      geschafft: [...(updated.geschafft ?? []), ...checked.geschafft],
+    },
+  }
 }
 
 export function nextRunQuestion(data: SaveData, now = Date.now()): SaveData {
@@ -193,6 +200,7 @@ export function endRun(data: SaveData, now = Date.now()): SaveData {
     records,
     rankUp: rankAfter !== rankBefore ? rankAfter : null,
     ...(run.perfekt ? { perfekt: { zeit: PERFEKT_ZEIT } } : {}),
+    herausforderungen: run.geschafft ?? [],
     finishedAt: now,
   }
 
@@ -203,10 +211,14 @@ export function endRun(data: SaveData, now = Date.now()): SaveData {
     lastRun: result,
   }
   const checked = checkAchievements(next, now)
-  if (checked.unlocked.length === 0) return next
+  if (checked.unlocked.length === 0 && checked.geschafft.length === 0) return next
   return {
     ...checked.data,
-    lastRun: { ...result, achievements: [...result.achievements, ...checked.unlocked] },
+    lastRun: {
+      ...result,
+      achievements: [...result.achievements, ...checked.unlocked],
+      herausforderungen: [...(result.herausforderungen ?? []), ...checked.geschafft],
+    },
   }
 }
 

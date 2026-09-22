@@ -40,6 +40,8 @@ export function routeToHash(route: Route): string {
       return '#/lernen/bilanz'
     case 'bitte':
       return '#/stadt/bitte'
+    case 'herausforderungen':
+      return '#/herausforderungen'
   }
 }
 
@@ -51,6 +53,7 @@ export function hashToRoute(hash: string): Route | null {
   if (!first) return { name: 'home' }
   if (first === 'einstellungen') return { name: 'settings' }
   if (first === 'waehlen') return { name: 'specific' }
+  if (first === 'herausforderungen') return { name: 'herausforderungen' }
   if (first === 'math') return { name: 'mathRunner' }
   if (first === 'stadt') return second === 'bitte' ? { name: 'bitte' } : { name: 'city' }
   if (first === 'lernen') {
@@ -93,6 +96,7 @@ export function isRoute(value: unknown): value is Route {
     case 'kursSitzung':
     case 'kursErgebnis':
     case 'bitte':
+    case 'herausforderungen':
       return true
     case 'kurs':
       return typeof route.id === 'string' && !!kursById(route.id)
@@ -128,6 +132,7 @@ export function parentsOf(route: Route): Route[] {
     case 'bitte':
       return [{ name: 'home' }, { name: 'city' }]
     case 'mode':
+    case 'herausforderungen':
       return [{ name: 'home' }, { name: 'specific' }]
     case 'continent':
       return [{ name: 'home' }, { name: 'specific' }, { name: 'mode', id: FLAGS }]

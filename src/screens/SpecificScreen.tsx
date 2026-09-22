@@ -2,6 +2,7 @@
 // Alle Karten sind gleich gebaut – und zeigen, was ein fehlerfreier Lauf einbringt.
 import { IconBack, IconChevron } from '../components/Icons'
 import { haptic } from '../haptics'
+import { bilanz } from '../herausforderungen'
 import { ladeAlle } from '../lernen/kurse'
 import { quizModes } from '../modes/registry'
 import { zeitText } from '../city/zeit'
@@ -15,6 +16,7 @@ const zahl = (n: number) => n.toLocaleString('de-DE')
 
 export function SpecificScreen({ data }: { data: SaveData }) {
   const lohn = `⏩ ${zeitText(PERFEKT_ZEIT)} Zeitvorsprung bei ${PERFEKTLAUF} fehlerfreien Fragen`
+  const hf = bilanz(data)
 
   const starteRandom = () => {
     haptic('soft')
@@ -33,6 +35,29 @@ export function SpecificScreen({ data }: { data: SaveData }) {
       </header>
 
       <ul className="quiz-liste">
+        <li>
+          <button
+            className="quiz-karte is-herausforderung"
+            onClick={() => {
+              haptic('soft')
+              navigate({ name: 'herausforderungen' })
+            }}
+          >
+            <span className="quiz-emoji" aria-hidden="true">
+              🎯
+            </span>
+            <span className="quiz-text">
+              <strong>Herausforderungen</strong>
+              <small>
+                {hf.geschafft} von {hf.gesamt} geschafft – einmalige Aufgaben mit Münzen und Ziegeln für die Stadt
+              </small>
+              <span className="quiz-lohn">
+                Noch offen: 🪙 {zahl(hf.offen.coins)} · 🧱 {zahl(hf.offen.materials)}
+              </span>
+            </span>
+            <IconChevron className="continent-arrow" />
+          </button>
+        </li>
         <li>
           <button className="quiz-karte is-random" onClick={starteRandom}>
             <span className="quiz-emoji" aria-hidden="true">

@@ -15,6 +15,7 @@ import { RunResultScreen } from './screens/RunResultScreen'
 import { RunScreen } from './screens/RunScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { SpecificScreen } from './screens/SpecificScreen'
+import { HerausforderungenScreen } from './screens/HerausforderungenScreen'
 import { useSaveData } from './store'
 import type { Route, SaveData } from './types'
 
@@ -37,6 +38,7 @@ function resolveRoute(data: SaveData): Route {
     case 'kurse':
     case 'mathRunner':
     case 'city':
+    case 'herausforderungen':
       return route
     case 'mode':
       // Kurse der Lernwelten haben ihre eigene Seite
@@ -100,6 +102,8 @@ export function App() {
       return <CityScreen data={data} />
     case 'specific':
       return <SpecificScreen data={data} />
+    case 'herausforderungen':
+      return <HerausforderungenScreen data={data} />
     case 'kurse':
       return <KurseScreen data={data} />
     case 'mode':
