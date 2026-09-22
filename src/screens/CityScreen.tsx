@@ -89,13 +89,13 @@ const EMBLEMS = ['🏙️', '🌆', '🏛️', '🌳', '⚓', '⛰️', '🔭', 
 type Mode = 'view' | 'build' | 'place' | 'select' | 'road' | 'roadPick' | 'land' | 'report'
 
 export function CityScreen({ data }: { data: SaveData }) {
-  if (!data.city) return <CitySetup />
+  if (!data.city) return <CitySetup kasse={data.stadtkasse} />
   return <CityWorld data={data} />
 }
 
 // ---------- Gründung ----------
 
-function CitySetup() {
+function CitySetup({ kasse }: { kasse?: { coins: number; materials: number } }) {
   const [name, setName] = useState('')
   const [motto, setMotto] = useState('')
   const [emblem, setEmblem] = useState(EMBLEMS[0])
@@ -103,7 +103,13 @@ function CitySetup() {
   const found = () => {
     const chosen = name.trim() || 'Neustadt'
     haptic('celebrate')
-    setState((current) => ({ ...current, city: createCity(chosen, motto, emblem) }))
+    setState((current) => {
+      const frisch = createCity(chosen, motto, emblem)
+      // Die Kasse einer gelöschten Stadt kommt in die neue – sie ersetzt das Startgeld
+      const { stadtkasse, ...rest } = current
+      const city = stadtkasse ? { ...frisch, coins: stadtkasse.coins, materials: stadtkasse.materials } : frisch
+      return { ...rest, city }
+    })
   }
 
   return (
@@ -176,8 +182,9 @@ function CitySetup() {
         Stadt gründen
       </button>
       <p className="footnote">
-        Du startest mit einer kleinen Siedlung, 2.500 Münzen und 40 Materialien. Umbenennen kannst du sie später
-        jederzeit.
+        {kasse
+          ? `Du startest mit einer kleinen Siedlung und der Kasse deiner alten Stadt: ${kasse.coins.toLocaleString('de-DE')} Münzen und ${kasse.materials.toLocaleString('de-DE')} Materialien. Umbenennen kannst du sie später jederzeit.`
+          : 'Du startest mit einer kleinen Siedlung, 2.500 Münzen und 40 Materialien. Umbenennen kannst du sie später jederzeit.'}
       </p>
     </main>
   )

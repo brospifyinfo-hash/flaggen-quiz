@@ -241,6 +241,8 @@ export interface SaveData {
   mathRunner?: MathRunnerStats
   /** Die Stadt – eigener Versionsstand, siehe src/city/types.ts */
   city?: CityState
+  /** Kasse einer gelöschten Stadt – die nächste Gründung startet damit */
+  stadtkasse?: { coins: number; materials: number }
   /** Wissenspunkte je Fach, siehe src/knowledge.ts */
   knowledge?: Record<string, number>
   /** Lernwelten: Kurse, Lernstand je Lernziel, laufende Session – siehe src/lernen */

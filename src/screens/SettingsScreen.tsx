@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { neuAnfangen } from '../city/state'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { IconBack, IconCheck, IconDownload, IconTrash } from '../components/Icons'
 import { haptic, hapticSupport } from '../haptics'
@@ -193,17 +192,17 @@ export function SettingsScreen({ data }: { data: SaveData }) {
           <section className="list">
             <div className="row row-stack">
               <p>
-                Reißt alle Gebäude und Straßen ab und beginnt mit der Startsiedlung neu. Deine Münzen (🪙{' '}
+                Löscht nur die Stadt – alle Gebäude, Straßen und Einwohner. Du gründest danach eine neue. Deine Münzen (🪙{' '}
                 {data.city.coins.toLocaleString('de-DE')}) und Materialien (🧱 {data.city.materials.toLocaleString('de-DE')})
-                bleiben – ebenso Name, Wahlspruch und Wappen.
+                nimmst du mit. Quiz-Fortschritt, XP und Ränge bleiben unberührt.
               </p>
               {stadtNeu ? (
                 <span className="status">
-                  <IconCheck /> Stadt wurde neu angelegt
+                  <IconCheck /> Stadt gelöscht – Kasse bleibt
                 </span>
               ) : (
                 <button className="btn btn-danger-outline" onClick={() => setConfirmStadt(true)}>
-                  <IconTrash /> Stadt zurücksetzen
+                  <IconTrash /> Stadt löschen
                 </button>
               )}
             </div>
@@ -224,13 +223,17 @@ export function SettingsScreen({ data }: { data: SaveData }) {
       {confirmStadt && data.city && (
         <ConfirmDialog
           danger
-          title={`${data.city.name} wirklich neu anfangen?`}
-          text="Alle Gebäude, Straßen und Einwohner werden entfernt, die Stadt startet wieder mit der kleinen Siedlung. Münzen und Materialien bleiben dir erhalten."
-          confirmLabel="Ja, Stadt zurücksetzen"
+          title={`${data.city.name} wirklich löschen?`}
+          text="Die Stadt mit allen Gebäuden, Straßen und Einwohnern wird gelöscht. Münzen und Materialien bleiben dir für die nächste Gründung. Dein Quiz-Fortschritt wird nicht angetastet."
+          confirmLabel="Ja, Stadt löschen"
           onCancel={() => setConfirmStadt(false)}
           onConfirm={() => {
             setConfirmStadt(false)
-            setState((current) => (current.city ? { ...current, city: neuAnfangen(current.city) } : current))
+            setState((current) => {
+              if (!current.city) return current
+              const { city, ...rest } = current
+              return { ...rest, stadtkasse: { coins: city.coins, materials: city.materials } }
+            })
             setStadtNeu(true)
             haptic('strong')
           }}

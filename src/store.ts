@@ -297,6 +297,10 @@ function sanitize(input: unknown): SaveData | null {
 
   const mathRunner = readMath(input.mathRunner)
   const city = sanitizeCity(input.city)
+  const stadtkasse =
+    !city && isObject(input.stadtkasse) && (count(input.stadtkasse.coins) > 0 || count(input.stadtkasse.materials) > 0)
+      ? { coins: Math.round(count(input.stadtkasse.coins)), materials: Math.round(count(input.stadtkasse.materials)) }
+      : undefined
   const lernen = leseLernen(input.lernen)
 
   const knowledge: Record<string, number> = {}
@@ -318,6 +322,7 @@ function sanitize(input: unknown): SaveData | null {
     learn,
     ...(mathRunner ? { mathRunner } : {}),
     ...(city ? { city } : {}),
+    ...(stadtkasse ? { stadtkasse } : {}),
     ...(Object.keys(knowledge).length > 0 ? { knowledge } : {}),
     ...(lernen ? { lernen } : {}),
     run: isRun(input.run) ? input.run : null,
