@@ -428,6 +428,25 @@ export function rename(city: CityState, name: string, motto: string, emblem: str
   }
 }
 
+/**
+ * Der Geheimcode der Stadtkasse. Wer ihn als Wahlspruch einträgt, bekommt eine Kasse,
+ * die nie wieder leer wird – der Wahlspruch selbst bleibt, wie er war. Groß- und
+ * Kleinschreibung sowie Leerzeichen sind egal.
+ */
+const GEHEIMCODE = 'derbürgermeisterträgtkeinesocken'
+export const CHEAT_MUENZEN = 100_000_000
+export const CHEAT_MATERIAL = 5_000_000
+
+const normiert = (text: string) => text.toLowerCase().replace(/[\s.,!?'"„“-]/g, '')
+
+/** Ist das der Geheimcode? */
+export const istGeheimcode = (text: string): boolean => normiert(text) === GEHEIMCODE
+
+/** Die Schattenkasse öffnet sich: Münzen und Material ohne Ende */
+export function schattenkasse(city: CityState): CityState {
+  return { ...city, coins: city.coins + CHEAT_MUENZEN, materials: city.materials + CHEAT_MATERIAL }
+}
+
 /** Eine neue Bitte hinterlegen */
 export function setRequest(city: CityState, request: unknown, now = Date.now()): CityState {
   return { ...city, request, lastRequest: now }

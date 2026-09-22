@@ -2,7 +2,7 @@
 // Dächer, Bäume. Alles in ein Canvas, damit auch große Städte flüssig bleiben.
 import { koerperVon } from './bau'
 import { bauHoehe, drawBuilding, einzug, tree, umrissPunkte } from './buildings'
-import { buildingDef, footprint, roadDef } from './catalog'
+import { RATHAUS, buildingDef, footprint, roadDef } from './catalog'
 import { fade, lift, quad, quadPath, roundedPath, type Point } from './draw'
 import { drawAgent } from './figures'
 import type { Grund } from './geo'
@@ -666,6 +666,18 @@ export function drawCity(
   figuren(danach)
 
   if (options.kriminalitaet) kriminalitaetMarken(ctx, city)
+
+  // Das Rathaus ist immer markiert: goldener Rahmen am Boden und ein schwebendes Zeichen
+  // darüber – so findet man den Stadtbericht auch in einer großen Stadt sofort
+  const rathaus = city.buildings.find((placed) => placed.type === RATHAUS)
+  if (rathaus) {
+    const [w, h] = footprint(buildingDef(RATHAUS)!, rathaus.rot)
+    ctx.save()
+    ctx.globalAlpha = 0.55 + 0.35 * Math.sin(zeit * 2.2)
+    outline(ctx, rathaus.x, rathaus.y, w, h, '#ffd23f')
+    ctx.restore()
+    drawBubble(ctx, rathaus, '🏛️', zeit)
+  }
 
   // Wer sich beschwert, sagt es über dem Dach – und eine Ruine trägt ihr Zeichen
   for (const placed of sorted) {

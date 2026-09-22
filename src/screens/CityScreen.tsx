@@ -47,8 +47,12 @@ import {
 import { THEMES } from '../city/themes'
 import {
   artikel,
+  CHEAT_MATERIAL,
+  CHEAT_MUENZEN,
   dunkelWaechst,
+  istGeheimcode,
   MOVE_IN_MOOD,
+  schattenkasse,
   razzia,
   razziaMoeglich,
   runCycles,
@@ -1516,6 +1520,14 @@ function CityWorld({ data }: { data: SaveData }) {
                 <button
                   className="city-btn city-btn-main"
                   onClick={() => {
+                    // Der Geheimcode als Wahlspruch öffnet die Schattenkasse – und bleibt unsichtbar
+                    if (istGeheimcode(newMotto)) {
+                      haptic('celebrate')
+                      setState((current) => (current.city ? { ...current, city: schattenkasse(current.city) } : current))
+                      setNewMotto(city.motto)
+                      melde(`💰 Die Schattenkasse ist offen: +${CHEAT_MUENZEN.toLocaleString('de-DE')} 🪙 · +${CHEAT_MATERIAL.toLocaleString('de-DE')} 🧱`)
+                      return
+                    }
                     haptic('success')
                     setState((current) =>
                       current.city
