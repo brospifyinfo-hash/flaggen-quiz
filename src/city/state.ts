@@ -12,7 +12,7 @@ import {
   unlockInfo,
 } from './catalog'
 import type { Seite } from './geo'
-import { leerstandSchritt, leerstandVon } from './leerstand'
+import { leerstandSchritt, leerstandVon, leerstandZuruecksetzen } from './leerstand'
 import { REQUEST_COINS, REQUEST_MATERIALS, sanitizeRequest } from './requests'
 import { gesellschaft, KLASSEN, kriminalitaetBei, STEUER_MAX, STEUER_MIN, STEUER_START, steuerVon } from './society'
 import { DEFAULT_THEME, themeById } from './themes'
@@ -473,7 +473,7 @@ function totals(city: CityState) {
     if (!def) continue
     // Eine Ruine bietet keinen Wohnraum und macht niemanden froh
     if (placed.verlassen) {
-      happy -= 2
+      happy -= 1
       continue
     }
     const effects = effectsOf(def, placed.level)
@@ -534,7 +534,7 @@ export function happinessBreakdown(city: CityState): { total: number; parts: Par
 
   // Verlassene Häuser: Wer an Ruinen vorbeigeht, fühlt sich nicht wohl
   const ruinen = leerstandVon(city)
-  if (ruinen > 0) parts.push({ label: 'Leerstand', value: -Math.min(12, ruinen * 2) })
+  if (ruinen > 0) parts.push({ label: 'Leerstand', value: -Math.min(8, ruinen) })
 
   // Dienste: wer abgedeckt ist, fühlt sich sicherer – wer lange ohne auskommen muss, nicht
   if (city.population >= 40) {
@@ -703,7 +703,7 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
 
     // Wer sich schon lange beschwert, ist bis zum nächsten Zyklus ausgezogen; neue
     // Beschwerden entstehen, wo die Wohnlage nicht stimmt
-    const leer = leerstandSchritt(next, zeit, mood, 3)
+    const leer = leerstandSchritt(next, zeit, mood, 2)
     if (leer.city !== next) {
       next = leer.city
       meldungen.push(...leer.meldungen.filter((m) => m.startsWith('🏚️')))
@@ -1200,6 +1200,13 @@ export function sanitizeCity(input: unknown): CityState | null {
   const platz = statsOf(city).capacity
   const gemeldet = typeof raw.population === 'number' ? Math.max(0, int(raw.population)) : platz
   city.population = Math.min(platz, gemeldet)
+
+  // Version 8 hatte einen zu strengen Leerstand, der ganze Städte leerte – das wird geheilt
+  if (int(raw.version, 0) < 9) {
+    const geheilt = leerstandZuruecksetzen(city)
+    city.buildings = geheilt.buildings
+    city.population = Math.min(statsOf(city).capacity, geheilt.population)
+  }
   return mitRathaus(withLevel(city))
 }
 

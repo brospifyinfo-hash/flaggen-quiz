@@ -124,7 +124,7 @@ export function kriminalitaetsfeld(city: CityState): Float32Array {
     const m = mitte(placed)
     // Eine Ruine zieht Gesindel an
     if (placed.verlassen) {
-      quellen.push({ ...m, staerke: 10, reichweite: 3 })
+      quellen.push({ ...m, staerke: 4, reichweite: 2 })
       continue
     }
     const e = effectsOf(def, placed.level)

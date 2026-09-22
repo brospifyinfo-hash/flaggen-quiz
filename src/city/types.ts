@@ -8,7 +8,8 @@
 // Version 5: Die Stadt hat ein Thema und Schmuck.
 // Version 7: Steuern, Zuzug mit eigenem Hausbau, Häuser, die Bürger selbst gebaut haben.
 // Version 8: Rathaus, Beschwerden und Leerstand – Bewohner ziehen aus, Häuser verfallen.
-export const CITY_VERSION = 8
+// Version 9: Leerstand entschärft – nur noch wegen konkreter Nachbarn, nie mehr als ein Fünftel.
+export const CITY_VERSION = 9
 
 /** Eine laufende Beschwerde der Bewohner eines Hauses */
 export interface Beschwerde {

@@ -7,13 +7,15 @@ import { abdeckungBei, kriminalitaetBei } from './society'
 import type { CityState, Part, Placed } from './types'
 
 /** Unter dieser Wohnlage beginnen die Beschwerden */
-export const BESCHWERDE_AB = 38
+export const BESCHWERDE_AB = 35
 /** Ab dieser Wohnlage beruhigen sich die Bewohner wieder */
-export const BERUHIGT_AB = 48
+export const BERUHIGT_AB = 45
 /** So lange wird sich beschwert, bevor die Bewohner wirklich ausziehen */
-export const AUSZUG_NACH = 4 * 60 * 1000
+export const AUSZUG_NACH = 6 * 60 * 1000
 /** Ein Auszug drückt die Stimmung der Nachbarn – so weit reicht die Ruine */
-export const RUINEN_REICHWEITE = 2.5
+export const RUINEN_REICHWEITE = 2
+/** Mehr als dieser Anteil der Häuser steht nie leer – irgendwo müssen die Leute ja wohnen */
+export const LEERSTAND_MAX = 0.12
 
 /** Worüber sich Nachbarn beschweren – je Bauwerk ein Satz, der in "… beschweren sich über" passt */
 const GRUND: Record<string, string> = {
@@ -63,11 +65,14 @@ export function istWohnhaus(placed: Placed): boolean {
  * einmal gerechnet und hier hereingereicht, damit die Rechnung nicht im Kreis läuft.
  */
 export function wohnlageVon(city: CityState, placed: Placed, stimmung: number): Wohnlage {
-  const parts: Part[] = [{ label: 'Stimmung in der Stadt', value: stimmung }]
+  // Die Stadtstimmung zählt nur zur Hälfte: Ob jemand auszieht, entscheidet die
+  // Nachbarschaft, nicht die Laune der ganzen Stadt – dafür gibt es den Wegzug bei
+  // schlechter Stimmung schon an anderer Stelle
+  const parts: Part[] = [{ label: 'Stimmung in der Stadt', value: Math.round(50 + (stimmung - 50) * 0.5) }]
   const m = mitte(placed)
 
   const krim = kriminalitaetBei(city, m.x, m.y)
-  if (krim >= 10) parts.push({ label: 'Kriminalität im Viertel', value: -Math.round(krim * 0.45) })
+  if (krim >= 20) parts.push({ label: 'Kriminalität im Viertel', value: -Math.min(15, Math.round((krim - 20) * 0.25)) })
 
   // Polizei in Reichweite nimmt den dunklen Nachbarn einen Teil ihres Schreckens
   const schutz = 1 - 0.4 * abdeckungBei(city, m.x, m.y, 'police')
@@ -79,7 +84,8 @@ export function wohnlageVon(city: CityState, placed: Placed, stimmung: number): 
   let schlimmstes = 0
   let grund: string | null = null
   const merke = (wert: number, text: string) => {
-    if (wert < schlimmstes) {
+    // Ein Störenfried am Rand der Reichweite ist kein Grund zum Auszug
+    if (wert < schlimmstes && wert <= -5) {
       schlimmstes = wert
       grund = text
     }
@@ -95,23 +101,21 @@ export function wohnlageVon(city: CityState, placed: Placed, stimmung: number): 
     const e = effectsOf(def, other.level)
 
     if (def.category === 'wohnen' && other.verlassen) {
-      if (d <= RUINEN_REICHWEITE) {
-        const wert = -4 * (1 - d / (RUINEN_REICHWEITE + 1))
-        ruinen += wert
-        merke(wert, 'die verlassene Ruine nebenan')
-      }
+      // Ruinen stören, aber sie reißen nicht das nächste Haus mit – sonst kippt ein Viertel
+      // wie Dominosteine. Sie zählen deshalb nicht als Grund für eine Beschwerde.
+      if (d <= RUINEN_REICHWEITE) ruinen += -2 * (1 - d / (RUINEN_REICHWEITE + 1))
       continue
     }
     if (def.category === 'unterwelt') {
-      if (d <= 4) {
-        const wert = -(7 + (e.crime ?? 0) * 0.6) * (1 - d / 5) * schutz
+      if (d <= 3.5) {
+        const wert = -(6 + (e.crime ?? 0) * 0.5) * (1 - d / 4.5) * schutz
         dunkel += wert
         merke(wert, GRUND[def.id] ?? `${def.name} nebenan`)
       }
       continue
     }
-    if ((e.environment ?? 0) < 0 && d <= 3) {
-      const wert = (e.environment ?? 0) * 0.6 * (1 - d / 4)
+    if ((e.environment ?? 0) < 0 && d <= 2.5) {
+      const wert = (e.environment ?? 0) * 0.5 * (1 - d / 3.5)
       dreck += wert
       merke(wert, GRUND[def.id] ?? `den Dreck von ${def.name}`)
       continue
@@ -121,15 +125,14 @@ export function wohnlageVon(city: CityState, placed: Placed, stimmung: number): 
     }
   }
 
-  if (dunkel < 0) parts.push({ label: 'Dunkle Nachbarschaft', value: Math.max(-40, Math.round(dunkel)) })
-  if (dreck < 0) parts.push({ label: 'Dreck und Lärm', value: Math.max(-20, Math.round(dreck)) })
+  if (dunkel < 0) parts.push({ label: 'Dunkle Nachbarschaft', value: Math.max(-35, Math.round(dunkel)) })
+  if (dreck < 0) parts.push({ label: 'Dreck und Lärm', value: Math.max(-15, Math.round(dreck)) })
   if (gruen > 0) parts.push({ label: 'Grün in der Nähe', value: Math.min(12, Math.round(gruen)) })
-  if (ruinen < 0) parts.push({ label: 'Ruinen nebenan', value: Math.max(-12, Math.round(ruinen)) })
+  if (ruinen < 0) parts.push({ label: 'Ruinen nebenan', value: Math.max(-6, Math.round(ruinen)) })
 
   const wert = Math.max(0, Math.min(100, parts.reduce((s, p) => s + p.value, 0)))
-  // Ist die ganze Stadt schlecht gelaunt, ist das der Grund – auch ohne dunklen Nachbarn
-  if (!grund && stimmung < BESCHWERDE_AB) grund = 'die miese Stimmung in der Stadt'
-  if (!grund && krim >= 30) grund = 'die Kriminalität im Viertel'
+  // Ohne einen greifbaren Störenfried in der Nachbarschaft gibt es keine Beschwerde:
+  // Allgemeine Unzufriedenheit regelt der Wegzug bei schlechter Stimmung, nicht der Leerstand
   return { wert, parts, grund }
 }
 
@@ -146,15 +149,23 @@ export const hausName = (placed: Placed): string => `${buildingDef(placed.type)?
  * Ein Schritt: Beschwerden beginnen, enden oder werden zum Auszug. Höchstens `maxAuszuege`
  * Häuser auf einmal, damit es nicht wie ein Erdrutsch wirkt – Menschen gehen nach und nach.
  */
-export function leerstandSchritt(city: CityState, now: number, stimmung: number, maxAuszuege = 2): LeerstandSchritt {
+export function leerstandSchritt(city: CityState, now: number, stimmung: number, maxAuszuege = 1): LeerstandSchritt {
   if (city.population <= 0) return { city, meldungen: [] }
   const meldungen: string[] = []
   let kapazitaet = 0
+  let haeuser = 0
+  let ruinen = 0
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
-    if (def && istWohnhaus(placed) && !placed.verlassen) kapazitaet += effectsOf(def, placed.level).capacity ?? 0
+    if (!def || !istWohnhaus(placed)) continue
+    haeuser++
+    if (placed.verlassen) ruinen++
+    else kapazitaet += effectsOf(def, placed.level).capacity ?? 0
   }
   const belegung = kapazitaet > 0 ? Math.min(1, city.population / kapazitaet) : 0
+  // Es darf nie mehr als ein Fünftel der Häuser leer stehen – ab da bleiben die Leute
+  // murrend wohnen, bis sich etwas bessert
+  const auszugErlaubt = ruinen < Math.max(1, Math.floor(haeuser * LEERSTAND_MAX))
 
   let auszuege = 0
   let neueBeschwerden = 0
@@ -165,13 +176,14 @@ export function leerstandSchritt(city: CityState, now: number, stimmung: number,
     const lage = wohnlageVon(city, placed, stimmung)
 
     if (placed.beschwerde) {
-      if (lage.wert >= BERUHIGT_AB) {
+      // Der Anlass ist weg oder die Lage hat sich erholt: Ruhe kehrt ein
+      if (lage.wert >= BERUHIGT_AB || !lage.grund) {
         geaendert = true
         meldungen.push(`🙂 ${hausName(placed)}: Die Bewohner haben sich beruhigt.`)
         const { beschwerde: _weg, ...ruhig } = placed
         return ruhig
       }
-      if (now - placed.beschwerde.seit >= AUSZUG_NACH && auszuege < maxAuszuege) {
+      if (auszugErlaubt && now - placed.beschwerde.seit >= AUSZUG_NACH && auszuege < maxAuszuege) {
         auszuege++
         geaendert = true
         const def = buildingDef(placed.type)!
@@ -186,18 +198,36 @@ export function leerstandSchritt(city: CityState, now: number, stimmung: number,
       return placed
     }
 
-    if (lage.wert < BESCHWERDE_AB && neueBeschwerden < 3) {
+    // Beschwert wird sich nur über einen konkreten Nachbarn – und nicht alle auf einmal
+    if (lage.wert < BESCHWERDE_AB && lage.grund && neueBeschwerden < 2) {
       neueBeschwerden++
       geaendert = true
-      const grund = lage.grund ?? 'die Zustände im Viertel'
-      meldungen.push(`😠 ${hausName(placed)}: Die Bewohner beschweren sich über ${grund}.`)
-      return { ...placed, beschwerde: { seit: now, grund } }
+      meldungen.push(`😠 ${hausName(placed)}: Die Bewohner beschweren sich über ${lage.grund}.`)
+      return { ...placed, beschwerde: { seit: now, grund: lage.grund } }
     }
     return placed
   })
 
   if (!geaendert) return { city, meldungen }
   return { city: { ...city, buildings, population }, meldungen }
+}
+
+/**
+ * Reparatur für Stände aus der ersten Fassung des Leerstands: Dort kippten ganze Viertel
+ * auf einmal. Alle Ruinen werden wieder bewohnbar, Beschwerden gelöscht, und die
+ * Ausgezogenen kommen zurück.
+ */
+export function leerstandZuruecksetzen(city: CityState): CityState {
+  let zurueck = 0
+  const buildings = city.buildings.map((placed) => {
+    if (!placed.verlassen && !placed.beschwerde) return placed
+    const def = buildingDef(placed.type)
+    if (placed.verlassen && def) zurueck += effectsOf(def, placed.level).capacity ?? 0
+    const { verlassen: _v, beschwerde: _b, ...frisch } = placed
+    return frisch
+  })
+  if (zurueck === 0 && buildings.every((b, i) => b === city.buildings[i])) return city
+  return { ...city, buildings, population: city.population + Math.round(zurueck * 0.85) }
 }
 
 /** Wie viele Häuser leer stehen */
