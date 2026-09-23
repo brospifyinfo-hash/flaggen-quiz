@@ -9,10 +9,10 @@ import type { CityState } from './types'
 export type AmpelFarbe = 'gruen' | 'gelb' | 'rot'
 
 /** Sekunden je vollem Umlauf */
-export const AMPEL_TAKT = 14
-const GRUEN = 5.2
-const GELB = 1.2
-const RAEUMEN = 0.6
+export const AMPEL_TAKT = 16
+const GRUEN = 6.6
+const GELB = 1.1
+const RAEUMEN = 0.3
 
 /** Wo ein wartendes Auto auf dem Weg in die Kreuzung anhält: Anteil der Strecke bis zur Kachelmitte */
 export const HALTELINIE = 0.24

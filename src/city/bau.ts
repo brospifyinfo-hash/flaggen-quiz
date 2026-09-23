@@ -6,7 +6,7 @@
 // Straßenseite. Was davor steht, wird vor oder hinter dem Haus gemalt, je nachdem,
 // ob diese Seite gerade zum Betrachter zeigt.
 import type { Extra, Fassade, Fensterart, Look, Stil, Unten } from './catalog'
-import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
+import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, ziegelReihen, type Point } from './draw'
 import { zeichneAuto, type Modell } from './figures'
 import {
   aussen,
@@ -712,22 +712,40 @@ type Flaeche = { punkte: P3[]; n: [number, number, number]; farbe: string; dach:
 /** Etwas, das auf dem Dach sitzt: an einem Kartenpunkt, auf der Höhe der Dachfläche dort */
 type AufDach = { x: number; y: number; malen: (p: Point) => void }
 
-function flaechenMalen(ctx: CanvasRenderingContext2D, flaechen: Flaeche[], mitte: P3, auf: AufDach[], hoeheBei: (x: number, y: number) => number) {
+function flaechenMalen(
+  ctx: CanvasRenderingContext2D,
+  flaechen: Flaeche[],
+  mitte: P3,
+  auf: AufDach[],
+  hoeheBei: (x: number, y: number) => number,
+  fein = false,
+  ziegel = true,
+) {
   const sichtbar = flaechen
     .map((f) => ({ ...f, n: aussen(f.n, f.punkte[0], mitte) }))
     .filter((f) => sichtbar3(f.n))
     .map((f) => ({ f, tiefe: schwerpunkt(f.punkte.map(proj)).sy }))
     .sort((a, b) => a.tiefe - b.tiefe)
   for (const { f } of sichtbar) {
+    const ecken = f.punkte.map(proj)
     ctx.beginPath()
-    f.punkte.forEach((p, i) => {
-      const q = proj(p)
+    ecken.forEach((q, i) => {
       if (i === 0) ctx.moveTo(q.sx, q.sy)
       else ctx.lineTo(q.sx, q.sy)
     })
     ctx.closePath()
     ctx.fillStyle = shade(f.farbe, licht3(f.n) + (f.dach ? 22 : 0))
     ctx.fill()
+    if (!fein || !f.dach || !ziegel || ecken.length < 3) continue
+    // Ziegelreihen von der Traufe (erste Kante) zum First (gegenüber)
+    const e0 = ecken[0]
+    const e1 = ecken[1]
+    const r1 = ecken[2]
+    const r0 = ecken.length === 3 ? ecken[2] : ecken[3]
+    ctx.save()
+    ctx.clip()
+    ziegelReihen(ctx, e0, e1, r0, r1)
+    ctx.restore()
   }
   // Was auf dem Dach sitzt, kommt nach allen Flächen – von hinten nach vorn
   auf
@@ -799,6 +817,49 @@ function dach(
       ctx.stroke()
     }
     const hoeheBei = () => h + rand * 0.4
+    if (fein) {
+      // Kiesschüttung: feine helle und dunkle Sprenkel
+      ctx.save()
+      ctx.beginPath()
+      quadPath(ctx, i0, i1, i2, i3)
+      ctx.clip()
+      const n = Math.round(innen.w * innen.h * 26)
+      const samen = r.x * 31 + r.y * 17
+      for (const [farbe, alpha, versatz] of [
+        ['#ffffff', 0.16, 0],
+        ['#000000', 0.12, 500],
+      ] as [string, number, number][]) {
+        ctx.fillStyle = fade(farbe, alpha)
+        ctx.beginPath()
+        for (let i = 0; i < n; i++) {
+          const px = innen.x + wobble(samen, i + versatz) * innen.w
+          const py = innen.y + wobble(samen, i * 3 + 1 + versatz) * innen.h
+          const p = lift(toScreen(px, py), hoeheBei())
+          ctx.moveTo(p.sx + 0.7, p.sy)
+          ctx.arc(p.sx, p.sy, 0.7, 0, Math.PI * 2)
+        }
+        ctx.fill()
+      }
+      ctx.restore()
+      // Klimagerät in einer Ecke, wenn Platz ist
+      if (innen.w > 0.5 && innen.h > 0.5) {
+        const p = lift(toScreen(innen.x + 0.22, innen.y + innen.h - 0.2), hoeheBei())
+        const kasten: Grund = { x: innen.x + 0.1, y: innen.y + innen.h - 0.32, w: 0.24, h: 0.24 }
+        const w4 = waende(kasten, hoeheBei())
+        for (const s of SEITEN) {
+          const w = w4[s]
+          if (!w.sichtbar) continue
+          quad(ctx, w.a, w.b, lift(w.b, 5), lift(w.a, 5), shade('#b8bec8', w.ton))
+        }
+        const [d0, d1, d2, d3] = umlauf(kasten, hoeheBei() + 5)
+        quad(ctx, d0, d1, d2, d3, '#cdd3dc')
+        ctx.strokeStyle = 'rgba(40,46,60,0.6)'
+        ctx.lineWidth = 0.8
+        ctx.beginPath()
+        ctx.arc(p.sx, p.sy - 5.2, 2.2, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+    }
     auf
       .map((ding) => ({ ding, p: lift(toScreen(ding.x, ding.y), hoeheBei()) }))
       .sort((a, b) => a.p.sy - b.p.sy)
@@ -854,7 +915,7 @@ function dach(
       const laengs = form === 'sattel' ? 0 : laengsX ? Math.max(0, Math.abs(x - c.x) - (f2.x - f1.x) / 2) / hw : Math.max(0, Math.abs(y - c.y) - (f2.y - f1.y) / 2) / hw
       return h + rise * Math.max(0, 1 - Math.max(quer, laengs))
     }
-    flaechenMalen(ctx, flaechen, P(c.x, c.y, h), auf, hoeheBei)
+    flaechenMalen(ctx, flaechen, P(c.x, c.y, h), auf, hoeheBei, fein)
     if (fein && form !== 'zelt') {
       const q1 = proj(f1)
       const q2 = proj(f2)
@@ -865,6 +926,7 @@ function dach(
       ctx.lineTo(q2.sx, q2.sy)
       ctx.stroke()
     }
+    if (fein) dachrinne(ctx, r, h, wandFarbe)
     return { hoeheBei, spitze: f1, flach: false }
   }
 
@@ -891,7 +953,7 @@ function dach(
       W([boden[i], boden[j], e[j], e[i]])
     }
     const hoeheBei = (x: number, y: number) => zHinten(x, y)
-    flaechenMalen(ctx, flaechen, P(c.x, c.y, h), auf, hoeheBei)
+    flaechenMalen(ctx, flaechen, P(c.x, c.y, h), auf, hoeheBei, fein)
     return { hoeheBei, spitze: P(c.x, c.y, h + rise * 0.6), flach: false }
   }
 
@@ -910,7 +972,7 @@ function dach(
       const rand = Math.min(x - x0, x1 - x, y - y0, y1 - y)
       return h + steil * Math.min(1, Math.max(0, rand / m))
     }
-    flaechenMalen(ctx, flaechen, P(c.x, c.y, h), auf, hoeheBei)
+    flaechenMalen(ctx, flaechen, P(c.x, c.y, h), auf, hoeheBei, fein)
     return { hoeheBei, spitze: P(c.x, c.y, h + steil), flach: false }
   }
 
@@ -953,6 +1015,42 @@ function dach(
     .sort((a, b) => a.p.sy - b.p.sy)
     .forEach(({ ding, p }) => ding.malen(p))
   return { hoeheBei, spitze: P(c.x, c.y, h + zahnHoch), flach: false }
+}
+
+/**
+ * Dachrinne entlang der sichtbaren Traufen und ein Fallrohr an der vordersten Ecke,
+ * das bis zum Boden führt. Kleinigkeiten, an denen das Auge hängen bleibt.
+ */
+function dachrinne(ctx: CanvasRenderingContext2D, r: Grund, h: number, wandFarbe: string): void {
+  const kanten = waende(r, h)
+  const rinne = shade(wandFarbe, -55)
+  ctx.strokeStyle = rinne
+  ctx.lineWidth = 1.3
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  let vorn: Point | null = null
+  for (const s of SEITEN) {
+    const k = kanten[s]
+    if (!k.sichtbar) continue
+    ctx.moveTo(k.a.sx, k.a.sy)
+    ctx.lineTo(k.b.sx, k.b.sy)
+    for (const p of [k.a, k.b]) if (!vorn || p.sy > vorn.sy) vorn = p
+  }
+  ctx.stroke()
+  if (!vorn || h < 12) return
+  // Fallrohr: vom Rinnenrand senkrecht hinunter, unten ein kleiner Knick
+  ctx.lineWidth = 1.1
+  ctx.beginPath()
+  ctx.moveTo(vorn.sx, vorn.sy + 0.5)
+  ctx.lineTo(vorn.sx, vorn.sy + h - 2)
+  ctx.lineTo(vorn.sx + 1.5, vorn.sy + h)
+  ctx.stroke()
+  ctx.strokeStyle = fade('#ffffff', 0.25)
+  ctx.lineWidth = 0.5
+  ctx.beginPath()
+  ctx.moveTo(vorn.sx - 0.4, vorn.sy + 1)
+  ctx.lineTo(vorn.sx - 0.4, vorn.sy + h - 3)
+  ctx.stroke()
 }
 
 function schwerpunkt3(punkte: P3[]): P3 {

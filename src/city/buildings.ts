@@ -6,7 +6,7 @@
 // Zweitens hängt alles Zufällige am Namen des Hauses, damit es sein Aussehen behält.
 import { drawBau, umrissBau } from './bau'
 import { buildingDef, footprint, type Look } from './catalog'
-import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
+import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, ziegelReihen, type Point } from './draw'
 import { nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
 import { SEITEN, umlauf, waende, schwerpunkt, type Grund, type Seite, type Wand } from './geo'
 import { FENSTER_TOENE, fensterAn, fensterDunkel, leuchte, lichtJetzt } from './licht'
@@ -307,17 +307,12 @@ function gableRoof(
     const [p0, p1, p2, p3] = flaeche.punkte
     quad(ctx, p0, p1, p2, p3, shade(color, -7 + 19 * nachRechts(flaeche.n[0], flaeche.n[1])))
     if (fein) {
-      ctx.strokeStyle = fade('#10131c', 0.18)
-      ctx.lineWidth = 0.9
+      ctx.save()
       ctx.beginPath()
-      for (let i = 1; i <= 3; i++) {
-        const t = i / 4
-        const q0 = mix(flaeche.traufe[0], f1, t)
-        const q1 = mix(flaeche.traufe[1], f2, t)
-        ctx.moveTo(q0.sx, q0.sy)
-        ctx.lineTo(q1.sx, q1.sy)
-      }
-      ctx.stroke()
+      quadPath(ctx, p0, p1, p2, p3)
+      ctx.clip()
+      ziegelReihen(ctx, flaeche.traufe[0], flaeche.traufe[1], f1, f2)
+      ctx.restore()
     }
     for (const ding of aufDach) {
       const aufNeg = laengsX ? ding.wy < r.y + r.h / 2 : ding.wx < r.x + r.w / 2

@@ -448,7 +448,7 @@ function kriminalitaetMarken(ctx: CanvasRenderingContext2D, city: CityState): vo
 }
 
 /** Boden, Gitter und Rand des freigeschalteten Gebiets */
-function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean, theme: Theme): void {
+function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean, theme: Theme, fein: boolean): void {
   const size = city.land
   const p0 = toScreen(0, 0)
   const p1 = toScreen(size, 0)
@@ -499,6 +499,51 @@ function drawGround(ctx: CanvasRenderingContext2D, city: CityState, buildMode: b
     ctx.fillStyle = `rgba(255,255,255,${0.02 + stufe * 0.022})`
     ctx.fill()
   })
+
+  // Grasbüschel und Blümchen auf freien Kacheln – nur dort, wo nichts steht
+  if (fein) {
+    const belegt = new Set<string>(Object.keys(city.roads))
+    for (const placed of city.buildings) for (const t of tilesOf(placed)) belegt.add(`${t.x}:${t.y}`)
+    const halme: Point[] = []
+    const blumen: Point[] = []
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
+        if (belegt.has(`${x}:${y}`)) continue
+        const n = tileNoise(x * 5 + 2, y * 3 + 7)
+        const anzahl = n > 0.7 ? 3 : n > 0.4 ? 2 : 1
+        for (let i = 0; i < anzahl; i++) {
+          const px = x + 0.12 + tileNoise(x + i * 17, y + i * 29) * 0.76
+          const py = y + 0.12 + tileNoise(y + i * 23, x + i * 31) * 0.76
+          halme.push(toScreen(px, py))
+        }
+        if (tileNoise(x * 9 + 1, y * 11 + 4) > 0.9) blumen.push(toScreen(x + 0.3 + tileNoise(x, y * 2) * 0.4, y + 0.3 + tileNoise(y, x * 2) * 0.4))
+      }
+    }
+    ctx.strokeStyle = 'rgba(30,90,40,0.35)'
+    ctx.lineWidth = 1
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    for (const p of halme) {
+      ctx.moveTo(p.sx - 1.6, p.sy + 0.8)
+      ctx.lineTo(p.sx - 0.6, p.sy - 2.2)
+      ctx.moveTo(p.sx, p.sy + 0.8)
+      ctx.lineTo(p.sx + 0.4, p.sy - 2.8)
+      ctx.moveTo(p.sx + 1.6, p.sy + 0.8)
+      ctx.lineTo(p.sx + 1.2, p.sy - 2)
+    }
+    ctx.stroke()
+    if (blumen.length) {
+      ctx.fillStyle = 'rgba(255,240,180,0.9)'
+      ctx.beginPath()
+      for (const p of blumen) {
+        ctx.moveTo(p.sx + 1, p.sy)
+        ctx.arc(p.sx, p.sy, 1, 0, Math.PI * 2)
+        ctx.moveTo(p.sx + 4, p.sy + 1.5)
+        ctx.arc(p.sx + 3, p.sy + 1.5, 0.9, 0, Math.PI * 2)
+      }
+      ctx.fill()
+    }
+  }
 
   if (buildMode) {
     ctx.strokeStyle = 'rgba(255,255,255,0.22)'
@@ -603,7 +648,7 @@ export function drawCity(
   // Gerät mitkommt. Die Bildrate zählt mehr als eine Fensterbank.
   const fein = camera.zoom >= 0.7 && options.detail !== false
 
-  drawGround(ctx, city, options.buildMode === true, theme)
+  drawGround(ctx, city, options.buildMode === true, theme, fein)
   drawRoads(ctx, city, theme, fein)
 
   // Vorschau beim Straßenziehen

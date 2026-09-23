@@ -755,7 +755,7 @@ export function stepLife(life: Life, city: CityState, dt: number): Ereignis[] {
       const q = a.weg[a.i + 1]
       const l = Math.hypot(q.x - p.x, q.y - p.y) || 0.001
       // Vor einer Kreuzung mit roter oder gelber Ampel bleibt der Wagen an der Haltelinie
-      if (fahrzeug && a.strasse[a.i + 1] && a.t < HALTELINIE) {
+      if (fahrzeug && a.strasse[a.i + 1] && a.t <= HALTELINIE + 1e-9) {
         const kx = Math.floor(q.x)
         const ky = Math.floor(q.y)
         if (istKreuzung(city, kx, ky) && ampelFuer(kx, ky, q.x - p.x, q.y - p.y, life.uhr) !== 'gruen') {

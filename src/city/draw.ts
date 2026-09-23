@@ -191,3 +191,58 @@ export function quadPath(ctx: CanvasRenderingContext2D, a: Point, b: Point, c: P
   ctx.lineTo(d.sx, d.sy)
   ctx.closePath()
 }
+
+/**
+ * Ziegelreihen auf einer schrägen Dachfläche: Linien von der Traufe (e0–e1) zum First
+ * (r0–r1), dazu versetzte Fugen, ein heller Grat und ein Schatten an der Traufe.
+ * Der Aufrufer hat die Fläche schon gefüllt und zugeschnitten.
+ */
+export function ziegelReihen(ctx: CanvasRenderingContext2D, e0: Point, e1: Point, r0: Point, r1: Point): void {
+  const m0 = mix(e0, e1, 0.5)
+  const m1 = mix(r0, r1, 0.5)
+  const hoch = Math.hypot(m0.sx - m1.sx, m0.sy - m1.sy)
+  const reihen = Math.max(2, Math.min(9, Math.round(hoch / 3.2)))
+  ctx.strokeStyle = 'rgba(0,0,0,0.13)'
+  ctx.lineWidth = 0.8
+  ctx.beginPath()
+  for (let i = 1; i < reihen; i++) {
+    const t = i / reihen
+    const a = mix(e0, r0, t)
+    const b = mix(e1, r1, t)
+    ctx.moveTo(a.sx, a.sy)
+    ctx.lineTo(b.sx, b.sy)
+  }
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)'
+  ctx.lineWidth = 0.6
+  ctx.beginPath()
+  for (let i = 0; i < reihen; i++) {
+    const a0 = mix(e0, r0, i / reihen)
+    const b0 = mix(e1, r1, i / reihen)
+    const a1 = mix(e0, r0, (i + 1) / reihen)
+    const b1 = mix(e1, r1, (i + 1) / reihen)
+    const breit = Math.hypot(b0.sx - a0.sx, b0.sy - a0.sy)
+    const n = Math.max(1, Math.round(breit / 5))
+    for (let j = 0; j < n; j++) {
+      const u = (j + (i % 2 ? 0.5 : 0)) / n
+      if (u <= 0 || u >= 1) continue
+      const p = mix(a0, b0, u)
+      const q = mix(a1, b1, u)
+      ctx.moveTo(p.sx, p.sy)
+      ctx.lineTo(q.sx, q.sy)
+    }
+  }
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)'
+  ctx.lineWidth = 1.2
+  ctx.beginPath()
+  ctx.moveTo(r0.sx, r0.sy)
+  ctx.lineTo(r1.sx, r1.sy)
+  ctx.stroke()
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)'
+  ctx.lineWidth = 1.6
+  ctx.beginPath()
+  ctx.moveTo(e0.sx, e0.sy)
+  ctx.lineTo(e1.sx, e1.sy)
+  ctx.stroke()
+}
