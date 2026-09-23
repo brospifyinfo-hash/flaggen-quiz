@@ -564,23 +564,30 @@ export function happinessBreakdown(city: CityState): { total: number; parts: Par
   return { total, parts }
 }
 
-/** Woraus die Einnahmen eines Zyklus bestehen */
+/** Woraus die Einnahmen eines Zyklus bestehen – jedes Geschäft für sich, nicht als eine Summe */
 export function incomeBreakdown(city: CityState): { total: number; parts: Part[] } {
   const g = gesellschaft(city)
-  let handel = 0
+  const laeden = new Map<string, { wert: number; anzahl: number }>()
   let dienste = 0
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
     if (!def || placed.verlassen) continue
     const einnahme = effectsOf(def, placed.level).income ?? 0
-    if (einnahme >= 0) handel += einnahme
-    else dienste += einnahme
+    if (einnahme > 0) {
+      const bisher = laeden.get(def.name) ?? { wert: 0, anzahl: 0 }
+      laeden.set(def.name, { wert: bisher.wert + einnahme, anzahl: bisher.anzahl + 1 })
+    } else if (einnahme < 0) dienste += einnahme
   }
+  const handel = [...laeden.values()].reduce((summe, eintrag) => summe + eintrag.wert, 0)
   const diebstahl = Math.round((handel * g.kriminalitaet) / 250)
   const unterhalt = city.buildings.length + Math.ceil(Object.keys(city.roads).length / 2)
 
-  const parts: Part[] = []
-  if (handel > 0) parts.push({ label: 'Handel', value: handel })
+  const parts: Part[] = [...laeden.entries()]
+    .sort((a, b) => b[1].wert - a[1].wert || a[0].localeCompare(b[0], 'de'))
+    .map(([name, eintrag]) => ({
+      label: eintrag.anzahl > 1 ? `${name} · ${eintrag.anzahl}` : name,
+      value: eintrag.wert,
+    }))
   if (g.steuern > 0) parts.push({ label: `Steuern (${steuerVon(city)} %)`, value: g.steuern })
   if (g.schwarzgeld > 0) parts.push({ label: 'Schwarzgeld', value: g.schwarzgeld })
   if (dienste < 0) parts.push({ label: 'Polizei, Feuerwehr, Ärzte', value: dienste })

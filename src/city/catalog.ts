@@ -849,10 +849,17 @@ export function footprint(def: BuildingDef, rot: number): [number, number] {
   return rot % 2 === 0 ? [def.size[0], def.size[1]] : [def.size[1], def.size[0]]
 }
 
+/**
+ * Gewerbe (Läden, Büros, Fabriken) wirft pro Tag ein Vielfaches des Katalogwerts ab.
+ * Ausbau und Anzeige rechnen über effectsOf, deshalb gilt der Faktor überall gleich.
+ */
+export const GEWERBE_EINNAHME = 6
+
 /** Wirkung auf der aktuellen Ausbaustufe */
 export function effectsOf(def: BuildingDef, level: number): Effects {
-  if (level <= 1 || !def.upgrades) return def.effects
-  return def.upgrades[Math.min(def.upgrades.length, level - 1) - 1]?.effects ?? def.effects
+  const roh = level <= 1 || !def.upgrades ? def.effects : (def.upgrades[Math.min(def.upgrades.length, level - 1) - 1]?.effects ?? def.effects)
+  if (def.category !== 'handel' || !roh.income || roh.income <= 0) return roh
+  return { ...roh, income: Math.round(roh.income * GEWERBE_EINNAHME) }
 }
 
 /** Kosten des nächsten Ausbaus – null, wenn es keinen weiteren gibt */

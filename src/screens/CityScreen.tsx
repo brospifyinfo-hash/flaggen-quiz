@@ -1345,11 +1345,14 @@ function CityWorld({ data }: { data: SaveData }) {
                 </span>
               </span>
             </div>
-            <p className="city-label-line">🪙 Einnahmen je Tag</p>
+            <p className="city-label-line">🪙 Woran die Stadt verdient</p>
             <ul className="city-effects">
               {cycle.income.map((part) => (
                 <li key={part.label}>
-                  {part.label} <strong>{part.value > 0 ? `+${part.value}` : part.value}</strong>
+                  {part.label}{' '}
+                  <strong>
+                    {part.value > 0 ? `+${part.value.toLocaleString('de-DE')}` : part.value.toLocaleString('de-DE')}
+                  </strong>
                 </li>
               ))}
             </ul>
@@ -1422,11 +1425,27 @@ function CityWorld({ data }: { data: SaveData }) {
                 </div>
               </div>
 
-              <p className="city-label-line">🌅 Beim Tagesabschluss bekommst du</p>
+              <p className="city-label-line">🪙 Woran die Stadt verdient</p>
+              {incomeBreakdown(city).parts.some((part) => part.value > 0) ? (
+                <ul className="city-effects">
+                  {incomeBreakdown(city).parts.map((part) => (
+                    <li key={part.label}>
+                      {part.label}{' '}
+                      <strong>
+                        {part.value > 0 ? `+${part.value.toLocaleString('de-DE')}` : part.value.toLocaleString('de-DE')}
+                      </strong>
+                    </li>
+                  ))}
+                  <li>
+                    Zusammen <strong>+{incomeBreakdown(city).total.toLocaleString('de-DE')}</strong> Münzen
+                  </li>
+                </ul>
+              ) : (
+                <p className="city-hint">
+                  Noch verdient niemand etwas. Ein Kiosk oder eine Bäckerei bringt jeden Tag Münzen.
+                </p>
+              )}
               <ul className="city-effects">
-                <li>
-                  🪙 Münzen <strong>+{incomeBreakdown(city).total.toLocaleString('de-DE')}</strong>
-                </li>
                 <li>
                   🧱 Ziegel <strong>+{ziegelBreakdown(city).total.toLocaleString('de-DE')}</strong>
                 </li>
@@ -1520,11 +1539,14 @@ function CityWorld({ data }: { data: SaveData }) {
               <ul className="city-effects">
                 {incomeBreakdown(city).parts.map((part) => (
                   <li key={part.label}>
-                    {part.label} <strong>{part.value > 0 ? `+${part.value}` : part.value}</strong>
+                    {part.label}{' '}
+                    <strong>
+                      {part.value > 0 ? `+${part.value.toLocaleString('de-DE')}` : part.value.toLocaleString('de-DE')}
+                    </strong>
                   </li>
                 ))}
                 <li>
-                  Zusammen <strong>{incomeBreakdown(city).total}</strong>
+                  Zusammen <strong>{incomeBreakdown(city).total.toLocaleString('de-DE')}</strong>
                 </li>
               </ul>
 

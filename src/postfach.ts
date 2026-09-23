@@ -20,6 +20,16 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-i',
+    datum: '23. September 2026',
+    titel: 'Gewerbe zahlt sich aus',
+    text: 'Läden, Büros und Fabriken bringen pro Tag deutlich mehr ein. Auf der Tagesuhr steht, welches Haus das Geld verdient.',
+    punkte: [
+      'Gewerbe wirft sechsmal so viele Münzen pro Tag ab.',
+      'Tagesuhr und Tagesabschluss listen jedes Geschäft einzeln auf, dazu Steuern und Abzüge.',
+    ],
+  },
+  {
     id: '2026-09-23-h',
     datum: '23. September 2026',
     titel: 'Menü oben links',
