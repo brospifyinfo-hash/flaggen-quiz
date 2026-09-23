@@ -29,7 +29,7 @@ export function ContinentScreen({ data, id }: { data: SaveData; id: ContinentId 
   const practice = data.sessions[sessionKey(id, 'practice')]
   const test = data.sessions[sessionKey(id, 'test')]
   const next = nextContinent(id)
-  const countries = countriesOf(id).toSorted((a, b) => a.name.localeCompare(b.name, 'de'))
+  const countries = [...countriesOf(id)].sort((a, b) => a.name.localeCompare(b.name, 'de'))
   const missing = stats.total - stats.seen
 
   const start = (mode: Mode) => {

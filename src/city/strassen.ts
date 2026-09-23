@@ -7,7 +7,7 @@
 import { ampelPhase, arme, istKreuzung, type AmpelFarbe } from './ampeln'
 import { tree } from './buildings'
 import { roadDef } from './catalog'
-import { fade, lift, mix, quadPath, type Point } from './draw'
+import { fade, lift, mix, quadPath, roundedPath, type Point } from './draw'
 import { TILE_H, tileNoise, toScreen } from './iso'
 import { leuchte, lichtJetzt } from './licht'
 import { roadAt } from './state'
@@ -262,8 +262,7 @@ function ampel(ctx: CanvasRenderingContext2D, p: Point, farbe: AmpelFarbe, nachR
   const gx = p.sx + nachRechts * 1.5
   const gy = p.sy - hoch - 11
   ctx.fillStyle = '#1e222b'
-  ctx.beginPath()
-  ctx.roundRect(gx - 3, gy, 6, 12.5, 1.6)
+  roundedPath(ctx, gx - 3, gy, 6, 12.5, 1.6)
   ctx.fill()
   if (fein) {
     ctx.fillStyle = 'rgba(255,255,255,0.12)'
