@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-g',
+    datum: '23. September 2026',
+    titel: 'Die Rangliste hat ein Podest',
+    text: 'Die größten Städte stehen auf einer Bühne. Auf der Startseite öffnest du sie nur noch über den Pokal.',
+    punkte: [
+      'Platz eins thront in der Mitte, daneben Platz zwei und drei. Darunter folgen die weiteren Plätze.',
+      'Zu sehen sind der Pokal, der Name, der Rang, das Level, die Stadtstufe und die Einwohner.',
+      'Auf der Startseite ist die Rangliste nur noch das Pokal-Symbol im Kopf der Seite.',
+    ],
+  },
+  {
     id: '2026-09-23-f',
     datum: '23. September 2026',
     titel: 'Gutschrift für ein einzelnes Konto',

@@ -62,6 +62,9 @@ export function HomeScreen({ data }: { data: SaveData }) {
             </span>
             {tag && <Tagesuhr zeit={tag} size={38} className="home-uhr" />}
           </div>
+          <button className="glas home-zahnrad home-pokal" aria-label="Rangliste" onClick={() => gehe({ name: 'rangliste' })}>
+            <IconTrophy />
+          </button>
           <button
             className={`glas home-zahnrad home-post${neuePost > 0 ? ' hat-neues' : ''}`}
             aria-label={neuePost > 0 ? `Postfach, ${neuePost} neue Nachrichten` : 'Postfach'}
@@ -166,16 +169,6 @@ export function HomeScreen({ data }: { data: SaveData }) {
               🏙️
             </span>
             <span>{stadt ? 'Stadt betreten' : 'Stadt gründen'}</span>
-          </button>
-
-          <button className="glas home-weiter" onClick={() => gehe({ name: 'rangliste' })}>
-            <span className="home-weiter-icon" aria-hidden="true">
-              <IconTrophy />
-            </span>
-            <span className="home-weiter-text">
-              <small>Die fünf größten Städte</small>
-              <strong>Rangliste</strong>
-            </span>
           </button>
 
           <button className="glas home-weiter home-hf" onClick={() => gehe({ name: 'herausforderungen' })}>
