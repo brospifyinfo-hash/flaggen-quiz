@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { GET as kontoGet, POST as kontoPost } from './api/konto'
+import { GET as kontoGet, POST as kontoPost } from './server/handler'
 
 /**
  * In der Entwicklung und in der Vorschau beantwortet dieselbe Funktion wie auf Vercel

@@ -1,9 +1,10 @@
+/// <reference types="node" />
 /**
  * Die eine Schnittstelle für Konten: POST /api/konto mit { aktion, ... }.
  * Läuft als Vercel-Funktion (Node) und in der Entwicklung über das Vite-Plugin
  * in vite.config.ts, das dieselbe Funktion aufruft.
  */
-import { Abgelehnt, anmelden, laden, passwortAendern, registrieren, speichern, zustand } from './_lib/konto'
+import { Abgelehnt, anmelden, laden, passwortAendern, registrieren, speichern, zustand } from './konto'
 
 const AKTIONEN = { registrieren, anmelden, laden, speichern, passwortAendern } as const
 type Aktion = keyof typeof AKTIONEN

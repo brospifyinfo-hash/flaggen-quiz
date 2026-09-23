@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Konten: Registrieren, Anmelden, Spielstand sichern und laden.
  *

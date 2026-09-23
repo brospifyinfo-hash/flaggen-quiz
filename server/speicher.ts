@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Wo Konten und Spielstände liegen. Zwei Ablagen:
  *  - GitHub: ein privates Repository, angesprochen über die Contents-API
