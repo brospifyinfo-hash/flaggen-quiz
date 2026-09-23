@@ -5,9 +5,6 @@
  */
 import { Abgelehnt, anmelden, laden, passwortAendern, registrieren, speichern, zustand } from './_lib/konto'
 
-/** Node, nicht Edge: Passwörter laufen über scrypt, die Ablage über Node-APIs */
-export const runtime = 'nodejs'
-
 const AKTIONEN = { registrieren, anmelden, laden, speichern, passwortAendern } as const
 type Aktion = keyof typeof AKTIONEN
 
@@ -31,7 +28,12 @@ const antwort = (status: number, body: unknown) =>
   })
 
 export async function GET(): Promise<Response> {
-  return antwort(200, zustand())
+  try {
+    return antwort(200, zustand())
+  } catch (fehler) {
+    console.error('Konto-Status:', fehler)
+    return antwort(500, { fehler: fehler instanceof Error ? fehler.message : 'Status nicht verfügbar.' })
+  }
 }
 
 export async function POST(request: Request): Promise<Response> {
