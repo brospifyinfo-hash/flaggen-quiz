@@ -1,0 +1,4 @@
+I0923 01:03:09.314464 139691958345856 nanoemoji.py:647] Proceeding with 1 config(s)
+I0923 01:03:09.327147 139691958345856 nanoemoji.py:610] Wrote build/Ikonen.toml
+I0923 01:03:09.327282 139691958345856 nanoemoji.py:653] Generating build.ninja
+I0923 01:03:09.373811 139691958345856 ninja.py:122] ninja -C /workspace/ikonen/build

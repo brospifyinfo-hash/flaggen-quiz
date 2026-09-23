@@ -21,7 +21,7 @@
   --lw-weich: #f6ecd6;
   --lw-papier: #fdfaf2;
   --lw-tinte: #221d16;
-  --lw-schrift: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+  --lw-schrift: 'Weltwissen Ikonen', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
   --lw-kante: #e3d6b8;
 }
 
@@ -40,7 +40,7 @@
   --lw-weich: #fbe8ee;
   --lw-papier: #fffaf4;
   --lw-tinte: #1c2233;
-  --lw-schrift: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --lw-schrift: 'Weltwissen Ikonen', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --lw-kante: #eadccb;
 }
 
@@ -59,7 +59,7 @@
   --lw-weich: #dcf5e9;
   --lw-papier: #0f1623;
   --lw-tinte: #d7e3f4;
-  --lw-schrift: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --lw-schrift: 'Weltwissen Ikonen', ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
   --lw-kante: #243149;
 }
 

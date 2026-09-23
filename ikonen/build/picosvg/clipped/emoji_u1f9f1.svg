@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs/>
+  <path fill="#e9cfa4" d="M14,16 L114,16 A4 4 0 0 1 118,20 L118,108 A4 4 0 0 1 114,112 L14,112 A4 4 0 0 1 10,108 L10,20 A4 4 0 0 1 14,16 Z"/>
+  <path fill="#c0603f" d="M10,16 L118,16 L118,48 L10,48 L10,16 Z"/>
+  <path fill="#c0603f" d="M10,48 L118,48 L118,80 L10,80 L10,48 Z"/>
+  <path fill="#c0603f" d="M10,80 L118,80 L118,112 L10,112 L10,80 Z"/>
+  <path fill="#e9cfa4" d="M10,46 L118,46 L118,50 L10,50 L10,46 Z"/>
+  <path fill="#e9cfa4" d="M10,78 L118,78 L118,82 L10,82 L10,78 Z"/>
+  <path fill="#e9cfa4" d="M60,16 L64,16 L64,48 L60,48 L60,16 Z"/>
+  <path fill="#e9cfa4" d="M36,48 L40,48 L40,80 L36,80 L36,48 Z"/>
+  <path fill="#e9cfa4" d="M88,48 L92,48 L92,80 L88,80 L88,48 Z"/>
+  <path fill="#e9cfa4" d="M60,80 L64,80 L64,112 L60,112 L60,80 Z"/>
+</svg>

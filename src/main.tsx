@@ -11,6 +11,8 @@ import { initRouter } from './router'
 history.scrollRestoration = 'manual'
 initRouter()
 initPwa()
+// Ikonen-Schrift früh anfordern, damit Emoji-Codepunkte nie kurz als System-Emoji aufblitzen
+document.fonts?.load('16px "Weltwissen Ikonen"', '\u{1FA99}').catch(() => undefined)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

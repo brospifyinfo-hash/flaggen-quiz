@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "flags": "node scripts/prepare-flags.ts",
     "icons": "node scripts/make-icons.ts",
+    "ikonen": "bash ikonen/build.sh",
     "people": "node scripts/fetch-people.ts",
     "map": "node scripts/prepare-map.ts"
   },

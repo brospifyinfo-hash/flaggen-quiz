@@ -1,0 +1,38 @@
+languagesystem DFLT dflt;
+languagesystem latn dflt;
+
+feature ccmp {
+  sub g_1f1e9 g_1f1ea by g_1f1e9_1f1ea;
+  sub g_1f1eb g_1f1f7 by g_1f1eb_1f1f7;
+  sub g_1f1ec g_1f1e7 by g_1f1ec_1f1e7;
+  sub g_1f468 g_200d g_1f373 by g_1f468_200d_1f373;
+  sub g_1f468 g_200d g_1f469 g_200d g_1f467 by g_1f468_200d_1f469_200d_1f467;
+  sub g_1f468 g_200d g_1f4bc by g_1f468_200d_1f4bc;
+  sub g_1f468 g_200d g_1f527 by g_1f468_200d_1f527;
+  sub g_1f468 g_200d g_1f52c by g_1f468_200d_1f52c;
+  sub g_1f468 g_200d g_1f9b3 by g_1f468_200d_1f9b3;
+  sub g_1f469 g_200d g_2695 by g_1f469_200d_2695;
+  sub g_1f469 g_200d g_1f33e by g_1f469_200d_1f33e;
+  sub g_1f469 g_200d g_1f373 by g_1f469_200d_1f373;
+  sub g_1f469 g_200d g_1f393 by g_1f469_200d_1f393;
+  sub g_1f469 g_200d g_1f3a8 by g_1f469_200d_1f3a8;
+  sub g_1f469 g_200d g_1f3eb by g_1f469_200d_1f3eb;
+  sub g_1f469 g_200d g_1f466 by g_1f469_200d_1f466;
+  sub g_1f469 g_200d g_1f4bb by g_1f469_200d_1f4bb;
+  sub g_1f469 g_200d g_1f4bc by g_1f469_200d_1f4bc;
+  sub g_1f469 g_200d g_1f52c by g_1f469_200d_1f52c;
+  sub g_1f469 g_200d g_1f9b0 by g_1f469_200d_1f9b0;
+  sub g_1f469 g_200d g_1f9b1 by g_1f469_200d_1f9b1;
+  sub g_1f9d1 g_200d g_2695 by g_1f9d1_200d_2695;
+  sub g_1f9d1 g_200d g_2708 by g_1f9d1_200d_2708;
+  sub g_1f9d1 g_200d g_1f373 by g_1f9d1_200d_1f373;
+  sub g_1f9d1 g_200d g_1f393 by g_1f9d1_200d_1f393;
+  sub g_1f9d1 g_200d g_1f3eb by g_1f9d1_200d_1f3eb;
+  sub g_1f9d1 g_200d g_1f3ed by g_1f9d1_200d_1f3ed;
+  sub g_1f9d1 g_200d g_1f4bb by g_1f9d1_200d_1f4bb;
+  sub g_1f9d1 g_200d g_1f4bc by g_1f9d1_200d_1f4bc;
+  sub g_1f9d1 g_200d g_1f527 by g_1f9d1_200d_1f527;
+  sub g_1f9d1 g_200d g_1f52c by g_1f9d1_200d_1f52c;
+  sub g_1f9d1 g_200d g_1f9b1 by g_1f9d1_200d_1f9b1;
+} ccmp;
+

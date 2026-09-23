@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs/>
+  <path fill="#f5c542" d="M64,118 L14,26 L114,26 Z"/>
+  <path fill="#e04b3f" d="M14,26 L114,26 C112,44 16,44 14,26 Z"/>
+  <path fill="#e04b3f" d="M59,54 A9 9 0 1 1 41,54 A9 9 0 1 1 59,54 Z"/>
+  <path fill="#e04b3f" d="M85,60 A9 9 0 1 1 67,60 A9 9 0 1 1 85,60 Z"/>
+  <path fill="#e04b3f" d="M70,84 A8 8 0 1 1 54,84 A8 8 0 1 1 70,84 Z"/>
+  <path fill="#37874f" d="M48,42 A4 4 0 1 1 40,42 A4 4 0 1 1 48,42 Z"/>
+  <path fill="#37874f" d="M88,44 A4 4 0 1 1 80,44 A4 4 0 1 1 88,44 Z"/>
+  <path fill="#37874f" d="M68,68 A4 4 0 1 1 60,68 A4 4 0 1 1 68,68 Z"/>
+</svg>
