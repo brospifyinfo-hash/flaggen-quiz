@@ -285,6 +285,41 @@ function umriss(ctx: CanvasRenderingContext2D, staerke: number): void {
   ctx.stroke()
 }
 
+/**
+ * Legt über den aktuellen Pfad einen weichen Halbschatten auf der lichtabgewandten
+ * Seite. Der Pfad bleibt erhalten, ein anschließender Umriss trifft also dieselbe Form.
+ */
+function plastisch(ctx: CanvasRenderingContext2D, x0: number, x1: number, staerke = 0.2): void {
+  const seite = Math.sign(lichtJetzt().zumLicht.sx || 1)
+  const von = seite > 0 ? x0 : x1
+  const bis = seite > 0 ? x1 : x0
+  const g = ctx.createLinearGradient(von, 0, bis, 0)
+  g.addColorStop(0, `rgba(10,16,30,${staerke.toFixed(3)})`)
+  g.addColorStop(0.55, 'rgba(10,16,30,0)')
+  g.addColorStop(1, 'rgba(255,255,255,0.10)')
+  ctx.save()
+  ctx.clip()
+  ctx.fillStyle = g
+  ctx.fillRect(Math.min(x0, x1) - 2, -1e4, Math.abs(x1 - x0) + 4, 2e4)
+  ctx.restore()
+}
+
+/** Schlagschatten einer stehenden Figur: vom Fuß aus in Richtung des Sonnen-/Mondschattens */
+function figurSchatten(ctx: CanvasRenderingContext2D, p: Point, hoehe: number, breite: number): void {
+  const sch = lichtJetzt().schatten
+  if (sch.alpha < 0.02) return
+  const l = sch.laenge * hoehe
+  ctx.save()
+  ctx.strokeStyle = `rgba(14,22,48,${(sch.alpha * 0.75).toFixed(3)})`
+  ctx.lineWidth = breite
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(p.sx, p.sy + 0.5)
+  ctx.lineTo(p.sx + sch.dx * l, p.sy + 0.5 + sch.dy * l)
+  ctx.stroke()
+  ctx.restore()
+}
+
 function hund(ctx: CanvasRenderingContext2D, p: Point, farbe: string, schritt: number, blick: number, s: number): void {
   const huepf = Math.abs(Math.sin(schritt * 1.3)) * 0.8
   ctx.fillStyle = farbe
@@ -476,7 +511,10 @@ export function zeichnePerson(
   }
   ctx.fillStyle = a.obenFarbe
   ctx.fill()
-  if (fein) umriss(ctx, 0.6 * s)
+  if (fein) {
+    plastisch(ctx, p.sx - breit * 0.7, p.sx + breit * 0.7, 0.22)
+    umriss(ctx, 0.6 * s)
+  }
 
   if (fein) {
     if (a.muster === 'streifen') {
@@ -649,7 +687,10 @@ export function zeichnePerson(
   ctx.beginPath()
   ctx.arc(p.sx, kopfY, kopfR, 0, Math.PI * 2)
   ctx.fill()
-  if (fein) umriss(ctx, 0.6 * s)
+  if (fein) {
+    plastisch(ctx, p.sx - kopfR, p.sx + kopfR, 0.18)
+    umriss(ctx, 0.6 * s)
+  }
   haare(ctx, p.sx, kopfY, kopfR, a, blick, s)
   if (fein) {
     ctx.fillStyle = '#1c1c1c'
@@ -1031,6 +1072,20 @@ export function zeichneAuto(
   const lack = o.wrack ? shade(farbe, -20) : farbe
 
   bodenSchatten(ctx, p, lang * 0.55, breit * 0.45, 0.24)
+  {
+    // Schlagschatten: die Bodenfläche des Wagens um die Karosseriehöhe versetzt
+    const sch = lichtJetzt().schatten
+    if (sch.alpha > 0.02 && o.fein) {
+      const v = sch.laenge * bau.hoch * 0.6
+      ctx.save()
+      ctx.globalAlpha = sch.alpha * 0.7
+      ctx.fillStyle = '#0e1630'
+      ctx.beginPath()
+      ctx.ellipse(p.sx + sch.dx * v, p.sy + 1 + sch.dy * v, lang * 0.5, breit * 0.42, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+  }
 
   const ecke = (l: number, q: number, z = 0): Point => ({
     sx: p.sx + frame.vor.sx * (lang / 2) * l + frame.quer.sx * (breit / 2) * q,
@@ -1562,7 +1617,10 @@ export function drawAgent(ctx: CanvasRenderingContext2D, agent: Agent, t: number
   }
 
   const a = aussehenVon(agent.seed, agent.rolle, agent.klasse)
-  if (agent.pose !== 'liegt') bodenSchatten(ctx, p, 3.6 * a.groesse, 1.9 * a.groesse, 0.2)
+  if (agent.pose !== 'liegt') {
+    bodenSchatten(ctx, p, 3.6 * a.groesse, 1.9 * a.groesse, 0.2)
+    if (fein && agent.pose !== 'sitzt') figurSchatten(ctx, p, 15 * a.groesse, 2.6 * a.groesse * a.breite)
+  }
   const pose: Pose = agent.pose ?? (agent.zustand === 'unterwegs' ? (agent.rolle === 'jogger' ? 'rennt' : 'geht') : 'steht')
   const tempo = pose === 'rennt' ? 12 : 7.4
   const schritt = pose === 'steht' || pose === 'sitzt' ? Math.sin(t * 1.4 + agent.seed) * 0.4 : t * tempo + agent.seed * 9
