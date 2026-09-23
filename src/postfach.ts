@@ -20,6 +20,16 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-f',
+    datum: '23. September 2026',
+    titel: 'Gutschrift für ein einzelnes Konto',
+    text: 'Die Verwaltung kann Münzen und Steine jetzt auch nur einem Konto gutschreiben.',
+    punkte: [
+      'In der Kontoliste steht bei jedem Namen ein eigener Knopf. Die Gutschrift gilt dann nur für dieses Konto.',
+      'Gutgeschriebene Münzen und Steine zählen nicht als Schattenkasse.',
+    ],
+  },
+  {
     id: '2026-09-23-e',
     datum: '23. September 2026',
     titel: 'Gutschrift von der Verwaltung',

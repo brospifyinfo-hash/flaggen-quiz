@@ -126,19 +126,25 @@ export async function ladeRangliste(): Promise<RanglisteEintrag[]> {
   return Array.isArray(antwort.spieler) ? (antwort.spieler as RanglisteEintrag[]) : []
 }
 
-/** Münzen und Steine auf jedes Konto. Nur das Verwaltungskonto. */
-export async function gutschreiben(muenzen: number, ziegel: number): Promise<{ anzahl: number; muenzen: number; ziegel: number }> {
+/** Münzen und Steine auf ein Konto oder, ohne E-Mail, auf alle. Nur das Verwaltungskonto. */
+export async function gutschreiben(
+  muenzen: number,
+  ziegel: number,
+  email?: string,
+): Promise<{ anzahl: number; muenzen: number; ziegel: number; name?: string }> {
   const konto = getState().konto
   if (!konto) throw new KontoFehler('Du bist nicht angemeldet.', 401)
-  const antwort = await anfrage<{ anzahl?: unknown; muenzen?: unknown; ziegel?: unknown }>('gutschrift', {
+  const antwort = await anfrage<{ anzahl?: unknown; muenzen?: unknown; ziegel?: unknown; name?: unknown }>('gutschrift', {
     token: konto.token,
     muenzen,
     ziegel,
+    ...(email ? { email } : {}),
   })
   return {
     anzahl: typeof antwort.anzahl === 'number' ? antwort.anzahl : 0,
     muenzen: typeof antwort.muenzen === 'number' ? antwort.muenzen : muenzen,
     ziegel: typeof antwort.ziegel === 'number' ? antwort.ziegel : ziegel,
+    ...(typeof antwort.name === 'string' ? { name: antwort.name } : {}),
   }
 }
 

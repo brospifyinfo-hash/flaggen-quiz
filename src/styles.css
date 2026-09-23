@@ -4360,7 +4360,43 @@ svg {
 }
 
 .verwaltung-zeile {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.verwaltung-kopf {
+  display: flex;
   align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+}
+
+.verwaltung-gabe {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.verwaltung-gabe .btn,
+.verwaltung-gabe .gutschrift-meldung {
+  grid-column: 1 / -1;
+}
+
+.verwaltung-gabe .city-label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.gutschrift-knopf {
+  flex: none;
+  align-self: center;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
 }
 
 .verwaltung-zeile .crest {

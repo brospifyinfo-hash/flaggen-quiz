@@ -503,6 +503,25 @@ function betrag(wert, name) {
   if (n > DECKEL2) throw new Abgelehnt(400, `${name} ist zu gro\xDF.`);
   return n;
 }
+async function kontoZuEmail(email) {
+  const ablage2 = speicher();
+  if (!ablage2) throw new Abgelehnt(503, "Auf dem Server ist noch kein Speicher f\xFCr Konten eingerichtet.");
+  const ziel = normEmail(email);
+  const dateien = await ablage2.liste("konten");
+  for (const datei of dateien) {
+    const gelesen = await ablage2.lesen(`konten/${datei}`);
+    if (!gelesen) continue;
+    try {
+      const konto = JSON.parse(gelesen.inhalt);
+      if (konto.id && normEmail(konto.email ?? "") === ziel) {
+        return { id: konto.id, name: typeof konto.name === "string" && konto.name.trim() ? konto.name.trim() : ziel };
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
 async function gutschrift(eingabe) {
   await adminVon(eingabe.token);
   const muenzen = betrag(eingabe.muenzen, "M\xFCnzen");
@@ -510,6 +529,13 @@ async function gutschrift(eingabe) {
   if (muenzen === 0 && ziegel === 0) throw new Abgelehnt(400, "Gib an, wie viele M\xFCnzen oder Steine dazukommen.");
   const ablage2 = speicher();
   if (!ablage2) throw new Abgelehnt(503, "Auf dem Server ist noch kein Speicher f\xFCr Konten eingerichtet.");
+  if (typeof eingabe.email === "string" && eingabe.email.trim()) {
+    const konto = await kontoZuEmail(eingabe.email);
+    if (!konto) throw new Abgelehnt(404, "Dieses Konto gibt es nicht.");
+    await gutschriftAuf(konto.id, { muenzen, ziegel });
+    cache = null;
+    return { anzahl: 1, muenzen, ziegel, name: konto.name };
+  }
   const dateien = await ablage2.liste("konten");
   let anzahl = 0;
   for (const datei of dateien) {

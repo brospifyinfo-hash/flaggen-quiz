@@ -177,8 +177,30 @@ function betrag(wert: unknown, name: string): number {
   return n
 }
 
-/** Münzen und Steine auf jedes Konto legen. Die Schattenkasse bleibt davon unberührt. */
-export async function gutschrift(eingabe: Record<string, unknown>): Promise<{ anzahl: number; muenzen: number; ziegel: number }> {
+async function kontoZuEmail(email: string): Promise<{ id: string; name: string } | null> {
+  const ablage = speicher()
+  if (!ablage) throw new Abgelehnt(503, 'Auf dem Server ist noch kein Speicher für Konten eingerichtet.')
+  const ziel = normEmail(email)
+  const dateien = await ablage.liste('konten')
+  for (const datei of dateien) {
+    const gelesen = await ablage.lesen(`konten/${datei}`)
+    if (!gelesen) continue
+    try {
+      const konto = JSON.parse(gelesen.inhalt) as { id?: string; email?: string; name?: string }
+      if (konto.id && normEmail(konto.email ?? '') === ziel) {
+        return { id: konto.id, name: typeof konto.name === 'string' && konto.name.trim() ? konto.name.trim() : ziel }
+      }
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+/** Münzen und Steine auf ein Konto oder auf alle. Die Schattenkasse bleibt davon unberührt. */
+export async function gutschrift(
+  eingabe: Record<string, unknown>,
+): Promise<{ anzahl: number; muenzen: number; ziegel: number; name?: string }> {
   await adminVon(eingabe.token)
   const muenzen = betrag(eingabe.muenzen, 'Münzen')
   const ziegel = betrag(eingabe.ziegel, 'Steine')
@@ -186,6 +208,15 @@ export async function gutschrift(eingabe: Record<string, unknown>): Promise<{ an
 
   const ablage = speicher()
   if (!ablage) throw new Abgelehnt(503, 'Auf dem Server ist noch kein Speicher für Konten eingerichtet.')
+
+  if (typeof eingabe.email === 'string' && eingabe.email.trim()) {
+    const konto = await kontoZuEmail(eingabe.email)
+    if (!konto) throw new Abgelehnt(404, 'Dieses Konto gibt es nicht.')
+    await gutschriftAuf(konto.id, { muenzen, ziegel })
+    cache = null
+    return { anzahl: 1, muenzen, ziegel, name: konto.name }
+  }
+
   const dateien = await ablage.liste('konten')
   let anzahl = 0
   for (const datei of dateien) {

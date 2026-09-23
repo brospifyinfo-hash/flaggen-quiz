@@ -10,6 +10,8 @@ import { RankCrest } from '../components/RankCrest'
 import { goBack } from '../router'
 
 const zahl = (n: number) => n.toLocaleString('de-DE')
+const muenzText = (n: number) => `${zahl(n)} ${n === 1 ? 'Münze' : 'Münzen'}`
+const steinText = (n: number) => `${zahl(n)} ${n === 1 ? 'Stein' : 'Steine'}`
 
 function standText(stand: number): string {
   if (!stand) return 'Noch kein Stand gespeichert'
@@ -34,7 +36,10 @@ export function AdminScreen() {
   const [gabeFehler, setGabeFehler] = useState('')
   const [gabeHinweis, setGabeHinweis] = useState('')
   const [gabeLaeuft, setGabeLaeuft] = useState(false)
-  const [bestaetigen, setBestaetigen] = useState<{ muenzen: number; ziegel: number } | null>(null)
+  const [offen, setOffen] = useState<string | null>(null)
+  const [einzelnMuenzen, setEinzelnMuenzen] = useState('')
+  const [einzelnSteine, setEinzelnSteine] = useState('')
+  const [bestaetigen, setBestaetigen] = useState<{ muenzen: number; ziegel: number; email?: string; name?: string } | null>(null)
 
   const laden = useCallback(async () => {
     setLaeuft(true)
@@ -73,6 +78,23 @@ export function AdminScreen() {
     setBestaetigen({ muenzen: muenzenZahl, ziegel: steineZahl })
   }
 
+  const einzelnVorbereiten = (event: FormEvent, konto: KontoZeile) => {
+    event.preventDefault()
+    setGabeFehler('')
+    setGabeHinweis('')
+    const muenzenZahl = ganzeZahl(einzelnMuenzen)
+    const steineZahl = ganzeZahl(einzelnSteine)
+    if (muenzenZahl === null || steineZahl === null) {
+      setGabeFehler('Münzen und Steine müssen ganze Zahlen ab 0 sein.')
+      return
+    }
+    if (muenzenZahl === 0 && steineZahl === 0) {
+      setGabeFehler('Trag ein, wie viele Münzen oder Steine dazukommen sollen.')
+      return
+    }
+    setBestaetigen({ muenzen: muenzenZahl, ziegel: steineZahl, email: konto.email, name: konto.name })
+  }
+
   const ausfuehren = async () => {
     if (!bestaetigen) return
     const plan = bestaetigen
@@ -80,12 +102,21 @@ export function AdminScreen() {
     setGabeLaeuft(true)
     setGabeFehler('')
     try {
-      const antwort = await gutschreiben(plan.muenzen, plan.ziegel)
+      const antwort = await gutschreiben(plan.muenzen, plan.ziegel, plan.email)
+      const name = antwort.name || plan.name
       setGabeHinweis(
-        `${zahl(antwort.muenzen)} Münzen und ${zahl(antwort.ziegel)} Steine an ${zahl(antwort.anzahl)} Konten gutgeschrieben.`,
+        plan.email
+          ? `${name} hat ${muenzText(antwort.muenzen)} und ${steinText(antwort.ziegel)} bekommen.`
+          : `${muenzText(antwort.muenzen)} und ${steinText(antwort.ziegel)} an ${zahl(antwort.anzahl)} Konten gutgeschrieben.`,
       )
-      setMuenzen('')
-      setSteine('')
+      if (plan.email) {
+        setEinzelnMuenzen('')
+        setEinzelnSteine('')
+        setOffen(null)
+      } else {
+        setMuenzen('')
+        setSteine('')
+      }
       await laden()
     } catch (err) {
       setGabeFehler(err instanceof KontoFehler ? err.message : 'Die Gutschrift ist nicht angekommen.')
@@ -139,8 +170,8 @@ export function AdminScreen() {
             onChange={(event) => setSteine(event.target.value)}
           />
         </div>
-        {gabeFehler && <p className="verwaltung-fehler gutschrift-meldung">{gabeFehler}</p>}
-        {gabeHinweis && <p className="verwaltung-hinweis gutschrift-meldung">{gabeHinweis}</p>}
+        {gabeFehler && !offen && <p className="verwaltung-fehler gutschrift-meldung">{gabeFehler}</p>}
+        {gabeHinweis && !offen && <p className="verwaltung-hinweis gutschrift-meldung">{gabeHinweis}</p>}
         <div className="row row-stack">
           <button className="btn btn-primary" type="submit" disabled={gabeLaeuft || konten === null}>
             {gabeLaeuft ? 'Wird gutgeschrieben …' : 'Allen gutschreiben'}
@@ -166,25 +197,74 @@ export function AdminScreen() {
             const rang = rankById(konto.rangId) ?? RANKS[0]
             return (
               <li key={konto.email} className="row verwaltung-zeile">
-                <RankCrest rank={rang} size={46} />
-                <div className="row-label">
-                  <strong>
-                    {konto.name}
-                    {konto.schummel && <em className="schummel-marke">Schattenkasse</em>}
-                  </strong>
-                  <span>{konto.email}</span>
-                  <span>
-                    {rang.name} · Level {konto.level} · {zahl(konto.xp)} XP
-                  </span>
-                  <span>
-                    {konto.stadt || 'Keine Stadt'}
-                    {konto.stadtLevel > 0 ? ` · Stadtstufe ${konto.stadtLevel}` : ''} · {zahl(konto.einwohner)} Einwohner
-                  </span>
-                  <span>
-                    {zahl(konto.muenzen)} Münzen · {zahl(konto.ziegel)} Steine · {konto.gebaeude} Gebäude
-                  </span>
-                  <span>{standText(konto.stand)}</span>
+                <div className="verwaltung-kopf">
+                  <RankCrest rank={rang} size={46} />
+                  <div className="row-label">
+                    <strong>
+                      {konto.name}
+                      {konto.schummel && <em className="schummel-marke">Schattenkasse</em>}
+                    </strong>
+                    <span>{konto.email}</span>
+                    <span>
+                      {rang.name} · Level {konto.level} · {zahl(konto.xp)} XP
+                    </span>
+                    <span>
+                      {konto.stadt || 'Keine Stadt'}
+                      {konto.stadtLevel > 0 ? ` · Stadtstufe ${konto.stadtLevel}` : ''} · {zahl(konto.einwohner)} Einwohner
+                    </span>
+                    <span>
+                      {zahl(konto.muenzen)} Münzen · {zahl(konto.ziegel)} Steine · {konto.gebaeude} Gebäude
+                    </span>
+                    <span>{standText(konto.stand)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary gutschrift-knopf"
+                    aria-expanded={offen === konto.email}
+                    aria-label={`Gutschreiben an ${konto.name}`}
+                    onClick={() => {
+                      setGabeFehler('')
+                      setGabeHinweis('')
+                      setEinzelnMuenzen('')
+                      setEinzelnSteine('')
+                      setOffen(offen === konto.email ? null : konto.email)
+                    }}
+                  >
+                    {offen === konto.email ? 'Schließen' : 'Gutschreiben'}
+                  </button>
                 </div>
+                {offen === konto.email && (
+                  <form className="verwaltung-gabe" onSubmit={(event) => einzelnVorbereiten(event, konto)}>
+                    <label className="city-label" htmlFor={`gabe-m-${konto.email}`}>
+                      Münzen
+                      <input
+                        id={`gabe-m-${konto.email}`}
+                        className="city-input"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="0"
+                        value={einzelnMuenzen}
+                        onChange={(event) => setEinzelnMuenzen(event.target.value)}
+                      />
+                    </label>
+                    <label className="city-label" htmlFor={`gabe-s-${konto.email}`}>
+                      Steine
+                      <input
+                        id={`gabe-s-${konto.email}`}
+                        className="city-input"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="0"
+                        value={einzelnSteine}
+                        onChange={(event) => setEinzelnSteine(event.target.value)}
+                      />
+                    </label>
+                    <button className="btn btn-primary" type="submit" disabled={gabeLaeuft}>
+                      {gabeLaeuft ? '…' : 'Nur diesem Konto'}
+                    </button>
+                    {gabeFehler && <p className="verwaltung-fehler gutschrift-meldung">{gabeFehler}</p>}
+                  </form>
+                )}
               </li>
             )
           })}
@@ -193,8 +273,12 @@ export function AdminScreen() {
 
       {bestaetigen && (
         <ConfirmDialog
-          title="Allen gutschreiben?"
-          text={`${zahl(bestaetigen.muenzen)} Münzen und ${zahl(bestaetigen.ziegel)} Steine kommen auf jedes Konto. Das lässt sich nicht zurücknehmen.`}
+          title={bestaetigen.email ? `${bestaetigen.name} gutschreiben?` : 'Allen gutschreiben?'}
+          text={
+            bestaetigen.email
+              ? `${bestaetigen.name} bekommt ${muenzText(bestaetigen.muenzen)} und ${steinText(bestaetigen.ziegel)}. Das lässt sich nicht zurücknehmen.`
+              : `${muenzText(bestaetigen.muenzen)} und ${steinText(bestaetigen.ziegel)} kommen auf jedes Konto. Das lässt sich nicht zurücknehmen.`
+          }
           confirmLabel="Gutschreiben"
           onConfirm={() => void ausfuehren()}
           onCancel={() => setBestaetigen(null)}
