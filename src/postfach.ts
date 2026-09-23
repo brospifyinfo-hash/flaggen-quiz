@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-l',
+    datum: '23. September 2026',
+    titel: 'Reichweite nur auf Knopfdruck',
+    text: 'Schule und illegale Geschäfte haben denselben Kreis wie die Wachen. Er erscheint erst, wenn du am Gebäude auf „Reichweite zeigen“ tippst.',
+    punkte: [
+      'Schule: 7 Kacheln, im Kreis sinkt die Kriminalität.',
+      'Illegale Gebäude: 6 Kacheln, im Kreis steigt sie.',
+      'Polizei, Feuerwehr und Krankenhaus blenden den Kreis genauso nur auf Knopfdruck ein.',
+    ],
+  },
+  {
     id: '2026-09-23-k',
     datum: '23. September 2026',
     titel: 'Der Kreis der Wachen ist scharf',

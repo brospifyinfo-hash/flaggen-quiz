@@ -70,7 +70,7 @@ import {
 import { MAX_TAGE, TAG_TEXT, phaseInfo, tagFaellig, tageszeit, zeitText } from '../city/zeit'
 import { Tagesuhr, useTageszeit } from '../components/Tagesuhr'
 import { anpassen, createLife, signatureOf, stepLife, type Ereignis, type Life } from '../city/life'
-import { DIENST_FARBE, bewohnerVon, dienstVon, euro, gesellschaft, haeuserInReichweite, KLASSEN, STEUER_MAX, STEUER_MIN } from '../city/society'
+import { EINFLUSS_FARBE, bewohnerVon, euro, gesellschaft, haeuserInReichweite, KLASSEN, STEUER_MAX, STEUER_MIN, umkreisVon } from '../city/society'
 import { BauBlatt, KLASSE_NAME } from './CityBuildSheet'
 import { GebaeudeListe } from './CityGebaeudeListe'
 import {
@@ -211,6 +211,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const [ghost, setGhost] = useState({ x: 0, y: 0, rot: 0 as 0 | 1 | 2 | 3 })
   const [movingId, setMovingId] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
+  /** Der Reichweitenkreis liegt aus, bis man ihn am Gebäude einschaltet */
+  const [umrissAn, setUmrissAn] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [roadType, setRoadType] = useState('strasse')
   const [erase, setErase] = useState(false)
@@ -246,8 +248,12 @@ function CityWorld({ data }: { data: SaveData }) {
   const framed = useRef(false)
   const stroke = useRef<string[]>([])
   const life = useRef<Life | null>(null)
-  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht })
-  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht }
+  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht, umrissAn })
+  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht, umrissAn }
+
+  useEffect(() => {
+    setUmrissAn(false)
+  }, [selected])
 
   const melde = useCallback((text: string) => {
     const id = meldungsNr.current++
@@ -517,7 +523,7 @@ function CityWorld({ data }: { data: SaveData }) {
         blick: winkel.current,
         life: life.current,
         kriminalitaet: state.krimKarte,
-        reichweite: reichweiteKreis(state.city, state.selected, shown),
+        reichweite: state.mode === 'select' && state.umrissAn ? reichweiteKreis(state.city, state.selected) : null,
         bubble: bitte ? { buildingId: bitte.buildingId, emoji: bitte.citizen.emoji } : null,
         time: now / 1000,
         stunde: tageszeit(state.city).stunde,
@@ -1856,15 +1862,6 @@ function CityWorld({ data }: { data: SaveData }) {
             <p className="city-place-text">
               {movingId ? 'Tippe auf den neuen Platz.' : `Tippe auf die Karte, wo ${buildingDef(pick)?.name} stehen soll.`}
             </p>
-            <ReichweiteZeile
-              city={city}
-              type={pick}
-              x={ghost.x}
-              y={ghost.y}
-              rot={ghost.rot}
-              level={movingId ? (city.buildings.find((b) => b.id === movingId)?.level ?? 1) : 1}
-              selbst={movingId ?? undefined}
-            />
             <div className="city-place-row">
               <button className="city-btn" onClick={cancel}>
                 Abbrechen
@@ -1926,7 +1923,24 @@ function CityWorld({ data }: { data: SaveData }) {
                 )}
               </ul>
             )}
-            {!chosen.verlassen && <ReichweiteZeile city={city} type={chosen.type} x={chosen.x} y={chosen.y} rot={chosen.rot} level={chosen.level} selbst={chosen.id} />}
+            {!chosen.verlassen && umkreisVon(chosenDef, chosen.level) && (
+              <>
+                <div className="city-place-row">
+                  <button
+                    className={`city-btn${umrissAn ? ' city-btn-main' : ''}`}
+                    onClick={() => {
+                      setUmrissAn((an) => !an)
+                      haptic('tick')
+                    }}
+                  >
+                    {umrissAn ? 'Reichweite ausblenden' : 'Reichweite zeigen'}
+                  </button>
+                </div>
+                {umrissAn && (
+                  <ReichweiteZeile city={city} type={chosen.type} x={chosen.x} y={chosen.y} rot={chosen.rot} level={chosen.level} selbst={chosen.id} />
+                )}
+              </>
+            )}
             {!chosen.verlassen && chosenDef.category === 'wohnen' && chosenDef.effects.capacity && (
               <WohnlageZeile city={city} placed={chosen} stimmung={stats.happiness} />
             )}
@@ -2052,30 +2066,25 @@ function dauerText(ms: number): string {
   return `${Math.round(h / 24)} Tagen`
 }
 
-/** Kreis auf der Karte: die gewählte Wache, oder die, die man gerade setzen will */
+/** Kreis auf der Karte, nur für das Gebäude, bei dem man die Reichweite eingeschaltet hat */
 function reichweiteKreis(
   city: NonNullable<SaveData['city']>,
   selected: string | null,
-  ghost: { type: string; x: number; y: number; rot: 0 | 1 | 2 | 3 } | null,
 ): { x: number; y: number; radius: number; fuellung: string; rand: string; selbst?: string } | null {
-  const placed = !ghost && selected ? city.buildings.find((b) => b.id === selected) : null
-  const type = ghost?.type ?? placed?.type
-  const def = type ? buildingDef(type) : undefined
-  if (!def || placed?.verlassen) return null
-  const dienst = dienstVon(def, ghost ? 1 : (placed?.level ?? 1))
-  if (!dienst) return null
-  const x = ghost?.x ?? placed?.x ?? 0
-  const y = ghost?.y ?? placed?.y ?? 0
-  const rot = ghost?.rot ?? placed?.rot ?? 0
-  const [w, h] = footprint(def, rot)
-  const farbe = DIENST_FARBE[dienst.art]
+  const placed = selected ? city.buildings.find((b) => b.id === selected) : null
+  const def = placed ? buildingDef(placed.type) : undefined
+  if (!placed || !def || placed.verlassen) return null
+  const kreis = umkreisVon(def, placed.level)
+  if (!kreis) return null
+  const [w, h] = footprint(def, placed.rot)
+  const farbe = EINFLUSS_FARBE[kreis.art]
   return {
-    x: x + w / 2,
-    y: y + h / 2,
-    radius: dienst.radius,
+    x: placed.x + w / 2,
+    y: placed.y + h / 2,
+    radius: kreis.radius,
     fuellung: farbe.fuellung,
     rand: farbe.rand,
-    selbst: placed?.id,
+    selbst: placed.id,
   }
 }
 
@@ -2098,19 +2107,23 @@ function ReichweiteZeile({
   selbst?: string
 }) {
   const def = buildingDef(type)
-  const dienst = def ? dienstVon(def, level) : null
-  if (!def || !dienst) return null
+  const einfluss = def ? umkreisVon(def, level) : null
+  if (!def || !einfluss) return null
   const [w, h] = footprint(def, rot)
-  const kreis = haeuserInReichweite(city, x + w / 2, y + h / 2, dienst.radius, selbst)
+  const kreis = haeuserInReichweite(city, x + w / 2, y + h / 2, einfluss.radius, selbst)
   const folge =
-    dienst.art === 'fire'
+    einfluss.art === 'fire'
       ? 'Häuser außerhalb können abbrennen.'
-      : dienst.art === 'health'
+      : einfluss.art === 'health'
         ? 'Bewohner außerhalb können sterben.'
-        : 'Außerhalb steigt die Kriminalität.'
+        : einfluss.art === 'bildung'
+          ? 'Im Kreis sinkt die Kriminalität.'
+          : einfluss.art === 'unterwelt'
+            ? 'Im Kreis steigt die Kriminalität.'
+            : 'Außerhalb steigt die Kriminalität.'
   return (
     <p className="city-hint">
-      Reichweite {dienst.radius} Kacheln. Im Kreis: {kreis.haeuser} {kreis.haeuser === 1 ? 'Haus' : 'Häuser'}
+      Reichweite {einfluss.radius} Kacheln. Im Kreis: {kreis.haeuser} {kreis.haeuser === 1 ? 'Haus' : 'Häuser'}
       {kreis.wohnen > 0 ? `, davon ${kreis.wohnen} ${kreis.wohnen === 1 ? 'Wohnhaus' : 'Wohnhäuser'}` : ''}. {folge}
     </p>
   )

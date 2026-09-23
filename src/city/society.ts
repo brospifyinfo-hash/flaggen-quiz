@@ -77,12 +77,21 @@ const mitte = (placed: Placed) => {
 const abklingen = (d: number, reichweite: number) => (d >= reichweite ? 0 : 1 - d / reichweite)
 
 export type DienstArt = 'police' | 'fire' | 'health'
+/** Schule und illegale Geschäfte wirken genauso in einem Kreis, nur ohne eigene Reichweite im Katalog */
+export type EinflussArt = DienstArt | 'bildung' | 'unterwelt'
 
-/** Farben für den Kreis auf der Karte: Polizei blau, Feuerwehr rot, Ärzte grün */
-export const DIENST_FARBE: Record<DienstArt, { fuellung: string; rand: string }> = {
+/** So weit drückt eine Schule die Kriminalität – dieselbe Zahl wie im Kriminalitätsfeld */
+export const SCHUL_REICHWEITE = 7
+/** So weit strahlt ein illegales Geschäft Kriminalität ab */
+export const UNTERWELT_REICHWEITE = 6
+
+/** Farben für den Kreis auf der Karte */
+export const EINFLUSS_FARBE: Record<EinflussArt, { fuellung: string; rand: string }> = {
   police: { fuellung: 'rgba(46,134,255,0.28)', rand: '#2e86ff' },
   fire: { fuellung: 'rgba(255,90,31,0.28)', rand: '#ff4d1a' },
   health: { fuellung: 'rgba(60,224,138,0.28)', rand: '#1ec96a' },
+  bildung: { fuellung: 'rgba(168,120,255,0.28)', rand: '#a878ff' },
+  unterwelt: { fuellung: 'rgba(196,79,255,0.3)', rand: '#e23cff' },
 }
 
 const KEIN_HAUS = new Set(['natur', 'schmuck', 'wege'])
@@ -93,6 +102,16 @@ export function dienstVon(def: BuildingDef, level: number): { art: DienstArt; ra
   if ((e.police ?? 0) > 0) return { art: 'police', radius: e.police ?? 0 }
   if ((e.fire ?? 0) > 0) return { art: 'fire', radius: e.fire ?? 0 }
   if ((e.health ?? 0) > 0) return { art: 'health', radius: e.health ?? 0 }
+  return null
+}
+
+/** Kreis, den man auf der Karte einblenden kann: Wache, Schule oder illegales Geschäft */
+export function umkreisVon(def: BuildingDef, level: number): { art: EinflussArt; radius: number } | null {
+  const wache = dienstVon(def, level)
+  if (wache) return wache
+  const e = effectsOf(def, level)
+  if (def.category === 'bildung' && (e.education ?? 0) > 0) return { art: 'bildung', radius: SCHUL_REICHWEITE }
+  if (def.category === 'unterwelt') return { art: 'unterwelt', radius: UNTERWELT_REICHWEITE }
   return null
 }
 
@@ -171,11 +190,11 @@ export function kriminalitaetsfeld(city: CityState): Float32Array {
       continue
     }
     const e = effectsOf(def, placed.level)
-    if (e.crime && e.crime > 0) quellen.push({ ...m, staerke: e.crime * 3.2, reichweite: 6 })
+    if (e.crime && e.crime > 0) quellen.push({ ...m, staerke: e.crime * 3.2, reichweite: UNTERWELT_REICHWEITE })
     if (e.crime && e.crime < 0) quellen.push({ ...m, staerke: e.crime * 3, reichweite: (e.police ?? 6) + 1 })
     if (e.police) quellen.push({ ...m, staerke: -28, reichweite: e.police })
     if (e.klasse === 'arm') quellen.push({ ...m, staerke: 6, reichweite: 4 })
-    if (def.category === 'bildung' && (e.education ?? 0) > 0) quellen.push({ ...m, staerke: -Math.min(20, (e.education ?? 0) * 0.8), reichweite: 7 })
+    if (def.category === 'bildung' && (e.education ?? 0) > 0) quellen.push({ ...m, staerke: -Math.min(20, (e.education ?? 0) * 0.8), reichweite: SCHUL_REICHWEITE })
     if (def.id === 'laterne') quellen.push({ ...m, staerke: -3, reichweite: 2 })
   }
 
