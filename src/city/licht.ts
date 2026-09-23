@@ -170,27 +170,72 @@ export const lichtJetzt = (): Licht => aktuell
 
 /**
  * Alles, was selbst leuchtet – Fenster, Laternen, Scheinwerfer, Leuchtschriften –
- * wird gesammelt und nach der Nachttönung noch einmal darübergelegt. Sonst würde
- * die blaue Tönung auch das warme Licht in den Fenstern dämpfen.
+ * kommt auf eine eigene Leuchtschicht, die erst nach der Nachttönung über das Bild
+ * gelegt wird. Sonst würde die blaue Tönung auch das warme Licht in den Fenstern
+ * dämpfen. Damit ein Haus im Vordergrund die Lichter dahinter trotzdem verdeckt,
+ * radiert jeder Baukörper vor dem Malen seine Silhouette aus der Schicht
+ * (`verdecken`); die Schicht folgt also derselben Malreihenfolge wie die Stadt.
  */
 type Leuchte = (ctx: CanvasRenderingContext2D) => void
-let leuchten: Leuchte[] = []
+let schicht: HTMLCanvasElement | null = null
+let sctx: CanvasRenderingContext2D | null = null
 
-/** Etwas Leuchtendes vormerken – nur nötig, wenn es dunkel genug ist, dass es auffällt */
-export function leuchte(malen: Leuchte): void {
+/** Leuchtschicht für dieses Bild anlegen; `ctx` steht schon in Kameraprojektion */
+export function leuchtSchichtBeginnen(ctx: CanvasRenderingContext2D): void {
+  sctx = null
   if (aktuell.nacht < 0.03 && aktuell.lampen < 0.03) return
-  leuchten.push(malen)
+  const c = ctx.canvas as HTMLCanvasElement | undefined
+  if (!c || typeof document === 'undefined') return
+  if (!schicht) schicht = document.createElement('canvas')
+  if (schicht.width !== c.width || schicht.height !== c.height) {
+    schicht.width = c.width
+    schicht.height = c.height
+  }
+  const s = schicht.getContext('2d')
+  if (!s) return
+  s.setTransform(1, 0, 0, 1, 0, 0)
+  s.clearRect(0, 0, schicht.width, schicht.height)
+  s.setTransform(ctx.getTransform())
+  sctx = s
 }
 
-/** Alle vorgemerkten Leuchten malen und die Liste leeren */
+/** Etwas Leuchtendes malen – landet auf der Leuchtschicht, falls es dunkel genug ist */
+export function leuchte(malen: Leuchte): void {
+  if (!sctx) return
+  sctx.save()
+  malen(sctx)
+  sctx.restore()
+}
+
+/** Silhouette eines Baukörpers aus der Leuchtschicht radieren – er steht vor dem Licht dahinter */
+export function verdecken(rand: { sx: number; sy: number }[]): void {
+  if (!sctx || rand.length < 3) return
+  sctx.save()
+  sctx.globalCompositeOperation = 'destination-out'
+  sctx.beginPath()
+  sctx.moveTo(rand[0].sx, rand[0].sy)
+  for (let i = 1; i < rand.length; i++) sctx.lineTo(rand[i].sx, rand[i].sy)
+  sctx.closePath()
+  sctx.fillStyle = '#000'
+  sctx.fill()
+  sctx.lineWidth = 2
+  sctx.strokeStyle = '#000'
+  sctx.stroke()
+  sctx.restore()
+}
+
+/** Die Leuchtschicht über das fertige, getönte Bild legen */
 export function leuchtenMalen(ctx: CanvasRenderingContext2D): void {
-  const liste = leuchten
-  leuchten = []
-  for (const malen of liste) malen(ctx)
+  if (!sctx || !schicht) return
+  ctx.save()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.drawImage(schicht, 0, 0)
+  ctx.restore()
+  sctx = null
 }
 
 export const leuchtenLeeren = (): void => {
-  leuchten = []
+  sctx = null
 }
 
 /**

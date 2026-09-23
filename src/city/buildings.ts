@@ -9,7 +9,7 @@ import { buildingDef, footprint, type Look } from './catalog'
 import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, ziegelReihen, type Point } from './draw'
 import { nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
 import { SEITEN, umlauf, waende, schwerpunkt, type Grund, type Seite, type Wand } from './geo'
-import { FENSTER_TOENE, fensterAn, fensterDunkel, leuchte, lichtJetzt } from './licht'
+import { FENSTER_TOENE, fensterAn, fensterDunkel, fensterGlas, leuchte, lichtJetzt } from './licht'
 import type { Theme } from './themes'
 
 export { SEITEN, type Seite } from './geo'
@@ -23,7 +23,10 @@ const FLACH = new Set(['baum', 'bank', 'laterne', 'blumen', 'hecke', 'felsen', '
 
 /** Höhe eines Bauwerks in Bildpunkten. Jede Stufe legt spürbar zu. */
 export function bauHoehe(look: Look, level: number): number {
-  return TILE_H * (look.height + (level - 1) * (look.stufenHoehe ?? 0.45))
+  // Mit jeder Stufe wächst das Haus, aber höchstens auf knapp das Doppelte: aus einem
+  // Kiosk wird ein größerer Kiosk, kein Hochhaus
+  const zuwachs = Math.min((level - 1) * (look.stufenHoehe ?? 0.45), look.height * 0.9)
+  return TILE_H * (look.height + zuwachs)
 }
 
 /**
@@ -1150,7 +1153,18 @@ function zeichneBauwerk(
     const unten = heightPx * 0.08
     const fensterA = lift(mix(front.a, front.b, 0.14), unten)
     const fensterB = lift(mix(front.a, front.b, 0.86), unten)
-    quad(ctx, fensterA, fensterB, lift(fensterB, 13), lift(fensterA, 13), licht)
+    // Tags Glas, abends warm erleuchtet – und nachts noch einmal über der Tönung
+    const offen = lichtJetzt().lampen
+    quad(ctx, fensterA, fensterB, lift(fensterB, 13), lift(fensterA, 13), fensterGlas(lichtJetzt()))
+    if (offen > 0.05) {
+      quad(ctx, fensterA, fensterB, lift(fensterB, 13), lift(fensterA, 13), fade(licht, Math.min(1, offen)))
+      leuchte((c) => {
+        c.beginPath()
+        quadPath(c, fensterA, fensterB, lift(fensterB, 13), lift(fensterA, 13))
+        c.fillStyle = fade(licht, Math.min(1, offen))
+        c.fill()
+      })
+    }
     if (fein) {
       // Waren im Fenster
       for (let i = 0; i < 3; i++) {
@@ -1166,19 +1180,24 @@ function zeichneBauwerk(
       ctx.stroke()
     }
 
-    // Markise mit Streifen – sie ragt nach draußen, weg von der Wand
-    const hoeheMarkise = heightPx * 0.58
+    // Markise mit Streifen – direkt über dem Schaufenster, ragt nach draußen, weg von der Wand
+    const hoeheMarkise = unten + 13.5
     const a = lift(mix(front.a, front.b, 0.12), hoeheMarkise)
     const b = lift(mix(front.a, front.b, 0.88), hoeheMarkise)
-    const vor = { sx: front.raus.sx * 7, sy: front.raus.sy * 7 + 5 }
+    const vor = { sx: front.raus.sx * 5, sy: front.raus.sy * 5 + 2 }
     const weg = (p: Point): Point => ({ sx: p.sx + vor.sx, sy: p.sy + vor.sy })
-    quad(ctx, a, b, weg(b), weg(a), look.accent)
+    for (let i = 0; i < 8; i++) {
+      const s0 = mix(a, b, i / 8)
+      const s1 = mix(a, b, (i + 1) / 8)
+      quad(ctx, s0, s1, weg(s1), weg(s0), i % 2 === 0 ? look.accent : fade('#fff7ea', 0.85))
+    }
+    ctx.strokeStyle = 'rgba(20,24,40,0.35)'
+    ctx.lineWidth = 1.2
+    ctx.beginPath()
+    ctx.moveTo(a.sx, a.sy + 0.6)
+    ctx.lineTo(b.sx, b.sy + 0.6)
+    ctx.stroke()
     if (fein) {
-      for (let i = 0; i < 5; i += 2) {
-        const s0 = mix(a, b, i / 6)
-        const s1 = mix(a, b, (i + 1) / 6)
-        quad(ctx, s0, s1, weg(s1), weg(s0), fade('#ffffff', 0.55))
-      }
       // Schild über der Markise
       const schild = lift(mix(a, b, 0.5), 4)
       ctx.fillStyle = shade(look.accent, -34)

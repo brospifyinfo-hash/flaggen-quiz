@@ -326,12 +326,19 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
     c.beginPath()
     for (const f of gruppe) {
       if (s.fenster === 'bogen') {
-        // Rundbogen: Rechteck mit halbrundem Abschluss
+        // Rundbogen in der Wandebene: der Bogen folgt der Schräge der Wand, sonst
+        // stünde ein waagerechter Halbkreis schief auf dem schrägen Fenster
         const breiteF = Math.hypot(f.p1.sx - f.p0.sx, f.p1.sy - f.p0.sy)
-        const m = mix(f.p0, f.p1, 0.5)
-        quadPath(c, f.p0, f.p1, lift(f.p1, hoch * 0.7), lift(f.p0, hoch * 0.7))
-        c.moveTo(m.sx + breiteF / 2, m.sy - hoch * 0.7)
-        c.ellipse(m.sx, m.sy - hoch * 0.7, breiteF / 2, breiteF / 2.4, 0, 0, Math.PI, true)
+        const fussHoch = hoch * 0.62
+        const bogenHoch = Math.min(breiteF * 0.5, hoch - fussHoch)
+        c.moveTo(f.p0.sx, f.p0.sy)
+        c.lineTo(f.p1.sx, f.p1.sy)
+        for (let i = 0; i <= 8; i++) {
+          const w = (i / 8) * Math.PI
+          const q = lift(mix(f.p0, f.p1, 0.5 + Math.cos(w) / 2), fussHoch + Math.sin(w) * bogenHoch)
+          c.lineTo(q.sx, q.sy)
+        }
+        c.closePath()
       } else {
         quadPath(c, f.p0, f.p1, lift(f.p1, hoch), lift(f.p0, hoch))
       }
@@ -372,12 +379,13 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
   }
   if (!s.fein) return
 
-  // Spiegelung und Kreuz
+  // Spiegelung und Kreuz – beim Rundbogen nur bis zum Bogenansatz, sonst ragen die Ecken heraus
+  const oben = s.fenster === 'bogen' ? hoch * 0.62 : hoch
   if (!dunkel) {
     ctx.beginPath()
     for (const f of liste) {
       const halb = mix(f.p0, f.p1, 0.45)
-      quadPath(ctx, lift(f.p0, hoch * 0.55), lift(halb, hoch * 0.55), lift(halb, hoch), lift(f.p0, hoch))
+      quadPath(ctx, lift(f.p0, oben * 0.55), lift(halb, oben * 0.55), lift(halb, oben), lift(f.p0, oben))
     }
     ctx.fillStyle = fade('#ffffff', 0.18 * (1 - licht.nacht * 0.7))
     ctx.fill()
@@ -388,8 +396,8 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
       for (const f of vorhang) {
         const li = mix(f.p0, f.p1, 0.22)
         const re = mix(f.p0, f.p1, 0.78)
-        quadPath(ctx, f.p0, li, lift(li, hoch), lift(f.p0, hoch))
-        quadPath(ctx, re, f.p1, lift(f.p1, hoch), lift(re, hoch))
+        quadPath(ctx, f.p0, li, lift(li, oben), lift(f.p0, oben))
+        quadPath(ctx, re, f.p1, lift(f.p1, oben), lift(re, oben))
       }
       ctx.fillStyle = 'rgba(255,250,240,0.55)'
       ctx.fill()
@@ -511,8 +519,9 @@ function erdgeschoss(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farb
     const f0 = lift(mix(a, b, 0.08), 2)
     const f1 = lift(mix(a, b, 0.66), 2)
     const offen = lichtJetzt().lampen
-    quad(ctx, f0, f1, lift(f1, unten - 3), lift(f0, unten - 3), s.licht)
+    quad(ctx, f0, f1, lift(f1, unten - 3), lift(f0, unten - 3), fensterGlas(lichtJetzt()))
     if (offen > 0.05) {
+      quad(ctx, f0, f1, lift(f1, unten - 3), lift(f0, unten - 3), fade(s.licht, Math.min(1, offen)))
       // Das Schaufenster wirft nachts Licht auf den Gehweg davor
       const raus = w.raus
       leuchte((c) => {
@@ -791,8 +800,8 @@ function dach(
   const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 }
   const P = (x: number, y: number, z: number): P3 => ({ x, y, z })
   const flaechen: Flaeche[] = []
-  const D = (punkte: P3[]) => flaechen.push({ punkte, n: normale3(punkte[0], punkte[1], punkte[2]), farbe, dach: true })
-  const W = (punkte: P3[]) => flaechen.push({ punkte, n: normale3(punkte[0], punkte[1], punkte[2]), farbe: wandFarbe, dach: false })
+  const D = (punkte: P3[]) => flaechen.push({ punkte, n: normaleVon(punkte), farbe, dach: true })
+  const W = (punkte: P3[]) => flaechen.push({ punkte, n: normaleVon(punkte), farbe: wandFarbe, dach: false })
 
   if (form === 'flach') {
     const rand = 4
@@ -1051,6 +1060,26 @@ function dachrinne(ctx: CanvasRenderingContext2D, r: Grund, h: number, wandFarbe
   ctx.moveTo(vorn.sx - 0.4, vorn.sy + 1)
   ctx.lineTo(vorn.sx - 0.4, vorn.sy + h - 3)
   ctx.stroke()
+}
+
+/**
+ * Senkrechte einer Fläche aus drei verschiedenen Eckpunkten. Fallen Punkte zusammen
+ * (Dreieck als Viereck, Pultdach-Seitenwand mit Höhe null an einer Kante), wäre die
+ * Senkrechte aus den ersten drei Punkten null – und die Fläche verschwände.
+ */
+function normaleVon(punkte: P3[]): [number, number, number] {
+  const gleich = (a: P3, b: P3) => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6 && Math.abs(a.z - b.z) < 1e-6
+  for (let i = 0; i < punkte.length; i++) {
+    for (let j = i + 1; j < punkte.length; j++) {
+      if (gleich(punkte[i], punkte[j])) continue
+      for (let k = j + 1; k < punkte.length; k++) {
+        if (gleich(punkte[i], punkte[k]) || gleich(punkte[j], punkte[k])) continue
+        const n = normale3(punkte[i], punkte[j], punkte[k])
+        if (Math.hypot(n[0], n[1], n[2]) > 1e-6) return n
+      }
+    }
+  }
+  return normale3(punkte[0], punkte[1], punkte[2])
 }
 
 function schwerpunkt3(punkte: P3[]): P3 {
@@ -1466,27 +1495,48 @@ function saeulen(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farbe: s
 
 /** Markise über dem Erdgeschoss */
 function markise(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farbe: string, fein: boolean): void {
-  const z = Math.min(hoehe * 0.62, 16)
+  // Sitzt knapp über dem Schaufenster (siehe erdgeschoss: unten = min(hoehe*0.8, 14))
+  const z = Math.min(hoehe * 0.8, 14) + 0.5
   const a = lift(mix(w.a, w.b, 0.06), z)
-  const b = lift(mix(w.a, w.b, 0.94), z)
-  const vor = { sx: w.raus.sx * 7, sy: w.raus.sy * 7 + 4.5 }
+  const b = lift(mix(w.a, w.b, 0.68), z)
+  // Nach vorn geneigt: ein Stück hinaus und leicht nach unten
+  const vor = { sx: w.raus.sx * 5, sy: w.raus.sy * 5 + 2 }
   const weg = (p: Point): Point => ({ sx: p.sx + vor.sx, sy: p.sy + vor.sy })
-  quad(ctx, a, b, weg(b), weg(a), farbe)
-  if (!fein) return
-  for (let i = 0; i < 7; i += 2) {
-    const s0 = mix(a, b, i / 8)
-    const s1 = mix(a, b, (i + 1) / 8)
-    quad(ctx, s0, s1, weg(s1), weg(s0), fade('#ffffff', 0.6))
+  const n = 8
+  for (let i = 0; i < n; i++) {
+    const s0 = mix(a, b, i / n)
+    const s1 = mix(a, b, (i + 1) / n)
+    quad(ctx, s0, s1, weg(s1), weg(s0), i % 2 === 0 ? farbe : mixFarbe(farbe, '#fff7ea', 0.75))
   }
+  // Schattenkante unter der Markise an der Wand
+  ctx.strokeStyle = 'rgba(20,24,40,0.35)'
+  ctx.lineWidth = 1.2
+  ctx.beginPath()
+  ctx.moveTo(a.sx, a.sy + 0.6)
+  ctx.lineTo(b.sx, b.sy + 0.6)
+  ctx.stroke()
+  if (!fein) return
   // Volant: kleine Bögen an der Vorderkante
   ctx.fillStyle = shade(farbe, -18)
-  const n = 8
   for (let i = 0; i < n; i++) {
     const p = weg(mix(a, b, (i + 0.5) / n))
     ctx.beginPath()
-    ctx.arc(p.sx, p.sy, 1.4, 0, Math.PI)
+    ctx.arc(p.sx, p.sy, 1.2, 0, Math.PI)
     ctx.fill()
   }
+}
+
+/** Zwei Farben mischen: `t` = 0 ergibt `a`, `t` = 1 ergibt `b` */
+function mixFarbe(a: string, b: string, t: number): string {
+  const pa = hexTeile(a)
+  const pb = hexTeile(b)
+  const r = pa.map((v, i) => Math.round(v + (pb[i] - v) * t))
+  return `rgb(${r[0]},${r[1]},${r[2]})`
+}
+function hexTeile(f: string): number[] {
+  const h = f.startsWith('#') ? f.slice(1) : 'a0a0a0'
+  const v = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  return [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16) || 0)
 }
 
 /** Schild über dem Eingang, mit dem Zeichen des Ladens */
@@ -1505,7 +1555,8 @@ function schild(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, zeichen: 
   roundedPath(ctx, p.sx - 7, p.sy - 7, 14, 7, 1.5)
   ctx.fill()
   if (!zeichen) return
-  const h = hashOf(zeichen)
+  // hashOf liefert 0..1 – für die Auswahl braucht es eine ganze Zahl
+  const h = Math.floor(hashOf(zeichen) * 1e6)
   const marke = ['#e63946', '#2a9d8f', '#e9c46a', '#264653', '#f4a261', '#6d597a', '#3a86ff'][h % 7]
   const art = Math.floor(h / 7) % 3
   ctx.fillStyle = marke

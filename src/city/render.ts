@@ -7,7 +7,7 @@ import { fade, lift, quad, quadPath, roundedPath, wobble, type Point } from './d
 import { drawAgent } from './figures'
 import { umlauf, type Grund } from './geo'
 import { nachRechts, setBlick, setLichtSeite, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
-import { leuchtenLeeren, leuchtenMalen, lichtFuer, setLicht, type Licht } from './licht'
+import { leuchtSchichtBeginnen, leuchtenLeeren, leuchtenMalen, lichtFuer, setLicht, verdecken, type Licht } from './licht'
 import { brennt, type Life } from './life'
 import { kriminalitaetsfeld } from './society'
 import { nextExpansion, seiteZurStrasse, tilesOf } from './state'
@@ -208,6 +208,15 @@ function schattenWerfen(ctx: CanvasRenderingContext2D, koerper: (Reihenfolge | n
   ctx.fillStyle = `rgba(14,22,48,${s.alpha.toFixed(3)})`
   ctx.fill()
   ctx.restore()
+}
+
+/** Umriss eines Baukörpers auf dem Bildschirm: Grundriss und der um die Höhe gehobene Grundriss */
+function silhouette(k: Reihenfolge | null): Point[] {
+  if (!k || k.flach || !k.grund) return []
+  const fuss = umlauf(k.grund)
+  // Dächer ragen über die Wandhöhe hinaus, ein Viertel Zuschlag reicht für Giebel und Aufbauten
+  const hoch = k.hoehe * 1.3 + 4
+  return huelle([...fuss, ...fuss.map((p) => ({ sx: p.sx, sy: p.sy - hoch }))])
 }
 
 /** Sprechblase über einem Bauwerk mit einem gezeichneten Zeichen darin */
@@ -644,6 +653,7 @@ export function drawCity(
 
   ctx.save()
   kamera()
+  leuchtSchichtBeginnen(ctx)
   // Kleinteile nur zeichnen, wenn man sie auch sehen kann – und nur, solange das
   // Gerät mitkommt. Die Bildrate zählt mehr als eine Fensterbank.
   const fein = camera.zoom >= 0.7 && options.detail !== false
@@ -739,6 +749,7 @@ export function drawCity(
   for (let i = 0; i < sorted.length; i++) {
     const placed = sorted[i]
     malen(faecher[i])
+    verdecken(silhouette(koerper[i]))
     drawBuilding(ctx, placed, zeit, theme, fein, seiteZurStrasse(city, placed))
     if (brennt(options.life, placed.id)) flammen(ctx, placed, zeit)
     if (placed.id === options.selected) {
@@ -801,9 +812,9 @@ export function drawCity(
   }
 
   // Was selbst leuchtet, kommt nach der Tönung: Fenster, Laternen, Scheinwerfer
+  leuchtenMalen(ctx)
   ctx.save()
   kamera()
-  leuchtenMalen(ctx)
 
   // Zeichen und Blasen liegen über dem Licht – sie gehören zur Bedienung, nicht zur Stadt
   if (options.kriminalitaet) kriminalitaetMarken(ctx, city)
