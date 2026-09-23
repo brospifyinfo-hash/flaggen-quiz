@@ -85,14 +85,22 @@ export function zeigtNachVorn(nx: number, ny: number): boolean {
   return dirToScreen(nx, ny).sy > 1e-6
 }
 
+/** Woher im Bild das Licht kommt: -1 von links, 1 von rechts. Wandert mit der Sonne. */
+let lichtSeite = 1
+
+/** Lichtrichtung setzen – vor jedem Bild, zusammen mit dem Blick */
+export function setLichtSeite(seite: number): void {
+  lichtSeite = Number.isFinite(seite) ? Math.max(-1, Math.min(1, seite)) : 1
+}
+
 /**
- * Wie sehr eine Fläche mit dieser Außenrichtung nach rechts schaut: 1 ganz nach
- * rechts, -1 ganz nach links. Das Licht kommt von rechts – danach wird schattiert.
+ * Wie sehr eine Fläche mit dieser Außenrichtung zum Licht schaut: 1 voll im Licht,
+ * -1 ganz abgewandt. Danach werden Wände und Dächer schattiert.
  */
 export function nachRechts(nx: number, ny: number): number {
   const r = dirToScreen(nx, ny)
   const laenge = Math.hypot(r.sx, r.sy)
-  return laenge > 0 ? r.sx / laenge : 0
+  return laenge > 0 ? (r.sx / laenge) * lichtSeite : 0
 }
 
 /** Gleichmäßiges Rauschen je Kachel, damit der Boden nicht eintönig wirkt */

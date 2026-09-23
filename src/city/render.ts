@@ -1,18 +1,20 @@
 // Zeichnet die Stadt als kleines Diorama: schräge Sicht, Schatten, Fassaden mit Fenstern,
 // Dächer, Bäume. Alles in ein Canvas, damit auch große Städte flüssig bleiben.
 import { koerperVon } from './bau'
-import { bauHoehe, drawBuilding, einzug, tree, umrissPunkte } from './buildings'
+import { bauHoehe, drawBuilding, einzug, umrissPunkte } from './buildings'
 import { RATHAUS, buildingDef, footprint, roadDef } from './catalog'
-import { fade, lift, quad, quadPath, roundedPath, type Point } from './draw'
+import { fade, lift, quad, quadPath, roundedPath, wobble, type Point } from './draw'
 import { drawAgent } from './figures'
-import type { Grund } from './geo'
-import { nachRechts, setBlick, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
-import { brennt, type Agent, type Life } from './life'
+import { umlauf, type Grund } from './geo'
+import { nachRechts, setBlick, setLichtSeite, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
+import { leuchtenLeeren, leuchtenMalen, lichtFuer, setLicht, type Licht } from './licht'
+import { brennt, type Life } from './life'
 import { kriminalitaetsfeld } from './society'
-import { nextExpansion, roadAt, seiteZurStrasse, tilesOf } from './state'
+import { nextExpansion, seiteZurStrasse, tilesOf } from './state'
+import { drawRoads, strassenMoebel } from './strassen'
 import { themeById, type Theme } from './themes'
 import type { CityState, Placed } from './types'
-import { tagesLicht } from './zeit'
+import { seedAus, zeichen, zeichenFuerEmoji, type Zeichen } from './zeichen'
 
 export interface Camera {
   /** Weltpunkt, der in der Bildmitte liegt */
@@ -58,155 +60,158 @@ export interface DrawOptions {
   stunde?: number
 }
 
+// ---------------------------------------------------------------------------
+// Himmel
+// ---------------------------------------------------------------------------
+
+const rgb = (k: [number, number, number], a = 1) => `rgba(${Math.round(k[0])},${Math.round(k[1])},${Math.round(k[2])},${a})`
+const mischen = (a: [number, number, number], b: [number, number, number], t: number): [number, number, number] => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+]
+
 /**
- * Straßen. Gezeichnet wird in drei Durchgängen über alle Kacheln: erst die Kanten,
- * dann die Fahrbahn, dann die Markierung. Sonst übermalt der Nachbar die Kante.
+ * Der Himmel hinter der Stadt: Verlauf je Tageszeit, Sterne, Sonne oder Mond und ein
+ * paar Wolken, die langsam ziehen. Alles im Bildraum, vor der Kamera.
  */
-function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme: Theme, fein: boolean): void {
-  const entries = Object.entries(city.roads)
-  if (entries.length === 0) return
+function himmelMalen(ctx: CanvasRenderingContext2D, view: { w: number; h: number }, licht: Licht, zeit: number): void {
+  const sky = ctx.createLinearGradient(0, 0, 0, view.h)
+  sky.addColorStop(0, licht.himmel[0])
+  sky.addColorStop(0.55, licht.himmel[1])
+  sky.addColorStop(1, licht.himmel[2])
+  ctx.fillStyle = sky
+  ctx.fillRect(0, 0, view.w, view.h)
 
-  const enden = (x: number, y: number) => {
-    const list: { sx: number; sy: number }[] = []
-    if (roadAt(city, x, y - 1)) list.push(toScreen(x + 0.5, y))
-    if (roadAt(city, x + 1, y)) list.push(toScreen(x + 1, y + 0.5))
-    if (roadAt(city, x, y + 1)) list.push(toScreen(x + 0.5, y + 1))
-    if (roadAt(city, x - 1, y)) list.push(toScreen(x, y + 0.5))
-    return list
+  // Sterne, nachts – ein paar funkeln
+  if (licht.sterne > 0.02) {
+    ctx.fillStyle = '#ffffff'
+    for (let i = 0; i < 110; i++) {
+      const x = wobble(i, 1) * view.w
+      const y = wobble(i, 2) * view.h * 0.75
+      const funkeln = 0.55 + 0.45 * Math.sin(zeit * (1 + wobble(i, 3) * 2) + i)
+      const gross = wobble(i, 4) > 0.85 ? 1.6 : 1
+      ctx.globalAlpha = licht.sterne * funkeln * (0.5 + wobble(i, 5) * 0.5)
+      ctx.fillRect(x, y, gross, gross)
+    }
+    ctx.globalAlpha = 1
   }
 
-  ctx.save()
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-
-  // Je Durchgang und Straßenart ein einziger Pfad: erst alle Kanten, dann alle
-  // Fahrbahnen, dann alle Markierungen. Sonst übermalt der Nachbar die Kante –
-  // und ein Strich je Kachel würde die Bildrate auffressen.
-  const arten = [...new Set(entries.map(([, type]) => type))]
-  for (const pass of [0, 1, 2]) {
-    for (const art of arten) {
-      const def = roadDef(art)
-      if (!def) continue
-      if (pass === 2 && !def.marking) continue
-
-      ctx.strokeStyle = pass === 0 ? def.edge : pass === 1 ? def.surface : (def.marking as string)
-      ctx.lineWidth = def.width * TILE_H * (pass === 0 ? 1.45 : pass === 1 ? 1 : 0.14)
-      ctx.setLineDash(pass === 2 ? [7, 7] : [])
-      ctx.beginPath()
-
-      for (const [key, type] of entries) {
-        if (type !== art) continue
-        const [x, y] = key.split(':').map(Number)
-        const center = toScreen(x + 0.5, y + 0.5)
-        const ziele = enden(x, y)
-
-        if (ziele.length === 0) {
-          // einzelne Kachel: kleiner Fleck
-          ctx.moveTo(center.sx - 7, center.sy)
-          ctx.lineTo(center.sx + 7, center.sy)
-          continue
-        }
-        // Bei Markierungen nur die durchgehende Richtung streifen
-        const striche = pass === 2 && ziele.length !== 2 ? [] : ziele
-        for (const ziel of striche) {
-          ctx.moveTo(center.sx, center.sy)
-          ctx.lineTo(ziel.sx, ziel.sy)
-        }
-      }
-      ctx.stroke()
-    }
+  // Sonne mit Hof
+  if (licht.sonne && licht.sonne.alpha > 0.01) {
+    const s = licht.sonne
+    const x = s.x * view.w
+    const y = s.y * view.h
+    const hof = ctx.createRadialGradient(x, y, 6, x, y, 120)
+    hof.addColorStop(0, s.hof)
+    hof.addColorStop(1, 'rgba(255,200,120,0)')
+    ctx.globalAlpha = s.alpha
+    ctx.fillStyle = hof
+    ctx.fillRect(x - 120, y - 120, 240, 240)
+    ctx.fillStyle = s.farbe
+    ctx.beginPath()
+    ctx.arc(x, y, 17, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.globalAlpha = 1
   }
-  ctx.setLineDash([])
-  ctx.restore()
 
-  // Was die Straße lebendig macht: Körnung im Asphalt, Gullideckel, geflickte
-  // Stellen und Zebrastreifen dort, wo sich Wege kreuzen.
-  if (fein) {
-    ctx.save()
-    const koerner: [number, number][] = []
-    const zebra: [number, number][] = []
-    const deckel: [number, number][] = []
-    const flicken: [number, number][] = []
-    for (const [key, type] of entries) {
-      const def = roadDef(type)
-      if (!def) continue
-      const [x, y] = key.split(':').map(Number)
-      const center = toScreen(x + 0.5, y + 0.5)
-      const wuerfel = tileNoise(x * 3 + 1, y * 7 + 2)
-      const halb = def.width * TILE_H * 0.45
-
-      // Körnung – alle Flecken dieser Kachel wandern in den gemeinsamen Pfad
-      for (let i = 0; i < 5; i++) {
-        const a = tileNoise(x + i * 5, y + i * 11)
-        const b = tileNoise(y + i * 7, x + i * 13)
-        koerner.push([center.sx + (a - 0.5) * 34, center.sy + (b - 0.5) * 17])
-      }
-
-      const nachbarn = enden(x, y).length
-      if (nachbarn >= 3 && def.marking) {
-        for (let i = -2; i <= 2; i++) {
-          const auf = toScreen(x + 0.5 + i * 0.13, y + 0.5 + i * 0.13)
-          zebra.push([auf.sx, auf.sy])
-        }
-      } else if (wuerfel > 0.82) {
-        deckel.push([center.sx + 9, center.sy + halb * 0.5])
-      } else if (wuerfel < 0.14) {
-        flicken.push([center.sx - 7, center.sy - 2])
-      }
-    }
-
-    const tupfen = (liste: [number, number][], rx: number, ry: number, farbe: string) => {
-      if (liste.length === 0) return
+  // Mond als Sichel mit blassem Hof
+  if (licht.mond && licht.mond.alpha > 0.01) {
+    const m = licht.mond
+    const x = m.x * view.w
+    const y = m.y * view.h
+    ctx.globalAlpha = m.alpha
+    const hof = ctx.createRadialGradient(x, y, 8, x, y, 70)
+    hof.addColorStop(0, 'rgba(200,215,255,0.35)')
+    hof.addColorStop(1, 'rgba(200,215,255,0)')
+    ctx.fillStyle = hof
+    ctx.fillRect(x - 70, y - 70, 140, 140)
+    ctx.fillStyle = '#f4f2e6'
+    ctx.beginPath()
+    ctx.arc(x, y, 13, 0, Math.PI * 2)
+    ctx.fill()
+    // Krater
+    ctx.fillStyle = 'rgba(180,180,170,0.55)'
+    for (const [kx, ky, r] of [
+      [-4, -3, 2.4],
+      [3, 4, 1.8],
+      [5, -5, 1.3],
+      [-2, 6, 1.2],
+    ]) {
       ctx.beginPath()
-      for (const [px, py] of liste) {
-        ctx.moveTo(px + rx, py)
-        ctx.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2)
-      }
-      ctx.fillStyle = farbe
+      ctx.arc(x + kx, y + ky, r, 0, Math.PI * 2)
       ctx.fill()
     }
-    tupfen(koerner, 1.6, 0.9, 'rgba(255,255,255,0.05)')
-    tupfen(flicken, 6, 3.2, 'rgba(0,0,0,0.13)')
-    tupfen(zebra, 2.2, 1.1, 'rgba(244,247,255,0.8)')
-    tupfen(deckel, 3.4, 1.9, 'rgba(28,34,50,0.85)')
-    if (deckel.length > 0) {
-      ctx.strokeStyle = 'rgba(150,160,180,0.45)'
-      ctx.lineWidth = 0.7
-      ctx.beginPath()
-      for (const [px, py] of deckel) {
-        ctx.moveTo(px + 2.2, py)
-        ctx.ellipse(px, py, 2.2, 1.2, 0, 0, Math.PI * 2)
-      }
-      ctx.stroke()
-    }
-    ctx.restore()
+    ctx.globalAlpha = 1
   }
 
-  // Alleen bekommen Bäume auf den Schultern
-  for (const [key, type] of entries) {
-    const def = roadDef(type)
-    if (!def?.trees) continue
-    const [x, y] = key.split(':').map(Number)
-    const frei = [
-      { da: roadAt(city, x, y - 1), at: [x + 0.5, y + 0.12] },
-      { da: roadAt(city, x, y + 1), at: [x + 0.5, y + 0.88] },
-    ]
-    for (const seite of frei) {
-      if (seite.da) continue
-      tree(
-        ctx,
-        seite.at[0] - 0.5,
-        seite.at[1] - 0.5,
-        { kind: 'baum', height: 0.5, wall: theme.tree[0], roof: theme.tree[2], accent: theme.tree[1] },
-        0.25,
-        fein,
-      )
-    }
+  // Wolken: weich, langsam ziehend; nachts dunkel vor dem Himmel
+  const tag: [number, number, number] = [255, 255, 255]
+  const abend: [number, number, number] = [255, 190, 150]
+  const nacht: [number, number, number] = [44, 52, 90]
+  const farbe = mischen(mischen(tag, abend, licht.daemmerung * 0.8), nacht, licht.nacht)
+  const schatten = mischen(farbe, [120, 130, 170], 0.35 * (1 - licht.nacht))
+  const anzahl = 7
+  for (let i = 0; i < anzahl; i++) {
+    const tempo = 6 + wobble(i, 11) * 8
+    const spanne = view.w + 260
+    const x = ((wobble(i, 12) * spanne + zeit * tempo) % spanne) - 130
+    const y = 20 + wobble(i, 13) * view.h * 0.42
+    const gross = 0.7 + wobble(i, 14) * 0.8
+    const alpha = 0.55 + wobble(i, 15) * 0.35
+    ctx.globalAlpha = alpha * (1 - licht.nacht * 0.45)
+    // Unterseite dunkler
+    ctx.fillStyle = rgb(schatten)
+    wolke(ctx, x, y + 3 * gross, gross)
+    ctx.fillStyle = rgb(farbe)
+    wolke(ctx, x, y, gross)
   }
+  ctx.globalAlpha = 1
 }
 
-/** Wo eine Figur gerade steht, in Kachelkoordinaten */
-function drawBubble(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string, t: number): void {
+function wolke(ctx: CanvasRenderingContext2D, x: number, y: number, g: number): void {
+  ctx.beginPath()
+  ctx.ellipse(x, y, 42 * g, 13 * g, 0, 0, Math.PI * 2)
+  ctx.ellipse(x - 20 * g, y + 2 * g, 22 * g, 11 * g, 0, 0, Math.PI * 2)
+  ctx.ellipse(x + 8 * g, y - 8 * g, 20 * g, 14 * g, 0, 0, Math.PI * 2)
+  ctx.ellipse(x + 26 * g, y + 1 * g, 20 * g, 10 * g, 0, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+// ---------------------------------------------------------------------------
+// Schattenwurf
+// ---------------------------------------------------------------------------
+
+/**
+ * Die Schatten, die Häuser und Bäume auf den Boden werfen. Richtung und Länge
+ * kommen von der Sonne: morgens lang nach rechts, mittags kurz, abends lang nach
+ * links. Alle Schatten liegen in einem Pfad, damit sie sich nicht übereinander
+ * aufaddieren, wo sie sich überlappen.
+ */
+function schattenWerfen(ctx: CanvasRenderingContext2D, koerper: (Reihenfolge | null)[], licht: Licht): void {
+  const s = licht.schatten
+  if (s.alpha < 0.01) return
+  ctx.save()
+  ctx.beginPath()
+  for (const k of koerper) {
+    if (!k || k.flach || !k.grund || k.hoehe <= 0) continue
+    const fuss = umlauf(k.grund)
+    const dx = s.dx * s.laenge * k.hoehe
+    const dy = s.dy * s.laenge * k.hoehe
+    const kopf = fuss.map((p) => ({ sx: p.sx + dx, sy: p.sy + dy }))
+    const rand = huelle([...fuss, ...kopf])
+    if (rand.length < 3) continue
+    ctx.moveTo(rand[0].sx, rand[0].sy)
+    for (let i = 1; i < rand.length; i++) ctx.lineTo(rand[i].sx, rand[i].sy)
+    ctx.closePath()
+  }
+  ctx.fillStyle = `rgba(14,22,48,${s.alpha.toFixed(3)})`
+  ctx.fill()
+  ctx.restore()
+}
+
+/** Sprechblase über einem Bauwerk mit einem gezeichneten Zeichen darin */
+function drawBubble(ctx: CanvasRenderingContext2D, placed: Placed, art: Zeichen, t: number, seed = 0): void {
   const def = buildingDef(placed.type)
   if (!def) return
   const [w, h] = footprint(def, placed.rot)
@@ -214,24 +219,25 @@ function drawBubble(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string
   const hover = Math.sin(t * 2.4) * 3
   const y = top.sy - TILE_H * (def.look.height + 1.6) - hover
   ctx.save()
-  ctx.fillStyle = 'rgba(255,255,255,0.95)'
+  ctx.shadowColor = 'rgba(0,0,0,0.25)'
+  ctx.shadowBlur = 6
+  ctx.shadowOffsetY = 2
+  ctx.fillStyle = 'rgba(255,255,255,0.96)'
   roundedPath(ctx, top.sx - 17, y - 17, 34, 30, 12)
   ctx.fill()
+  ctx.shadowColor = 'transparent'
   ctx.beginPath()
   ctx.moveTo(top.sx - 6, y + 12)
   ctx.lineTo(top.sx + 4, y + 12)
   ctx.lineTo(top.sx - 1, y + 21)
   ctx.closePath()
   ctx.fill()
-  ctx.font = '18px system-ui, sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(emoji, top.sx, y - 2)
+  zeichen(ctx, art, top.sx, y - 2, 20, seed)
   ctx.restore()
 }
 
 /** Ein stilles Zeichen über einem Bauwerk – ohne Sprechblase, halb durchsichtig */
-function drawMarke(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string, alpha: number): void {
+function drawMarke(ctx: CanvasRenderingContext2D, placed: Placed, art: Zeichen, alpha: number): void {
   const def = buildingDef(placed.type)
   if (!def) return
   const [w, h] = footprint(def, placed.rot)
@@ -239,10 +245,7 @@ function drawMarke(ctx: CanvasRenderingContext2D, placed: Placed, emoji: string,
   const y = top.sy - bauHoehe(def.look, placed.level) - 14
   ctx.save()
   ctx.globalAlpha = alpha
-  ctx.font = '16px system-ui, sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(emoji, top.sx, y)
+  zeichen(ctx, art, top.sx, y, 18)
   ctx.restore()
 }
 
@@ -264,7 +267,16 @@ export function vorderTiefe(placed: Placed): number {
 /** Formen ohne Baukörper: Figuren stehen auf ihnen, nie dahinter */
 const FLACHE_FORMEN = new Set(['park', 'wasser', 'flach', 'brunnen', 'bank', 'blumen', 'hecke', 'felsen', 'laterne', 'fahne'])
 
-type Reihenfolge = { flach: boolean; lot: Grund; hmin: number; hmax: number; ecken: { h: number; g: number }[] }
+type Reihenfolge = {
+  flach: boolean
+  lot: Grund
+  hmin: number
+  hmax: number
+  ecken: { h: number; g: number }[]
+  /** Baukörper auf der Karte und seine Höhe in Bildpunkten – für den Schattenwurf */
+  grund?: Grund
+  hoehe: number
+}
 
 /** Der Baukörper eines Gebäudes, in Blickrichtung ausgemessen */
 function koerperFuerReihenfolge(
@@ -278,10 +290,13 @@ function koerperFuerReihenfolge(
   const [w, h] = footprint(def, placed.rot)
   const lot: Grund = { x: placed.x, y: placed.y, w, h }
   const look = def.look
-  if (FLACHE_FORMEN.has(look.kind)) return { flach: true, lot, hmin: 0, hmax: 0, ecken: [] }
+  if (FLACHE_FORMEN.has(look.kind)) return { flach: true, lot, hmin: 0, hmax: 0, ecken: [], hoehe: 0 }
   let k: Grund
-  if (look.kind === 'baum') k = { x: placed.x + 0.25, y: placed.y + 0.25, w: 0.5, h: 0.5 }
-  else if (look.kind === 'bau' && look.stil) k = koerperVon(lot, look.stil, seiteZurStrasse(city, placed), placed.level, einzug(look, placed.level))
+  let hoehe = bauHoehe(look, Math.max(1, placed.level))
+  if (look.kind === 'baum') {
+    k = { x: placed.x + 0.32, y: placed.y + 0.32, w: 0.36, h: 0.36 }
+    hoehe *= 0.75
+  } else if (look.kind === 'bau' && look.stil) k = koerperVon(lot, look.stil, seiteZurStrasse(city, placed), placed.level, einzug(look, placed.level))
   else {
     const e = einzug(look, placed.level)
     k = { x: lot.x + e, y: lot.y + e, w: lot.w - 2 * e, h: lot.h - 2 * e }
@@ -293,7 +308,7 @@ function koerperFuerReihenfolge(
     { x: k.x, y: k.y + k.h },
   ].map((p) => ({ h: p.x * quer.x + p.y * quer.y, g: p.x * g.x + p.y * g.y }))
   const hs = ecken.map((e) => e.h)
-  return { flach: false, lot, hmin: Math.min(...hs), hmax: Math.max(...hs), ecken }
+  return { flach: false, lot, hmin: Math.min(...hs), hmax: Math.max(...hs), ecken, grund: k, hoehe }
 }
 
 /** Wo schneidet eine Linie quer zur Blickrichtung den Baukörper? Vorderste und hinterste Tiefe dort. */
@@ -554,6 +569,9 @@ function outline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
   ctx.stroke()
 }
 
+/** Etwas, das zwischen den Häusern steht und nach Tiefe eingereiht wird */
+type Ding = { x: number; y: number; breite: number; tiefe: number; malen: () => void }
+
 /** Malt die ganze Stadt. Der Aufrufer setzt vorher Größe und Kamera. */
 export function drawCity(
   ctx: CanvasRenderingContext2D,
@@ -562,19 +580,25 @@ export function drawCity(
   view: { w: number; h: number },
   options: DrawOptions = {},
 ): void {
-  // Zuerst den Blick setzen – alles Weitere rechnet schon aus dieser Richtung
+  // Zuerst Blick und Licht setzen – alles Weitere rechnet schon damit
   setBlick(options.blick ?? 0, city.land)
+  const licht = lichtFuer(options.stunde ?? 9)
+  setLicht(licht)
+  setLichtSeite(licht.zumLicht.sx)
+  leuchtenLeeren()
   const theme = themeById(city.theme)
-  const sky = ctx.createLinearGradient(0, 0, 0, view.h)
-  sky.addColorStop(0, theme.sky[0])
-  sky.addColorStop(1, theme.sky[1])
-  ctx.fillStyle = sky
-  ctx.fillRect(0, 0, view.w, view.h)
+  const zeit = options.time ?? 0
+
+  himmelMalen(ctx, view, licht, zeit)
+
+  const kamera = () => {
+    ctx.translate(view.w / 2, view.h / 2)
+    ctx.scale(camera.zoom, camera.zoom)
+    ctx.translate(-camera.x, -camera.y)
+  }
 
   ctx.save()
-  ctx.translate(view.w / 2, view.h / 2)
-  ctx.scale(camera.zoom, camera.zoom)
-  ctx.translate(-camera.x, -camera.y)
+  kamera()
   // Kleinteile nur zeichnen, wenn man sie auch sehen kann – und nur, solange das
   // Gerät mitkommt. Die Bildrate zählt mehr als eine Fensterbank.
   const fein = camera.zoom >= 0.7 && options.detail !== false
@@ -606,56 +630,70 @@ export function drawCity(
     ctx.restore()
   }
 
-  // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst.
-  // Menschen werden nach derselben Tiefe zwischen die Bauwerke gemischt.
-  const zeit = options.time ?? 0
-
   if (options.kriminalitaet) kriminalitaetZeigen(ctx, city)
 
+  // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst.
   // Gebäude von hinten nach vorn
   const sorted = [...city.buildings].sort((a, b) => vorderTiefe(a) - vorderTiefe(b))
 
-  // Jede Figur kommt direkt nach dem letzten Gebäude, vor dem sie steht. Gemessen wird
-  // in Blickrichtung und nur dort, wo Figur und Baukörper seitlich überlappen – ein Haus
-  // verdeckt nur, was wirklich hinter ihm ist.
   const g = tiefenRichtung()
   const quer = { x: -g.y, y: g.x }
   const koerper = sorted.map((placed) => koerperFuerReihenfolge(city, placed, g, quer))
-  const faecher: Agent[][] = sorted.map(() => [])
-  const danach: Agent[] = []
+
+  // Die Schatten der Häuser liegen auf dem Boden, unter allem, was darauf steht
+  schattenWerfen(ctx, koerper, licht)
+
+  // Alles, was zwischen den Häusern steht: Figuren, Fahrzeuge, Laternen, Ampeln.
+  // Jedes kommt direkt nach dem letzten Gebäude, vor dem es steht. Gemessen wird
+  // in Blickrichtung und nur dort, wo Ding und Baukörper seitlich überlappen – ein
+  // Haus verdeckt nur, was wirklich hinter ihm ist.
+  const dinge: Ding[] = []
   if (options.life) {
     for (const agent of options.life.agents) {
       if (agent.zustand === 'drinnen') continue
-      const hp = agent.x * quer.x + agent.y * quer.y
-      const gp = agent.x * g.x + agent.y * g.y
-      let platz = -1
-      for (let i = 0; i < koerper.length; i++) {
-        const k = koerper[i]
-        if (!k) continue
-        if (k.flach) {
-          // Auf Flachem – Park, Platz, Bank – steht man immer obendrauf
-          if (agent.x >= k.lot.x - 0.05 && agent.x <= k.lot.x + k.lot.w + 0.05 && agent.y >= k.lot.y - 0.05 && agent.y <= k.lot.y + k.lot.h + 0.05) platz = i
-          continue
-        }
-        const breite = agent.art === 'auto' || agent.art === 'dienst' ? 0.34 : 0.14
-        if (hp < k.hmin - breite || hp > k.hmax + breite) continue
-        const [gmin, gmax] = sehne(k.ecken, Math.max(k.hmin, Math.min(k.hmax, hp)))
-        if (gp >= gmax - 0.02) platz = i
-        else if (gp <= gmin) continue
-        else platz = i
-      }
-      ;(platz + 1 < faecher.length ? faecher[platz + 1] : danach).push(agent)
+      dinge.push({
+        x: agent.x,
+        y: agent.y,
+        breite: agent.art === 'auto' || agent.art === 'dienst' ? 0.34 : 0.14,
+        tiefe: agent.x * g.x + agent.y * g.y,
+        malen: () => drawAgent(ctx, agent, zeit, fein),
+      })
     }
   }
-  const nachTiefe = (a: Agent, b: Agent) => a.x * g.x + a.y * g.y - (b.x * g.x + b.y * g.y)
-  const figuren = (liste: Agent[]) => {
-    liste.sort(nachTiefe)
-    for (const agent of liste) drawAgent(ctx, agent, zeit, fein)
+  for (const m of strassenMoebel(city, zeit, fein)) {
+    dinge.push({ x: m.x, y: m.y, breite: 0.06, tiefe: m.x * g.x + m.y * g.y, malen: () => m.malen(ctx) })
+  }
+
+  const faecher: Ding[][] = sorted.map(() => [])
+  const danach: Ding[] = []
+  for (const ding of dinge) {
+    const hp = ding.x * quer.x + ding.y * quer.y
+    const gp = ding.tiefe
+    let platz = -1
+    for (let i = 0; i < koerper.length; i++) {
+      const k = koerper[i]
+      if (!k) continue
+      if (k.flach) {
+        // Auf Flachem – Park, Platz, Bank – steht man immer obendrauf
+        if (ding.x >= k.lot.x - 0.05 && ding.x <= k.lot.x + k.lot.w + 0.05 && ding.y >= k.lot.y - 0.05 && ding.y <= k.lot.y + k.lot.h + 0.05) platz = i
+        continue
+      }
+      if (hp < k.hmin - ding.breite || hp > k.hmax + ding.breite) continue
+      const [gmin, gmax] = sehne(k.ecken, Math.max(k.hmin, Math.min(k.hmax, hp)))
+      if (gp >= gmax - 0.02) platz = i
+      else if (gp <= gmin) continue
+      else platz = i
+    }
+    ;(platz + 1 < faecher.length ? faecher[platz + 1] : danach).push(ding)
+  }
+  const malen = (liste: Ding[]) => {
+    liste.sort((a, b) => a.tiefe - b.tiefe)
+    for (const d of liste) d.malen()
   }
 
   for (let i = 0; i < sorted.length; i++) {
     const placed = sorted[i]
-    figuren(faecher[i])
+    malen(faecher[i])
     drawBuilding(ctx, placed, zeit, theme, fein, seiteZurStrasse(city, placed))
     if (brennt(options.life, placed.id)) flammen(ctx, placed, zeit)
     if (placed.id === options.selected) {
@@ -666,35 +704,7 @@ export function drawCity(
       }
     }
   }
-  figuren(danach)
-
-  if (options.kriminalitaet) kriminalitaetMarken(ctx, city)
-
-  // Das Rathaus ist immer markiert: goldener Rahmen am Boden und ein schwebendes Zeichen
-  // darüber – so findet man den Stadtbericht auch in einer großen Stadt sofort
-  const rathaus = city.buildings.find((placed) => placed.type === RATHAUS)
-  if (rathaus) {
-    const [w, h] = footprint(buildingDef(RATHAUS)!, rathaus.rot)
-    ctx.save()
-    ctx.globalAlpha = 0.55 + 0.35 * Math.sin(zeit * 2.2)
-    outline(ctx, rathaus.x, rathaus.y, w, h, '#ffd23f')
-    ctx.restore()
-    drawBubble(ctx, rathaus, '🏛️', zeit)
-  }
-
-  // Wer sich beschwert, sagt es über dem Dach – und eine Ruine trägt ihr Zeichen
-  for (const placed of sorted) {
-    if (placed.verlassen) {
-      if (fein) drawMarke(ctx, placed, '🏚️', 0.7)
-    } else if (placed.beschwerde) {
-      drawBubble(ctx, placed, zeit % 2 < 1 ? '😠' : '💢', zeit)
-    }
-  }
-
-  if (options.bubble) {
-    const haus = city.buildings.find((placed) => placed.id === options.bubble?.buildingId)
-    if (haus) drawBubble(ctx, haus, options.bubble.emoji, zeit)
-  }
+  malen(danach)
 
   const ghost = options.ghost
   if (ghost) {
@@ -733,17 +743,52 @@ export function drawCity(
   ctx.restore()
 
   // Das Licht des Tages: morgens rosig, abends golden, nachts blau – über allem
-  if (options.stunde !== undefined) {
-    const licht = tagesLicht(options.stunde)
-    if (licht.alpha > 0.005) {
-      ctx.save()
-      ctx.globalCompositeOperation = 'multiply'
-      const [r, g, b] = licht.farbe
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${licht.alpha.toFixed(3)})`
-      ctx.fillRect(0, 0, view.w, view.h)
-      ctx.restore()
+  if (licht.ton.alpha > 0.005) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'multiply'
+    ctx.fillStyle = rgb(licht.ton.farbe, licht.ton.alpha)
+    ctx.fillRect(0, 0, view.w, view.h)
+    ctx.restore()
+  }
+  if (licht.schleier.alpha > 0.005) {
+    ctx.fillStyle = rgb(licht.schleier.farbe, licht.schleier.alpha)
+    ctx.fillRect(0, 0, view.w, view.h)
+  }
+
+  // Was selbst leuchtet, kommt nach der Tönung: Fenster, Laternen, Scheinwerfer
+  ctx.save()
+  kamera()
+  leuchtenMalen(ctx)
+
+  // Zeichen und Blasen liegen über dem Licht – sie gehören zur Bedienung, nicht zur Stadt
+  if (options.kriminalitaet) kriminalitaetMarken(ctx, city)
+
+  // Das Rathaus ist immer markiert: goldener Rahmen am Boden und ein schwebendes Zeichen
+  // darüber – so findet man den Stadtbericht auch in einer großen Stadt sofort
+  const rathaus = city.buildings.find((placed) => placed.type === RATHAUS)
+  if (rathaus) {
+    const [w, h] = footprint(buildingDef(RATHAUS)!, rathaus.rot)
+    ctx.save()
+    ctx.globalAlpha = 0.55 + 0.35 * Math.sin(zeit * 2.2)
+    outline(ctx, rathaus.x, rathaus.y, w, h, '#ffd23f')
+    ctx.restore()
+    drawBubble(ctx, rathaus, 'rathaus', zeit)
+  }
+
+  // Wer sich beschwert, sagt es über dem Dach – und eine Ruine trägt ihr Zeichen
+  for (const placed of sorted) {
+    if (placed.verlassen) {
+      if (fein) drawMarke(ctx, placed, 'ruine', 0.7)
+    } else if (placed.beschwerde) {
+      drawBubble(ctx, placed, zeit % 2 < 1 ? 'wut' : 'zorn', zeit)
     }
   }
+
+  if (options.bubble) {
+    const haus = city.buildings.find((placed) => placed.id === options.bubble?.buildingId)
+    if (haus) drawBubble(ctx, haus, zeichenFuerEmoji(options.bubble.emoji), zeit, seedAus(options.bubble.emoji + options.bubble.buildingId))
+  }
+  ctx.restore()
 }
 
 /**

@@ -8,6 +8,7 @@
 // Bauart Blaulicht, Leiter, Taxischild, Spoiler oder Ladefläche.
 import type { Klasse } from './catalog'
 import { bodenSchatten, fade, groundRect, isoFrame, lift, mix, quad, roundedPath, shade, wobble, type Point } from './draw'
+import { leuchte, lichtJetzt } from './licht'
 import { dirToScreen, toScreen } from './iso'
 import type { Agent } from './life'
 
@@ -1003,6 +1004,8 @@ export interface AutoOptionen {
   wrack?: boolean
   /** Blaulicht an – im Einsatz */
   blaulicht?: boolean
+  /** steht an der Ampel oder im Stau – Bremslichter */
+  bremst?: boolean
 }
 
 /** Ein Fahrzeug, das in Richtung (dx, dy) auf der Karte steht */
@@ -1060,7 +1063,7 @@ export function zeichneAuto(
   if (modell === 'bus') {
     const k = kasten(ctx, p, frame, 0, lang, breit, bau.hoch, unten, lack)
     fensterband(ctx, k.fuss, bau.hoch, 0, o.fein)
-    lichter(ctx, ecke, unten + 3, o.fein)
+    lichter(ctx, ecke, unten + 3, o)
     if (o.fein) {
       const schild = lift(mix(k.fuss[0], k.fuss[1], 0.5), bau.hoch - 2)
       ctx.fillStyle = '#141414'
@@ -1244,7 +1247,7 @@ export function zeichneAuto(
     }
   }
 
-  if (!o.wrack) lichter(ctx, ecke, unten + bau.hoch * 0.55, o.fein)
+  if (!o.wrack) lichter(ctx, ecke, unten + bau.hoch * 0.55, o)
 }
 
 /** Scheiben einer Kabine: Frontscheibe schräg, Seitenfenster mit Säule, Heckscheibe */
@@ -1316,18 +1319,20 @@ function fensterband(ctx: CanvasRenderingContext2D, fuss: Viereck, hoch: number,
   quad(ctx, f0, f1, lift(f1, hoch * 0.5), lift(f0, hoch * 0.5), 'rgba(158,206,244,0.92)')
 }
 
-function lichter(ctx: CanvasRenderingContext2D, ecke: (l: number, q: number, z?: number) => Point, z: number, fein: boolean): void {
-  const licht = (l: number, q: number, farbe: string, r: number) => {
+function lichter(ctx: CanvasRenderingContext2D, ecke: (l: number, q: number, z?: number) => Point, z: number, o: AutoOptionen): void {
+  const fein = o.fein
+  const licht = (c: CanvasRenderingContext2D, l: number, q: number, farbe: string, r: number) => {
     const p = ecke(l, q, z)
-    ctx.fillStyle = farbe
-    ctx.beginPath()
-    ctx.ellipse(p.sx, p.sy, r, r * 0.8, 0, 0, Math.PI * 2)
-    ctx.fill()
+    c.fillStyle = farbe
+    c.beginPath()
+    c.ellipse(p.sx, p.sy, r, r * 0.8, 0, 0, Math.PI * 2)
+    c.fill()
   }
-  licht(0.99, 0.6, 'rgba(255,248,206,0.98)', 1.6)
-  licht(0.99, -0.6, 'rgba(255,248,206,0.98)', 1.6)
-  licht(-0.99, 0.6, 'rgba(255,70,70,0.95)', 1.3)
-  licht(-0.99, -0.6, 'rgba(255,70,70,0.95)', 1.3)
+  const bremst = !!o.bremst
+  licht(ctx, 0.99, 0.6, 'rgba(255,248,206,0.98)', 1.6)
+  licht(ctx, 0.99, -0.6, 'rgba(255,248,206,0.98)', 1.6)
+  licht(ctx, -0.99, 0.6, bremst ? '#ff2a2a' : 'rgba(255,70,70,0.95)', bremst ? 1.6 : 1.3)
+  licht(ctx, -0.99, -0.6, bremst ? '#ff2a2a' : 'rgba(255,70,70,0.95)', bremst ? 1.6 : 1.3)
   if (fein) {
     for (const l of [1, -1]) {
       const p = ecke(l, 0, z - 1.5)
@@ -1335,6 +1340,65 @@ function lichter(ctx: CanvasRenderingContext2D, ecke: (l: number, q: number, z?:
       ctx.fillRect(p.sx - 1.8, p.sy - 0.8, 3.6, 1.6)
     }
   }
+
+  // Bremslichter leuchten auch am Tag kräftig nach
+  if (bremst) {
+    leuchte((c) => {
+      for (const q of [0.6, -0.6]) {
+        const p = ecke(-0.99, q, z)
+        const hof = c.createRadialGradient(p.sx, p.sy, 0.3, p.sx, p.sy, 4.5)
+        hof.addColorStop(0, 'rgba(255,60,60,0.7)')
+        hof.addColorStop(1, 'rgba(255,60,60,0)')
+        c.fillStyle = hof
+        c.beginPath()
+        c.arc(p.sx, p.sy, 4.5, 0, Math.PI * 2)
+        c.fill()
+      }
+    })
+  }
+
+  // Nachts: Scheinwerferkegel auf der Straße, helle Lampen mit Hof, rote Rücklichter
+  const st = lichtJetzt().lampen
+  if (st < 0.05 || o.geparkt || o.wrack) return
+  leuchte((c) => {
+    const a = ecke(1, 0.7, 0)
+    const b = ecke(1, -0.7, 0)
+    const fa = ecke(3.4, 2.1, 0)
+    const fb = ecke(3.4, -2.1, 0)
+    const nah = ecke(1, 0, 0)
+    const fern = ecke(3.4, 0, 0)
+    const kegel = c.createLinearGradient(nah.sx, nah.sy, fern.sx, fern.sy)
+    kegel.addColorStop(0, `rgba(255,244,200,${0.38 * st})`)
+    kegel.addColorStop(1, 'rgba(255,244,200,0)')
+    c.fillStyle = kegel
+    c.beginPath()
+    c.moveTo(a.sx, a.sy)
+    c.lineTo(fa.sx, fa.sy)
+    c.lineTo(fb.sx, fb.sy)
+    c.lineTo(b.sx, b.sy)
+    c.closePath()
+    c.fill()
+    for (const q of [0.6, -0.6]) {
+      const p = ecke(0.99, q, z)
+      const hof = c.createRadialGradient(p.sx, p.sy, 0.4, p.sx, p.sy, 6)
+      hof.addColorStop(0, `rgba(255,250,220,${0.75 * st})`)
+      hof.addColorStop(1, 'rgba(255,250,220,0)')
+      c.fillStyle = hof
+      c.beginPath()
+      c.arc(p.sx, p.sy, 6, 0, Math.PI * 2)
+      c.fill()
+      licht(c, 0.99, q, '#fffbe6', 1.7)
+      const r = ecke(-0.99, q, z)
+      const rot = c.createRadialGradient(r.sx, r.sy, 0.3, r.sx, r.sy, 4)
+      rot.addColorStop(0, `rgba(255,50,50,${0.6 * st})`)
+      rot.addColorStop(1, 'rgba(255,50,50,0)')
+      c.fillStyle = rot
+      c.beginPath()
+      c.arc(r.sx, r.sy, 4, 0, Math.PI * 2)
+      c.fill()
+      licht(c, -0.99, q, '#ff3b3b', 1.3)
+    }
+  })
 }
 
 /** Motorrad und Roller: schmal, mit Fahrer und Helm */
@@ -1488,6 +1552,7 @@ export function drawAgent(ctx: CanvasRenderingContext2D, agent: Agent, t: number
       fein,
       blaulicht: !!agent.licht,
       geparkt: agent.zustand !== 'unterwegs',
+      bremst: !!agent.haelt,
     })
     return
   }

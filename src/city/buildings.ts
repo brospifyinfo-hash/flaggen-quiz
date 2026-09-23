@@ -9,6 +9,7 @@ import { buildingDef, footprint, type Look } from './catalog'
 import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
 import { nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
 import { SEITEN, umlauf, waende, schwerpunkt, type Grund, type Seite, type Wand } from './geo'
+import { FENSTER_TOENE, fensterAn, fensterDunkel, leuchte, lichtJetzt } from './licht'
 import type { Theme } from './themes'
 
 export { SEITEN, type Seite } from './geo'
@@ -76,11 +77,12 @@ function facade(
         p1: lift(mix(a, b, t1), base),
         r0: lift(mix(a, b, t0 - 0.03 / cols), base - 1.6),
         r1: lift(mix(a, b, t1 + 0.03 / cols), base - 1.6),
-        an: wobble(stil.seed, row * 7 + col * 3) > 0.55,
+        an: fensterAn(wobble(stil.seed, row * 7 + col * 3)),
         base,
       })
     }
   }
+  const licht = lichtJetzt()
 
   if (stil.fein) {
     // Geschossbänder
@@ -107,8 +109,21 @@ function facade(
     if (gruppe.length === 0) continue
     ctx.beginPath()
     for (const f of gruppe) quadPath(ctx, f.p0, f.p1, lift(f.p1, winH), lift(f.p0, winH))
-    ctx.fillStyle = an ? stil.licht : 'rgba(96,132,176,0.62)'
+    ctx.fillStyle = an ? stil.licht : fensterDunkel(licht)
     ctx.fill()
+    if (an && licht.nacht > 0.05) {
+      const warm = stil.licht
+      const hof = fade(warm, 0.16 + licht.nacht * 0.14)
+      leuchte((c) => {
+        c.beginPath()
+        for (const f of gruppe) quadPath(c, f.p0, f.p1, lift(f.p1, winH), lift(f.p0, winH))
+        c.strokeStyle = hof
+        c.lineWidth = 3.5
+        c.stroke()
+        c.fillStyle = warm
+        c.fill()
+      })
+    }
   }
 
   if (stil.fein) {
@@ -118,7 +133,7 @@ function facade(
       const halb = mix(f.p0, f.p1, 0.5)
       quadPath(ctx, lift(f.p0, winH * 0.52), lift(halb, winH * 0.52), lift(halb, winH), lift(f.p0, winH))
     }
-    ctx.fillStyle = fade('#ffffff', 0.19)
+    ctx.fillStyle = fade('#ffffff', 0.19 * (1 - licht.nacht * 0.7))
     ctx.fill()
 
     // Fensterkreuze
@@ -563,13 +578,31 @@ function trinket(ctx: CanvasRenderingContext2D, placed: Placed, look: Look, t: n
       ctx.fillStyle = shade(look.wall, -20)
       ctx.fill()
     }
-    ctx.save()
-    ctx.globalAlpha = 0.22 + Math.sin(t * 1.8) * 0.06
-    ctx.fillStyle = look.accent
-    ctx.beginPath()
-    ctx.arc(p.sx, p.sy - 28, 12, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
+    const st = lichtJetzt().lampen
+    if (st > 0.05) {
+      const flackern = 0.9 + Math.sin(t * 1.8) * 0.1
+      const accent = look.accent
+      leuchte((c) => {
+        const hof = c.createRadialGradient(p.sx, p.sy - 28, 1, p.sx, p.sy - 28, 16)
+        hof.addColorStop(0, fade(accent, 0.6 * st * flackern))
+        hof.addColorStop(1, fade(accent, 0))
+        c.fillStyle = hof
+        c.beginPath()
+        c.arc(p.sx, p.sy - 28, 16, 0, Math.PI * 2)
+        c.fill()
+        const pool = c.createRadialGradient(p.sx, p.sy + 1, 1, p.sx, p.sy + 1, 22)
+        pool.addColorStop(0, fade(accent, 0.28 * st))
+        pool.addColorStop(1, fade(accent, 0))
+        c.fillStyle = pool
+        c.beginPath()
+        c.ellipse(p.sx, p.sy + 1, 22, 10, 0, 0, Math.PI * 2)
+        c.fill()
+        c.fillStyle = '#fff6d8'
+        c.beginPath()
+        c.arc(p.sx, p.sy - 28.5, 3.4, 0, Math.PI * 2)
+        c.fill()
+      })
+    }
     // Laternenkopf
     ctx.fillStyle = shade(look.wall, -20)
     ctx.beginPath()
@@ -932,7 +965,7 @@ function zeichneBauwerk(
   }
 
   const heightPx = bauHoehe(look, stufe) * rise
-  const licht = 'rgba(255,214,132,0.92)'
+  const licht = FENSTER_TOENE[Math.floor(wobble(seed, 7) * FENSTER_TOENE.length)]
   const stil = {
     seed,
     floors: (look.floors ?? 0) > 0 ? (look.floors ?? 0) + (stufe - 1) : 0,

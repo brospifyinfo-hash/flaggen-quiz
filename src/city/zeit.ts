@@ -41,13 +41,25 @@ export interface Tageszeit {
   rest: number
 }
 
+/**
+ * Nur beim Entwickeln: Mit `?stunde=20` in der Adresse steht die Uhr fest, damit man
+ * Licht und Schatten jeder Tageszeit prüfen kann. Im fertigen Spiel gibt es das nicht.
+ */
+function festeStunde(): number | null {
+  if (!import.meta.env.DEV || typeof location === 'undefined') return null
+  const wert = new URLSearchParams(location.search).get('stunde')
+  if (wert === null) return null
+  const stunde = Number(wert)
+  return Number.isFinite(stunde) ? ((stunde % 24) + 24) % 24 : null
+}
+
 /** Wo der Zeiger gerade steht. Vorgespulte Zeit steckt bereits in lastTick. */
 export function tageszeit(city: CityState, now = Date.now()): Tageszeit {
   const last = city.lastTick > 0 ? city.lastTick : now
   const vergangen = Math.max(0, now - last)
   const imTag = vergangen % TAG_MS
   const anteil = imTag / TAG_MS
-  const stunde = anteil * 24
+  const stunde = festeStunde() ?? anteil * 24
   const phase = PHASEN.find((p) => stunde >= p.von && stunde < p.bis)?.id ?? 'nacht'
   return { anteil, stunde, phase, rest: TAG_MS - imTag }
 }
@@ -86,36 +98,4 @@ export function zeitText(ms: number): string {
     return restH > 0 ? `${d} ${d === 1 ? 'Tag' : 'Tage'} ${restH} Std` : `${d} ${d === 1 ? 'Tag' : 'Tage'}`
   }
   return restMin > 0 ? `${h} Std ${restMin} Min` : `${h} Std`
-}
-
-/**
- * Licht über der Stadt je Tagesstunde: Farbe und Deckkraft einer Tönung, die über die
- * fertige Karte gelegt wird. Der Mittag ist klar, der Abend golden, die Nacht blau.
- */
-export function tagesLicht(stunde: number): { farbe: [number, number, number]; alpha: number } {
-  // Stützpunkte: [Stunde, r, g, b, alpha]
-  const punkte: [number, number, number, number, number][] = [
-    [0, 255, 170, 110, 0.16], // Morgenrot
-    [3, 255, 220, 170, 0.06],
-    [6, 255, 255, 255, 0],
-    [12, 255, 255, 255, 0],
-    [14, 255, 190, 120, 0.1], // Abendsonne
-    [16, 210, 120, 140, 0.2],
-    [18, 40, 50, 110, 0.36], // Nacht
-    [22, 30, 40, 100, 0.4],
-    [24, 255, 170, 110, 0.16],
-  ]
-  const h = Math.max(0, Math.min(24, stunde))
-  let a = punkte[0]
-  let b = punkte[punkte.length - 1]
-  for (let i = 0; i < punkte.length - 1; i++) {
-    if (h >= punkte[i][0] && h <= punkte[i + 1][0]) {
-      a = punkte[i]
-      b = punkte[i + 1]
-      break
-    }
-  }
-  const t = b[0] === a[0] ? 0 : (h - a[0]) / (b[0] - a[0])
-  const mix = (i: 1 | 2 | 3 | 4) => a[i] + (b[i] - a[i]) * t
-  return { farbe: [Math.round(mix(1)), Math.round(mix(2)), Math.round(mix(3))], alpha: mix(4) }
 }

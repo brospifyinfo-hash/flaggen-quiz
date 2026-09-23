@@ -5,6 +5,7 @@
 //
 // Dazu kommen Einsätze: Brände, Einbrüche, Notfälle, Razzien. Die nächste Wache mit
 // Weg dorthin rückt aus – mit Blaulicht. Ohne Wache in Reichweite dauert alles länger.
+import { ampelFuer, HALTELINIE, istKreuzung } from './ampeln'
 import { eingangVon } from './bau'
 import { einzug } from './buildings'
 import { buildingDef, footprint, type BuildingDef, type Klasse } from './catalog'
@@ -41,6 +42,8 @@ export interface Agent {
   zurueck: boolean
   einsatz?: number
   licht?: boolean
+  /** steht gerade – vor einer roten Ampel oder hinter einem anderen Wagen */
+  haelt?: boolean
   pose?: Pose
   x: number
   y: number
@@ -649,6 +652,30 @@ function lage(a: Agent): void {
   a.ry = ry
 }
 
+/** So viel Platz muss zwischen zwei Wagen bleiben – in Kacheln, Mitte zu Mitte */
+const WAGENABSTAND = 0.72
+
+/**
+ * Wie weit ein Wagen fahren kann, bevor er dem vor ihm zu nahe kommt. Gezählt wird
+ * nur, wer in derselben Spur und in dieselbe Richtung fährt oder dort steht;
+ * Gegenverkehr und Querverkehr stören nicht.
+ */
+function freieStrecke(a: Agent, agents: Agent[]): number {
+  let frei = Infinity
+  for (const b of agents) {
+    if (b === a || (b.art !== 'auto' && b.art !== 'dienst') || b.zustand !== 'unterwegs') continue
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const voraus = dx * a.rx + dy * a.ry
+    if (voraus <= 0 || voraus > WAGENABSTAND + 0.5) continue
+    const seitlich = Math.abs(dx * a.ry - dy * a.rx)
+    if (seitlich > 0.2) continue
+    if (b.rx * a.rx + b.ry * a.ry < 0.5) continue
+    frei = Math.min(frei, voraus - WAGENABSTAND)
+  }
+  return Math.max(0, frei)
+}
+
 function umkehren(a: Agent): void {
   a.weg = [...a.weg].reverse()
   a.strasse = [...a.strasse].reverse()
@@ -713,10 +740,34 @@ export function stepLife(life: Life, city: CityState, dt: number): Ereignis[] {
       continue
     }
     let rest = a.tempo * dt
+    a.haelt = false
+    // Autos halten hinter dem Wagen vor ihnen – Einsatzfahrzeuge mit Blaulicht nicht
+    const fahrzeug = a.art === 'auto' || (a.art === 'dienst' && !a.licht)
+    if (fahrzeug) {
+      const frei = freieStrecke(a, life.agents)
+      if (frei < rest) {
+        rest = frei
+        a.haelt = true
+      }
+    }
     while (rest > 0 && a.i < n - 1) {
       const p = a.weg[a.i]
       const q = a.weg[a.i + 1]
       const l = Math.hypot(q.x - p.x, q.y - p.y) || 0.001
+      // Vor einer Kreuzung mit roter oder gelber Ampel bleibt der Wagen an der Haltelinie
+      if (fahrzeug && a.strasse[a.i + 1] && a.t < HALTELINIE) {
+        const kx = Math.floor(q.x)
+        const ky = Math.floor(q.y)
+        if (istKreuzung(city, kx, ky) && ampelFuer(kx, ky, q.x - p.x, q.y - p.y, life.uhr) !== 'gruen') {
+          const bisLinie = (HALTELINIE - a.t) * l
+          if (rest >= bisLinie) {
+            a.t = HALTELINIE
+            a.haelt = true
+            rest = 0
+            break
+          }
+        }
+      }
       const noch = (1 - a.t) * l
       if (rest < noch) {
         a.t += rest / l

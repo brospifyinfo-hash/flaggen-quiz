@@ -6,7 +6,7 @@
 // Straßenseite. Was davor steht, wird vor oder hinter dem Haus gemalt, je nachdem,
 // ob diese Seite gerade zum Betrachter zeigt.
 import type { Extra, Fassade, Fensterart, Look, Stil, Unten } from './catalog'
-import { fade, lift, mix, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
+import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
 import { zeichneAuto, type Modell } from './figures'
 import {
   aussen,
@@ -26,6 +26,7 @@ import {
   type Wand,
 } from './geo'
 import { TILE_H, toScreen, zeigtNachVorn } from './iso'
+import { FENSTER_TOENE, fensterAn, fensterDunkel, fensterGlas, leuchte, lichtJetzt } from './licht'
 import type { Placed } from './types'
 
 export interface BauEingabe {
@@ -288,7 +289,7 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
   for (let r = ersteReihe; r < etagen; r++) {
     const z = sockel + etage * r + (etage - hoch) * 0.52
     if (s.fenster === 'band') {
-      liste.push({ p0: lift(mix(a, b, 0.05), z), p1: lift(mix(a, b, 0.95), z), an: wobble(s.seed, r) > 0.4, unten: r === 0 })
+      liste.push({ p0: lift(mix(a, b, 0.05), z), p1: lift(mix(a, b, 0.95), z), an: fensterAn(wobble(s.seed, r) * 0.8), unten: r === 0 })
       continue
     }
     for (let c = 0; c < spalten; c++) {
@@ -299,12 +300,13 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
       liste.push({
         p0: lift(mix(a, b, mitteT - halb), z),
         p1: lift(mix(a, b, mitteT + halb), z),
-        an: wobble(s.seed, r * 13 + c * 7) > 0.58,
+        an: fensterAn(wobble(s.seed, r * 13 + c * 7)),
         unten: r === 0,
       })
     }
   }
   if (liste.length === 0) return
+  const licht = lichtJetzt()
 
   // Rahmen
   if (s.fein && s.fenster !== 'band') {
@@ -320,29 +322,52 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
 
   // Scheiben
   const dunkel = s.fenster === 'dunkel'
-  for (const an of [true, false]) {
-    const gruppe = liste.filter((f) => f.an === an)
-    if (gruppe.length === 0) continue
-    ctx.beginPath()
+  const scheibenPfad = (c: CanvasRenderingContext2D, gruppe: F[]) => {
+    c.beginPath()
     for (const f of gruppe) {
       if (s.fenster === 'bogen') {
         // Rundbogen: Rechteck mit halbrundem Abschluss
         const breiteF = Math.hypot(f.p1.sx - f.p0.sx, f.p1.sy - f.p0.sy)
         const m = mix(f.p0, f.p1, 0.5)
-        quadPath(ctx, f.p0, f.p1, lift(f.p1, hoch * 0.7), lift(f.p0, hoch * 0.7))
-        ctx.moveTo(m.sx + breiteF / 2, m.sy - hoch * 0.7)
-        ctx.ellipse(m.sx, m.sy - hoch * 0.7, breiteF / 2, breiteF / 2.4, 0, 0, Math.PI, true)
+        quadPath(c, f.p0, f.p1, lift(f.p1, hoch * 0.7), lift(f.p0, hoch * 0.7))
+        c.moveTo(m.sx + breiteF / 2, m.sy - hoch * 0.7)
+        c.ellipse(m.sx, m.sy - hoch * 0.7, breiteF / 2, breiteF / 2.4, 0, 0, Math.PI, true)
       } else {
-        quadPath(ctx, f.p0, f.p1, lift(f.p1, hoch), lift(f.p0, hoch))
+        quadPath(c, f.p0, f.p1, lift(f.p1, hoch), lift(f.p0, hoch))
       }
     }
-    ctx.fillStyle = dunkel ? '#18121f' : an ? s.licht : s.art === 'glas' ? 'rgba(60,96,130,0.55)' : 'rgba(92,128,172,0.7)'
+  }
+  for (const an of [true, false]) {
+    const gruppe = liste.filter((f) => f.an === an)
+    if (gruppe.length === 0) continue
+    scheibenPfad(ctx, gruppe)
+    ctx.fillStyle = dunkel ? '#18121f' : an ? s.licht : s.art === 'glas' ? fensterGlas(licht) : fensterDunkel(licht)
     ctx.fill()
     if (dunkel) {
       // Verklebte Scheiben, aber an den Rändern leuchtet es lila – das Growlicht
       ctx.strokeStyle = fade(s.neon, 0.85)
       ctx.lineWidth = 1
       ctx.stroke()
+      if (licht.nacht > 0.05) {
+        leuchte((c) => {
+          scheibenPfad(c, gruppe)
+          c.strokeStyle = fade(s.neon, 0.9)
+          c.lineWidth = 1.6
+          c.stroke()
+        })
+      }
+    } else if (an && licht.nacht > 0.05) {
+      // Erleuchtete Fenster kommen nach der Nachttönung noch einmal – warm und mit Hof
+      const warm = s.licht
+      const hof = fade(warm, 0.16 + licht.nacht * 0.14)
+      leuchte((c) => {
+        scheibenPfad(c, gruppe)
+        c.strokeStyle = hof
+        c.lineWidth = 3.5
+        c.stroke()
+        c.fillStyle = warm
+        c.fill()
+      })
     }
   }
   if (!s.fein) return
@@ -354,8 +379,21 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
       const halb = mix(f.p0, f.p1, 0.45)
       quadPath(ctx, lift(f.p0, hoch * 0.55), lift(halb, hoch * 0.55), lift(halb, hoch), lift(f.p0, hoch))
     }
-    ctx.fillStyle = fade('#ffffff', 0.18)
+    ctx.fillStyle = fade('#ffffff', 0.18 * (1 - licht.nacht * 0.7))
     ctx.fill()
+    // Vorhänge: an manchen erleuchteten Fenstern ein heller Streifen am Rand
+    const vorhang = liste.filter((f) => f.an && !f.unten && wobble(s.seed, 900 + f.p0.sx) > 0.5)
+    if (vorhang.length > 0) {
+      ctx.beginPath()
+      for (const f of vorhang) {
+        const li = mix(f.p0, f.p1, 0.22)
+        const re = mix(f.p0, f.p1, 0.78)
+        quadPath(ctx, f.p0, li, lift(li, hoch), lift(f.p0, hoch))
+        quadPath(ctx, re, f.p1, lift(f.p1, hoch), lift(re, hoch))
+      }
+      ctx.fillStyle = 'rgba(255,250,240,0.55)'
+      ctx.fill()
+    }
   }
   if (s.fenster === 'normal' || s.fenster === 'bogen' || s.fenster === 'band') {
     ctx.beginPath()
@@ -453,6 +491,18 @@ function erdgeschoss(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farb
       ctx.beginPath()
       ctx.arc(lampe.sx, lampe.sy, 1.2, 0, Math.PI * 2)
       ctx.fill()
+      const st = lichtJetzt().lampen
+      if (st > 0.05) {
+        leuchte((c) => {
+          const hof = c.createRadialGradient(lampe.sx, lampe.sy, 0.5, lampe.sx, lampe.sy, 9)
+          hof.addColorStop(0, `rgba(255,236,170,${0.6 * st})`)
+          hof.addColorStop(1, 'rgba(255,236,170,0)')
+          c.fillStyle = hof
+          c.beginPath()
+          c.arc(lampe.sx, lampe.sy, 9, 0, Math.PI * 2)
+          c.fill()
+        })
+      }
     }
     return
   }
@@ -460,7 +510,31 @@ function erdgeschoss(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farb
     // Schaufenster über fast die ganze Breite, Tür an der Seite
     const f0 = lift(mix(a, b, 0.08), 2)
     const f1 = lift(mix(a, b, 0.66), 2)
+    const offen = lichtJetzt().lampen
     quad(ctx, f0, f1, lift(f1, unten - 3), lift(f0, unten - 3), s.licht)
+    if (offen > 0.05) {
+      // Das Schaufenster wirft nachts Licht auf den Gehweg davor
+      const raus = w.raus
+      leuchte((c) => {
+        c.beginPath()
+        quadPath(c, f0, f1, lift(f1, unten - 3), lift(f0, unten - 3))
+        c.fillStyle = s.licht
+        c.fill()
+        const g0 = lift(f0, -2)
+        const g1 = lift(f1, -2)
+        const weit = 14
+        c.fillStyle = fade('#ffe6a8', 0.16 * offen)
+        c.beginPath()
+        quadPath(
+          c,
+          g0,
+          g1,
+          { sx: g1.sx + raus.sx * weit, sy: g1.sy + raus.sy * weit },
+          { sx: g0.sx + raus.sx * weit, sy: g0.sy + raus.sy * weit },
+        )
+        c.fill()
+      })
+    }
     const t0 = mix(a, b, 0.72)
     const t1 = mix(a, b, 0.9)
     quad(ctx, t0, t1, lift(t1, unten), lift(t0, unten), shade(s.akzent, -10))
@@ -1318,6 +1392,12 @@ function markise(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farbe: s
 }
 
 /** Schild über dem Eingang, mit dem Zeichen des Ladens */
+/**
+ * Ladenschild über der Tür: Rahmen in der Hausfarbe, helle Tafel und darauf ein
+ * kleines Firmenzeichen. Das Zeichen ist kein Buchstabe und kein Emoji – dafür ist
+ * das Schild viel zu klein –, sondern eine Marke: Punkt, Balken und Farbe, jedes
+ * Geschäft seine eigene.
+ */
 function schild(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, zeichen: string, farbe: string): void {
   const p = lift(mix(w.a, w.b, 0.5), Math.min(hoehe - 3, 21))
   ctx.fillStyle = shade(farbe, -30)
@@ -1326,11 +1406,33 @@ function schild(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, zeichen: 
   ctx.fillStyle = '#fbf7ee'
   roundedPath(ctx, p.sx - 7, p.sy - 7, 14, 7, 1.5)
   ctx.fill()
-  if (zeichen) {
-    ctx.font = '6.5px system-ui, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(zeichen, p.sx, p.sy - 3.4)
+  if (!zeichen) return
+  const h = hashOf(zeichen)
+  const marke = ['#e63946', '#2a9d8f', '#e9c46a', '#264653', '#f4a261', '#6d597a', '#3a86ff'][h % 7]
+  const art = Math.floor(h / 7) % 3
+  ctx.fillStyle = marke
+  if (art === 0) {
+    // Punkt und zwei Zeilen
+    ctx.beginPath()
+    ctx.arc(p.sx - 4, p.sy - 3.5, 1.7, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillRect(p.sx - 1.4, p.sy - 5, 6.4, 1.2)
+    ctx.fillRect(p.sx - 1.4, p.sy - 2.6, 4.4, 1.2)
+  } else if (art === 1) {
+    // Raute mit Strich
+    ctx.beginPath()
+    ctx.moveTo(p.sx - 3.6, p.sy - 3.5)
+    ctx.lineTo(p.sx - 1.6, p.sy - 5.6)
+    ctx.lineTo(p.sx + 0.4, p.sy - 3.5)
+    ctx.lineTo(p.sx - 1.6, p.sy - 1.4)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillRect(p.sx + 1.6, p.sy - 4.1, 4.4, 1.3)
+  } else {
+    // Drei Balken in fallender Länge
+    ctx.fillRect(p.sx - 5, p.sy - 5.6, 10, 1.2)
+    ctx.fillRect(p.sx - 5, p.sy - 3.6, 7, 1.2)
+    ctx.fillRect(p.sx - 5, p.sy - 1.6, 4, 1.2)
   }
 }
 
@@ -1355,9 +1457,32 @@ function leuchtschrift(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, ne
   // Schein um die Schrift
   ctx.fillStyle = fade(neon, 0.12 * flacker)
   const m = mix(a, b, 0.5)
+  const breit = Math.hypot(b.sx - a.sx, b.sy - a.sy)
   ctx.beginPath()
-  ctx.ellipse(m.sx, m.sy - 2.5, Math.hypot(b.sx - a.sx, b.sy - a.sy) * 0.6, 7, 0, 0, Math.PI * 2)
+  ctx.ellipse(m.sx, m.sy - 2.5, breit * 0.6, 7, 0, 0, Math.PI * 2)
   ctx.fill()
+  // Nachts strahlt die Schrift weit über die Wand hinaus
+  const nacht = lichtJetzt().nacht
+  if (nacht > 0.05) {
+    leuchte((c) => {
+      const hof = c.createRadialGradient(m.sx, m.sy - 2.5, 1, m.sx, m.sy - 2.5, breit * 0.8)
+      hof.addColorStop(0, fade(neon, 0.34 * flacker * nacht))
+      hof.addColorStop(1, fade(neon, 0))
+      c.fillStyle = hof
+      c.beginPath()
+      c.ellipse(m.sx, m.sy - 2.5, breit * 0.8, 14, 0, 0, Math.PI * 2)
+      c.fill()
+      c.strokeStyle = fade(neon, flacker)
+      c.lineWidth = 1.4
+      c.beginPath()
+      for (let i = 0; i < n; i++) {
+        const p = lift(mix(a, b, (i + 0.5) / n), 1.2)
+        c.moveTo(p.sx - 1.2, p.sy)
+        c.lineTo(p.sx + 1.2, p.sy - 2.6)
+      }
+      c.stroke()
+    })
+  }
 }
 
 /** Ein Kreuz hoch an der Wand – rot für Ärzte, grün für die Apotheke */
@@ -1404,7 +1529,7 @@ export function drawBau(ctx: CanvasRenderingContext2D, e: BauEingabe): void {
   const hof = vorgarten(lot, k, vorn)
   const hofVorn = seiteVorn(vorn)
   const H = e.hoehe
-  const licht = 'rgba(255,214,132,0.92)'
+  const licht = griff(FENSTER_TOENE, seed, 7)
   const ladenFarbe = griff(['#2f6b46', '#2c5b8c', '#6b3a2c', '#3a3f46', '#8c2c3a'], seed, 12)
 
   // --- Boden: Rasen, Pool, Parkplatz – flach, das Haus verdeckt davon, was es verdeckt
