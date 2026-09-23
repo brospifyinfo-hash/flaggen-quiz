@@ -5,11 +5,8 @@
  */
 import { ADMIN_EMAIL } from '../src/admin'
 import { Abgelehnt, normEmail, pruefeToken } from './konto'
+import { rohSchummelt } from './schummel'
 import { speicher } from './speicher'
-
-/** Dieselben Schwellen wie CHEAT_MUENZEN und CHEAT_MATERIAL in src/city/state.ts */
-const CHEAT_MUENZEN = 100_000_000
-const CHEAT_MATERIAL = 5_000_000
 
 const RAENGE: { id: string; from: number }[] = [
   { id: 'holz', from: 0 },
@@ -66,7 +63,7 @@ function zeileAus(email: string, name: string, stand: number, daten: unknown): K
   const xp = Math.max(0, Math.floor(zahl(roh.xp)))
   const muenzen = stadt ? Math.max(0, Math.floor(zahl(stadt.coins))) : 0
   const ziegel = stadt ? Math.max(0, Math.floor(zahl(stadt.materials))) : 0
-  const schummel = roh.schummel === true || stadt?.schummel === true || muenzen >= CHEAT_MUENZEN || ziegel >= CHEAT_MATERIAL
+  const schummel = rohSchummelt(roh)
   const stadtName = stadt && typeof stadt.name === 'string' ? stadt.name : ''
   const spieler = name.trim() || stadtName || 'Unbekannt'
   return {

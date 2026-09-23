@@ -1,7 +1,7 @@
 // Der gesamte Fortschritt liegt als JSON im localStorage dieses Geräts.
 // Jede Änderung wird sofort und synchron geschrieben – ohne Server, ohne Konto, auch offline.
 import { useSyncExternalStore } from 'react'
-import { CHEAT_MATERIAL, CHEAT_MUENZEN, mergeCities, sanitizeCity } from './city/state'
+import { mergeCities, sanitizeCity, vorratVerrat } from './city/state'
 import { CONTINENTS } from './data/countries'
 import { fuehreZusammen, leseLernen } from './lernen/fortschritt'
 import { isContinentId, isCountry, sessionKey } from './quiz'
@@ -323,7 +323,7 @@ function sanitize(input: unknown): SaveData | null {
   const schummel =
     input.schummel === true ||
     city?.schummel === true ||
-    (city != null && (city.coins >= CHEAT_MUENZEN || city.materials >= CHEAT_MATERIAL))
+    (city != null && vorratVerrat(city.coins, city.materials))
   if (schummel && city) city.schummel = true
 
   return {

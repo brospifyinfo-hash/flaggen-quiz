@@ -4252,21 +4252,6 @@ svg {
 
 /* ---- Rangliste: die fünf größten Städte ---- */
 
-.home-rangliste {
-  display: grid;
-  gap: 8px;
-  padding: 12px 12px 10px;
-}
-
-.home-rangliste h2 {
-  margin: 0;
-  color: rgb(255 255 255 / 0.62);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
 .rang-liste {
   display: grid;
   gap: 6px;
@@ -4283,14 +4268,6 @@ svg {
   gap: 10px;
   padding: 4px 6px;
   border-radius: 14px;
-}
-
-.home-rangliste .rang-zeile {
-  background: rgb(255 255 255 / 0.06);
-}
-
-.home-rangliste .rang-zeile.is-eins {
-  background: rgb(255 255 255 / 0.13);
 }
 
 .rang-name {

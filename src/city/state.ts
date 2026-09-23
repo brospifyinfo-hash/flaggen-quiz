@@ -435,6 +435,15 @@ export function rename(city: CityState, name: string, motto: string, emblem: str
 const GEHEIMCODE = 'derbürgermeisterträgtkeinesocken'
 export const CHEAT_MUENZEN = 100_000_000
 export const CHEAT_MATERIAL = 5_000_000
+/**
+ * Ab diesem Vorrat stammt die Kasse aus der Schattenkasse, auch wenn schon ein Teil
+ * ausgegeben wurde. Dieselben Zahlen stehen in server/schummel.ts.
+ */
+export const SCHUMMEL_MUENZEN = 10_000_000
+export const SCHUMMEL_MATERIAL = 500_000
+
+export const vorratVerrat = (coins: number, materials: number): boolean =>
+  coins >= SCHUMMEL_MUENZEN || materials >= SCHUMMEL_MATERIAL
 
 const normiert = (text: string) => text.toLowerCase().replace(/[\s.,!?'"„“-]/g, '')
 
@@ -1223,7 +1232,7 @@ export function sanitizeCity(input: unknown): CityState | null {
     lastGrowth: Math.max(0, int(raw.lastGrowth)),
     nextId: Math.max(buildings.length + 1, int(raw.nextId, 1)),
     foundedAt: int(raw.foundedAt),
-    ...(raw.schummel === true || Math.max(0, int(raw.coins)) >= CHEAT_MUENZEN || Math.max(0, int(raw.materials)) >= CHEAT_MATERIAL
+    ...(raw.schummel === true || vorratVerrat(Math.max(0, int(raw.coins)), Math.max(0, int(raw.materials)))
       ? { schummel: true }
       : {}),
   }

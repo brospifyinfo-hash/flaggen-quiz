@@ -1,13 +1,11 @@
 // Die Startseite ist der Blick über die eigene Stadt: Sie läuft als Kulisse im Hintergrund,
 // davor steht, wie weit man ist – und die drei Wege weiter: in die Stadt, ins schnelle Spiel,
 // in die Lernkurse.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { StadtKulisse } from '../city/StadtKulisse'
 import { cityTitle, createCity, statsOf } from '../city/state'
-import { istAdmin, type RanglisteEintrag } from '../admin'
-import { IconList, IconMail, IconPlay, IconSettings } from '../components/Icons'
-import { Rangliste } from '../components/Rangliste'
-import { ladeRangliste } from '../konto'
+import { istAdmin } from '../admin'
+import { IconList, IconMail, IconPlay, IconSettings, IconTrophy } from '../components/Icons'
 import { ungelesen } from '../postfach'
 import { haptic } from '../haptics'
 import { bilanz } from '../herausforderungen'
@@ -22,41 +20,6 @@ import { RANDOM } from '../run'
 import type { SaveData } from '../types'
 
 const zahl = (n: number) => n.toLocaleString('de-DE')
-
-function HomeRangliste() {
-  const [spieler, setSpieler] = useState<RanglisteEintrag[] | null>(null)
-  const [fehler, setFehler] = useState(false)
-
-  useEffect(() => {
-    let weg = false
-    ladeRangliste()
-      .then((liste) => {
-        if (!weg) setSpieler(liste)
-      })
-      .catch(() => {
-        if (!weg) {
-          setSpieler([])
-          setFehler(true)
-        }
-      })
-    return () => {
-      weg = true
-    }
-  }, [])
-
-  return (
-    <section className="glas home-rangliste" aria-label="Rangliste">
-      <h2>Größte Städte</h2>
-      {spieler === null && <p className="rang-hinweis">Lädt …</p>}
-      {spieler && spieler.length > 0 && <Rangliste spieler={spieler} />}
-      {spieler && spieler.length === 0 && (
-        <p className="rang-hinweis">
-          {fehler ? 'Die Rangliste ist gerade nicht erreichbar.' : 'Sobald Städte wachsen, stehen hier die fünf größten.'}
-        </p>
-      )}
-    </section>
-  )
-}
 
 export function HomeScreen({ data }: { data: SaveData }) {
   const level = levelFor(data.xp)
@@ -165,8 +128,6 @@ export function HomeScreen({ data }: { data: SaveData }) {
           </ul>
         </section>
 
-        <HomeRangliste />
-
         <div className="home-luft" />
 
         <div className="home-wege">
@@ -205,6 +166,16 @@ export function HomeScreen({ data }: { data: SaveData }) {
               🏙️
             </span>
             <span>{stadt ? 'Stadt betreten' : 'Stadt gründen'}</span>
+          </button>
+
+          <button className="glas home-weiter" onClick={() => gehe({ name: 'rangliste' })}>
+            <span className="home-weiter-icon" aria-hidden="true">
+              <IconTrophy />
+            </span>
+            <span className="home-weiter-text">
+              <small>Die fünf größten Städte</small>
+              <strong>Rangliste</strong>
+            </span>
           </button>
 
           <button className="glas home-weiter home-hf" onClick={() => gehe({ name: 'herausforderungen' })}>

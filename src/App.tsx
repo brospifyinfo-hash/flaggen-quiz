@@ -7,6 +7,7 @@ import { routeToHash } from './routes'
 import { istAdmin } from './admin'
 import { CityScreen } from './screens/CityScreen'
 import { AdminScreen } from './screens/AdminScreen'
+import { RanglisteScreen } from './screens/RanglisteScreen'
 import { ContinentScreen } from './screens/ContinentScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { MathRunnerScreen } from './screens/MathRunnerScreen'
@@ -46,6 +47,7 @@ function resolveRoute(data: SaveData): Route {
     case 'herausforderungen':
     case 'postfach':
     case 'konto':
+    case 'rangliste':
       return route
     case 'verwaltung':
       return data.konto && istAdmin(data.konto.email) ? route : { name: 'home' }
@@ -122,6 +124,8 @@ export function App() {
       return <PostfachScreen data={data} />
     case 'konto':
       return <KontoScreen data={data} />
+    case 'rangliste':
+      return <RanglisteScreen />
     case 'verwaltung':
       return <AdminScreen />
     case 'kurse':

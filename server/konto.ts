@@ -10,6 +10,7 @@
  * Sitzungen sind signierte Zeichen ohne Serverzustand: <id>.<ablauf>.<hmac>.
  */
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { schummelSichern } from './schummel'
 import { KonfliktFehler, speicher } from './speicher'
 
 export class Abgelehnt extends Error {
@@ -198,7 +199,7 @@ export async function speichern(eingabe: Record<string, unknown>) {
       })
     }
     const stand = Math.max(Date.now(), (jetzt?.ablage.stand ?? 0) + 1)
-    const inhalt: Ablage = { stand, gespeichert: Date.now(), daten }
+    const inhalt: Ablage = { stand, gespeichert: Date.now(), daten: schummelSichern(daten, jetzt?.ablage.daten) }
     try {
       await ablage().schreiben(datenPfad(id), JSON.stringify(inhalt), jetzt?.marke)
       return { stand }

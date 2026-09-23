@@ -1,6 +1,31 @@
 // server/konto.ts
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
+// server/schummel.ts
+var SCHUMMEL_MUENZEN = 1e7;
+var SCHUMMEL_MATERIAL = 5e5;
+function stadtVon(daten) {
+  if (!daten || typeof daten !== "object") return null;
+  const stadt = daten.city;
+  return stadt && typeof stadt === "object" ? stadt : null;
+}
+var zahl = (wert) => typeof wert === "number" && Number.isFinite(wert) ? wert : 0;
+function rohSchummelt(daten) {
+  if (!daten || typeof daten !== "object") return false;
+  const roh = daten;
+  const stadt = stadtVon(daten);
+  if (roh.schummel === true || stadt?.schummel === true) return true;
+  return zahl(stadt?.coins) >= SCHUMMEL_MUENZEN || zahl(stadt?.materials) >= SCHUMMEL_MATERIAL;
+}
+function schummelSichern(daten, bisher) {
+  if (!rohSchummelt(daten) && !rohSchummelt(bisher)) return daten;
+  if (!daten || typeof daten !== "object") return daten;
+  const obj = { ...daten, schummel: true };
+  const stadt = stadtVon(obj);
+  if (stadt) obj.city = { ...stadt, schummel: true };
+  return obj;
+}
+
 // server/speicher.ts
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
@@ -248,7 +273,7 @@ async function speichern(eingabe) {
       });
     }
     const stand = Math.max(Date.now(), (jetzt?.ablage.stand ?? 0) + 1);
-    const inhalt = { stand, gespeichert: Date.now(), daten };
+    const inhalt = { stand, gespeichert: Date.now(), daten: schummelSichern(daten, jetzt?.ablage.daten) };
     try {
       await ablage().schreiben(datenPfad(id), JSON.stringify(inhalt), jetzt?.marke);
       return { stand };
@@ -281,8 +306,6 @@ function zustand() {
 var ADMIN_EMAIL = "devidkasbeitzer@gmail.com";
 
 // server/rangliste.ts
-var CHEAT_MUENZEN = 1e8;
-var CHEAT_MATERIAL = 5e6;
 var RAENGE = [
   { id: "holz", from: 0 },
   { id: "bronze", from: 750 },
@@ -308,14 +331,14 @@ var rangAus = (xp) => {
   for (const rang of RAENGE) if (xp >= rang.from) id = rang.id;
   return id;
 };
-var zahl = (wert) => typeof wert === "number" && Number.isFinite(wert) ? wert : 0;
+var zahl2 = (wert) => typeof wert === "number" && Number.isFinite(wert) ? wert : 0;
 function zeileAus(email, name, stand, daten) {
   const roh = daten && typeof daten === "object" ? daten : {};
   const stadt = roh.city && typeof roh.city === "object" ? roh.city : null;
-  const xp = Math.max(0, Math.floor(zahl(roh.xp)));
-  const muenzen = stadt ? Math.max(0, Math.floor(zahl(stadt.coins))) : 0;
-  const ziegel = stadt ? Math.max(0, Math.floor(zahl(stadt.materials))) : 0;
-  const schummel = roh.schummel === true || stadt?.schummel === true || muenzen >= CHEAT_MUENZEN || ziegel >= CHEAT_MATERIAL;
+  const xp = Math.max(0, Math.floor(zahl2(roh.xp)));
+  const muenzen = stadt ? Math.max(0, Math.floor(zahl2(stadt.coins))) : 0;
+  const ziegel = stadt ? Math.max(0, Math.floor(zahl2(stadt.materials))) : 0;
+  const schummel = rohSchummelt(roh);
   const stadtName = stadt && typeof stadt.name === "string" ? stadt.name : "";
   const spieler = name.trim() || stadtName || "Unbekannt";
   return {
@@ -324,8 +347,8 @@ function zeileAus(email, name, stand, daten) {
     rangId: rangAus(xp),
     level: levelAus(xp),
     stadt: stadtName,
-    stadtLevel: stadt ? Math.max(1, Math.floor(zahl(stadt.level))) : 0,
-    einwohner: stadt ? Math.max(0, Math.floor(zahl(stadt.population))) : 0,
+    stadtLevel: stadt ? Math.max(1, Math.floor(zahl2(stadt.level))) : 0,
+    einwohner: stadt ? Math.max(0, Math.floor(zahl2(stadt.population))) : 0,
     xp,
     muenzen,
     ziegel,
@@ -356,7 +379,7 @@ async function alleZeilen() {
     if (datenDatei) {
       try {
         const abgelegt = JSON.parse(datenDatei.inhalt);
-        stand = zahl(abgelegt.stand);
+        stand = zahl2(abgelegt.stand);
         daten = abgelegt.daten ?? null;
       } catch {
         daten = null;

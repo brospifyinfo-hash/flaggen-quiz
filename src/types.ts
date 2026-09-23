@@ -227,6 +227,7 @@ export type Route =
   | { name: 'herausforderungen' }
   | { name: 'postfach' }
   | { name: 'konto' }
+  | { name: 'rangliste' }
   | { name: 'verwaltung' }
 
 export interface SaveData {
