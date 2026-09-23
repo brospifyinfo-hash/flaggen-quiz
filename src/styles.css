@@ -5401,3 +5401,151 @@ svg {
   border-radius: 50%;
   background: #ffd23f;
 }
+
+/* ================= Konto ================= */
+
+.konto-kopf {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: 18px 0 20px;
+  text-align: center;
+}
+
+.konto-kopf h1 {
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.konto-kopf p {
+  max-width: 34ch;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.konto-zeichen {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.konto-zeichen svg {
+  width: 32px;
+  height: 32px;
+}
+
+.konto-zeichen.klein {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+}
+
+.konto-zeichen.klein svg {
+  width: 22px;
+  height: 22px;
+}
+
+.konto-reiter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--desk);
+}
+
+.konto-reiter button {
+  min-height: 42px;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.konto-reiter button.is-on {
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.konto-form .row-stack {
+  gap: 8px;
+}
+
+.konto-form .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.konto-leise {
+  font-weight: 600;
+}
+
+.konto-hinweis {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.konto-fehler {
+  background: var(--bad-soft);
+}
+
+.konto-fehler p {
+  color: var(--bad-strong);
+  font-weight: 800;
+}
+
+.konto-zeile {
+  width: 100%;
+  color: var(--text);
+  text-align: left;
+}
+
+.konto-zeile .row-label {
+  flex: 1;
+}
+
+.konto-zeile > svg {
+  flex: none;
+  color: var(--faint);
+}
+
+.konto-punkt {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--good);
+}
+
+.konto-punkt.is-wartet,
+.konto-punkt.is-sendet {
+  background: var(--warn);
+}
+
+.konto-punkt.is-fehler {
+  background: var(--bad);
+}
+
+.konto-punkt.is-aus {
+  background: var(--faint);
+}
+
+.konto-abschnitt {
+  margin-top: 14px;
+}
+
+.konto-abmelden {
+  color: var(--bad-strong);
+}

@@ -568,18 +568,21 @@ export function setState(update: (data: SaveData) => SaveData) {
   notify()
 }
 
-/** Löscht den Fortschritt – nur über „Fortschritt zurücksetzen“ aufrufen */
+/** Löscht den Fortschritt – nur über „Fortschritt zurücksetzen“ aufrufen. Das Konto bleibt angemeldet. */
 export function resetProgress() {
-  const { settings } = state
+  const { settings, konto } = state
   try {
     for (const key of backupKeys()) localStorage.removeItem(key)
   } catch {
     // ohne Speicherzugriff gibt es auch keine Sicherungen
   }
-  setState(() => ({ ...createFresh(), settings }))
+  setState(() => ({ ...createFresh(), settings, ...(konto ? { konto } : {}) }))
 }
 
-const subscribe = (listener: () => void) => {
+/** Fremde Daten (z. B. vom Server) prüfen und in einen Stand verwandeln */
+export const leseStand = (input: unknown): SaveData | null => sanitize(input)
+
+export const subscribe = (listener: () => void) => {
   listeners.add(listener)
   return () => {
     listeners.delete(listener)

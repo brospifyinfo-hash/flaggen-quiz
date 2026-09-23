@@ -7,10 +7,13 @@ import { App } from './App'
 import './modes'
 import { initPwa } from './pwa'
 import { initRouter } from './router'
+import { starteAbgleich } from './konto'
+import { subscribe } from './store'
 
 history.scrollRestoration = 'manual'
 initRouter()
 initPwa()
+starteAbgleich(subscribe)
 // Ikonen-Schrift früh anfordern, damit Emoji-Codepunkte nie kurz als System-Emoji aufblitzen
 document.fonts?.load('16px "Weltwissen Ikonen"', '\u{1FA99}').catch(() => undefined)
 

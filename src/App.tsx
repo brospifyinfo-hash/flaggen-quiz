@@ -17,6 +17,8 @@ import { SettingsScreen } from './screens/SettingsScreen'
 import { SpecificScreen } from './screens/SpecificScreen'
 import { HerausforderungenScreen } from './screens/HerausforderungenScreen'
 import { PostfachScreen } from './screens/PostfachScreen'
+import { KontoScreen, KontoTor } from './screens/KontoScreen'
+import { ohneKontoErlaubt, useSyncZustand } from './konto'
 import { useSaveData } from './store'
 import type { Route, SaveData } from './types'
 
@@ -80,6 +82,8 @@ function resolveRoute(data: SaveData): Route {
 
 export function App() {
   const data = useSaveData()
+  // Der Abgleich meldet sich, wenn „ohne Konto weiter“ gewählt wurde – dann neu rendern
+  useSyncZustand()
   const route = resolveRoute(data)
   const target = routeToHash(route)
   const saved = routeToHash(data.route)
@@ -93,6 +97,9 @@ export function App() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [target])
+
+  // Ohne Konto geht es nicht weiter – Fortschritt und Stadt gehören ins Konto
+  if (!data.konto && !ohneKontoErlaubt()) return <KontoTor data={data} />
 
   switch (route.name) {
     case 'home':
@@ -110,7 +117,7 @@ export function App() {
     case 'postfach':
       return <PostfachScreen data={data} />
     case 'konto':
-      return <HomeScreen data={data} />
+      return <KontoScreen data={data} />
     case 'kurse':
       return <KurseScreen data={data} />
     case 'mode':

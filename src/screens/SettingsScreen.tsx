@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { IconBack, IconCheck, IconDownload, IconTrash } from '../components/Icons'
+import { IconBack, IconCheck, IconChevron, IconDownload, IconTrash, IconUser } from '../components/Icons'
 import { haptic, hapticSupport } from '../haptics'
 import { promptInstall, usePwaStatus } from '../pwa'
-import { goBack } from '../router'
+import { goBack, navigate } from '../router'
 import { isStorageWorking, resetProgress, setState } from '../store'
 import type { SaveData } from '../types'
 
@@ -30,6 +30,20 @@ export function SettingsScreen({ data }: { data: SaveData }) {
         </button>
         <h1>Einstellungen</h1>
       </header>
+
+      <h2 className="section-title">Konto</h2>
+      <section className="list">
+        <button className="row konto-zeile" onClick={() => navigate({ name: 'konto' })}>
+          <span className="konto-zeichen klein" aria-hidden="true">
+            <IconUser />
+          </span>
+          <span className="row-label">
+            <strong>{data.konto ? data.konto.name || 'Dein Konto' : 'Konto'}</strong>
+            <span>{data.konto ? `${data.konto.email} · Fortschritt und Stadt werden gesichert` : 'Anmelden oder Konto erstellen'}</span>
+          </span>
+          <IconChevron />
+        </button>
+      </section>
 
       <section className="list">
         <div className="row">
