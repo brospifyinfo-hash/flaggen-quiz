@@ -203,8 +203,11 @@ export function leuchtSchichtBeginnen(ctx: CanvasRenderingContext2D): void {
 export function leuchte(malen: Leuchte): void {
   if (!sctx) return
   sctx.save()
-  malen(sctx)
-  sctx.restore()
+  try {
+    malen(sctx)
+  } finally {
+    sctx.restore()
+  }
 }
 
 /** Silhouette eines Baukörpers aus der Leuchtschicht radieren – er steht vor dem Licht dahinter */

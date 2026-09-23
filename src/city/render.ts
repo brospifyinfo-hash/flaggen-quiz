@@ -626,13 +626,51 @@ function outline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
 /** Etwas, das zwischen den Häusern steht und nach Tiefe eingereiht wird */
 type Ding = { x: number; y: number; breite: number; tiefe: number; malen: () => void }
 
-/** Malt die ganze Stadt. Der Aufrufer setzt vorher Größe und Kamera. */
+/** Fehler, die schon gemeldet wurden – ein Bild pro Sekunde reicht nicht als Protokoll */
+const gemeldet = new Set<string>()
+
+/**
+ * Malt die ganze Stadt. Der Aufrufer setzt vorher Größe und Kamera.
+ *
+ * Geht beim Zeichnen etwas schief, wird der Zeichenzustand wieder aufgeräumt: Ohne
+ * das bliebe die Kamera von diesem Bild auf dem Stapel liegen und das nächste Bild
+ * würde noch einmal verschoben gemalt – die Stadt erschiene dann viele Male nebeneinander.
+ */
 export function drawCity(
   ctx: CanvasRenderingContext2D,
   city: CityState,
   camera: Camera,
   view: { w: number; h: number },
   options: DrawOptions = {},
+): void {
+  const grund = ctx.getTransform()
+  try {
+    stadtMalen(ctx, city, camera, view, options)
+  } catch (fehler) {
+    // Alles, was dieses Bild auf den Stapel gelegt hat, wieder herunternehmen –
+    // restore() auf leerem Stapel tut nichts, daher darf man großzügig sein
+    for (let i = 0; i < 64; i++) ctx.restore()
+    ctx.setTransform(grund)
+    ctx.globalAlpha = 1
+    ctx.globalCompositeOperation = 'source-over'
+    leuchtenLeeren()
+    melden(fehler)
+  }
+}
+
+function melden(fehler: unknown): void {
+  const text = fehler instanceof Error ? `${fehler.name}: ${fehler.message}` : String(fehler)
+  if (gemeldet.has(text)) return
+  gemeldet.add(text)
+  console.error('Stadt konnte nicht gezeichnet werden:', fehler)
+}
+
+function stadtMalen(
+  ctx: CanvasRenderingContext2D,
+  city: CityState,
+  camera: Camera,
+  view: { w: number; h: number },
+  options: DrawOptions,
 ): void {
   // Zuerst Blick und Licht setzen – alles Weitere rechnet schon damit
   setBlick(options.blick ?? 0, city.land)
@@ -654,6 +692,21 @@ export function drawCity(
   ctx.save()
   kamera()
   leuchtSchichtBeginnen(ctx)
+  // Ein Haus oder eine Figur, die nicht gezeichnet werden kann, soll nicht das ganze
+  // Bild abbrechen. Danach steht der Zeichenzustand wieder so da wie nach kamera().
+  const kameraMatrix = ctx.getTransform()
+  const sicher = (malen: () => void) => {
+    try {
+      malen()
+    } catch (fehler) {
+      for (let i = 0; i < 64; i++) ctx.restore()
+      ctx.save()
+      ctx.setTransform(kameraMatrix)
+      ctx.globalAlpha = 1
+      ctx.globalCompositeOperation = 'source-over'
+      melden(fehler)
+    }
+  }
   // Kleinteile nur zeichnen, wenn man sie auch sehen kann – und nur, solange das
   // Gerät mitkommt. Die Bildrate zählt mehr als eine Fensterbank.
   const fein = camera.zoom >= 0.7 && options.detail !== false
@@ -743,14 +796,14 @@ export function drawCity(
   }
   const malen = (liste: Ding[]) => {
     liste.sort((a, b) => a.tiefe - b.tiefe)
-    for (const d of liste) d.malen()
+    for (const d of liste) sicher(d.malen)
   }
 
   for (let i = 0; i < sorted.length; i++) {
     const placed = sorted[i]
     malen(faecher[i])
     verdecken(silhouette(koerper[i]))
-    drawBuilding(ctx, placed, zeit, theme, fein, seiteZurStrasse(city, placed))
+    sicher(() => drawBuilding(ctx, placed, zeit, theme, fein, seiteZurStrasse(city, placed)))
     if (brennt(options.life, placed.id)) flammen(ctx, placed, zeit)
     if (placed.id === options.selected) {
       const def = buildingDef(placed.type)
