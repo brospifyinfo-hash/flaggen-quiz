@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-j',
+    datum: '23. September 2026',
+    titel: 'Wachen, Brände und die Uhr der Beschwerden',
+    text: 'Polizei, Feuerwehr und Krankenhaus zeigen, wie weit sie reichen. Ohne sie kann ein Haus abbrennen oder jemand sterben. Beschwerden laufen nur, solange du in der Stadt bist.',
+    punkte: [
+      'Tippe eine Wache an: ein Kreis zeigt die Reichweite, dazu wie viele Häuser und Wohnhäuser darin liegen.',
+      'Brennt es und keine Feuerwehr kommt hin, brennt das Haus ab. Ein Notfall ohne Krankenhaus kann einen Bewohner das Leben kosten.',
+      'Die zwei Minuten einer Beschwerde zählen nur, während die Stadt offen ist.',
+    ],
+  },
+  {
     id: '2026-09-23-i',
     datum: '23. September 2026',
     titel: 'Gewerbe zahlt sich aus',

@@ -5,7 +5,7 @@
 // Kriminalität entsteht aus Armut, Arbeitslosigkeit, fehlender Bildung und dunklen
 // Geschäften. Sie wird für jede Kachel gerechnet: Ein Viertel mit Schule und Wache ist
 // sicherer als eines mit Spielhalle und ohne Polizei.
-import { buildingDef, effectsOf, footprint, type Klasse } from './catalog'
+import { buildingDef, effectsOf, footprint, type BuildingDef, type Klasse } from './catalog'
 import type { CityState, Placed } from './types'
 
 export const KLASSEN: Klasse[] = ['arm', 'mittel', 'reich', 'superreich']
@@ -76,13 +76,56 @@ const mitte = (placed: Placed) => {
 /** Sanftes Abklingen mit der Entfernung – 1 am Ort, 0 am Rand der Reichweite */
 const abklingen = (d: number, reichweite: number) => (d >= reichweite ? 0 : 1 - d / reichweite)
 
+export type DienstArt = 'police' | 'fire' | 'health'
+
+/** Farben für den Kreis auf der Karte: Polizei blau, Feuerwehr rot, Ärzte grün */
+export const DIENST_FARBE: Record<DienstArt, { fuellung: string; rand: string }> = {
+  police: { fuellung: 'rgba(46,134,255,0.2)', rand: 'rgba(46,134,255,0.95)' },
+  fire: { fuellung: 'rgba(255,90,31,0.2)', rand: 'rgba(255,90,31,0.95)' },
+  health: { fuellung: 'rgba(60,224,138,0.18)', rand: 'rgba(60,224,138,0.95)' },
+}
+
+const KEIN_HAUS = new Set(['natur', 'schmuck', 'wege'])
+
+/** Welche Wache das ist und wie weit sie reicht – Ausbau zählt mit */
+export function dienstVon(def: BuildingDef, level: number): { art: DienstArt; radius: number } | null {
+  const e = effectsOf(def, level)
+  if ((e.police ?? 0) > 0) return { art: 'police', radius: e.police ?? 0 }
+  if ((e.fire ?? 0) > 0) return { art: 'fire', radius: e.fire ?? 0 }
+  if ((e.health ?? 0) > 0) return { art: 'health', radius: e.health ?? 0 }
+  return null
+}
+
+/** Wie viele Häuser mit ihrem Mittelpunkt im Kreis liegen */
+export function haeuserInReichweite(
+  city: CityState,
+  x: number,
+  y: number,
+  radius: number,
+  selbst?: string,
+): { haeuser: number; wohnen: number } {
+  let haeuser = 0
+  let wohnen = 0
+  for (const other of city.buildings) {
+    if (other.id === selbst || other.verlassen) continue
+    const def = buildingDef(other.type)
+    if (!def || KEIN_HAUS.has(def.category)) continue
+    const o = mitte(other)
+    if (Math.hypot(o.x - x, o.y - y) > radius) continue
+    haeuser++
+    if (def.category === 'wohnen' && (effectsOf(def, other.level).capacity ?? 0) > 0) wohnen++
+  }
+  return { haeuser, wohnen }
+}
+
 /** Wie gut ein Punkt von Wachen einer Art abgedeckt ist: 0 bis 1 */
-function abgedeckt(city: CityState, x: number, y: number, art: 'police' | 'fire' | 'health'): number {
+function abgedeckt(city: CityState, x: number, y: number, art: DienstArt): number {
   let best = 0
   for (const placed of city.buildings) {
     const def = buildingDef(placed.type)
-    const reichweite = def?.effects[art]
-    if (!def || !reichweite) continue
+    if (!def || placed.verlassen) continue
+    const reichweite = effectsOf(def, placed.level)[art] ?? 0
+    if (!reichweite) continue
     const m = mitte(placed)
     const d = Math.hypot(m.x - x, m.y - y)
     best = Math.max(best, d <= reichweite ? 1 - (d / reichweite) * 0.35 : 0)

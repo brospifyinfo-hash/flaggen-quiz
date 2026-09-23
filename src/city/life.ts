@@ -4,11 +4,12 @@
 // Autos fahren auf ihrer Spur und parken am Ziel; Fußgänger nehmen den Gehweg.
 //
 // Dazu kommen Einsätze: Brände, Einbrüche, Notfälle, Razzien. Die nächste Wache mit
-// Weg dorthin rückt aus – mit Blaulicht. Ohne Wache in Reichweite dauert alles länger.
+// Weg dorthin rückt aus – mit Blaulicht. Ohne Feuerwehr brennt das Haus ab, ohne
+// Krankenhaus kann dort jemand sterben.
 import { ampelFuer, HALTELINIE, istKreuzung } from './ampeln'
 import { eingangVon } from './bau'
 import { einzug } from './buildings'
-import { buildingDef, footprint, type BuildingDef, type Klasse } from './catalog'
+import { RATHAUS, buildingDef, effectsOf, footprint, type BuildingDef, type Klasse } from './catalog'
 import { BAUARTEN, MODELLE_NACH_KLASSE, type Modell, type Pose, type Rolle } from './figures'
 import { gesellschaft, kriminalitaetBei } from './society'
 import { roadAt, seiteZurStrasse, tilesOf, zugangVon, razziaMoeglich } from './state'
@@ -66,6 +67,8 @@ export interface Einsatz {
 export type Ereignis =
   | { art: 'meldung'; text: string; ort?: string }
   | { art: 'razzia'; ort: string; text: string }
+  | { art: 'brand'; ort: string; text: string }
+  | { art: 'tod'; ort: string; text: string }
 
 type Kachel = { x: number; y: number }
 
@@ -531,7 +534,7 @@ function naechsteWache(life: Life, city: CityState, art: Einsatz['art'], ziel: O
   const effekt = DIENST[art].effekt
   let best: { wache: Ort; weg: Kachel[] } | null = null
   for (const ort of life.orte.values()) {
-    const reichweite = ort.def.effects[effekt] ?? 0
+    const reichweite = effectsOf(ort.def, ort.placed.level)[effekt] ?? 0
     if (!reichweite) continue
     const d = Math.hypot(ort.zugang.x - ziel.zugang.x, ort.zugang.y - ziel.zugang.y)
     // Außerhalb der Reichweite fährt man nicht hin – dafür ist eine andere Wache da
@@ -882,12 +885,22 @@ export function stepLife(life: Life, city: CityState, dt: number): Ereignis[] {
     life.agents = life.agents.filter((a) => !raus.has(a.id))
   }
 
-  // Einsätze ohne Hilfe enden von selbst
+  // Einsätze ohne Hilfe enden von selbst. Ohne Feuerwehr brennt das Haus ab,
+  // ohne Krankenhaus kann dort jemand sterben.
   for (const e of life.einsaetze) {
     if (e.zustand === 'offen' && life.uhr >= e.bis) {
       e.zustand = 'fertig'
-      const def = buildingDef(city.buildings.find((b) => b.id === e.ort)?.type ?? '')
-      if (def) ereignisse.push({ art: 'meldung', text: einsatzText(e, def, 'ende'), ort: e.ort })
+      const placed = city.buildings.find((b) => b.id === e.ort)
+      const def = buildingDef(placed?.type ?? '')
+      if (!def || !placed) continue
+      const brennbar = def.id !== RATHAUS && def.category !== 'natur' && def.category !== 'schmuck' && def.category !== 'wege'
+      if (e.art === 'feuer' && brennbar) {
+        ereignisse.push({ art: 'brand', ort: e.ort, text: `🔥 ${def.name} ist abgebrannt – keine Feuerwehr in der Nähe.` })
+      } else if (e.art === 'notfall' && def.category === 'wohnen' && !placed.verlassen) {
+        ereignisse.push({ art: 'tod', ort: e.ort, text: `✝️ In ${def.name} ist jemand gestorben – kein Krankenhaus in der Nähe.` })
+      } else {
+        ereignisse.push({ art: 'meldung', text: einsatzText(e, def, 'ende'), ort: e.ort })
+      }
     }
   }
   life.einsaetze = life.einsaetze.filter((e) => e.zustand !== 'fertig' || life.uhr - e.seit < 60)

@@ -56,6 +56,8 @@ export interface DrawOptions {
   blick?: Blick
   /** Kriminalität je Kachel als rote Tönung zeigen */
   kriminalitaet?: boolean
+  /** Kreis einer Polizei-, Feuer- oder Arztwache, Mittelpunkt und Radius in Kacheln */
+  reichweite?: { x: number; y: number; radius: number; fuellung: string; rand: string } | null
   /** Tagesstunde der Stadt (0 bis 24) – färbt das Licht über der Karte */
   stunde?: number
 }
@@ -757,6 +759,24 @@ export function drawCity(
   }
 }
 
+/** Der Umkreis einer Wache, als Ellipse in der Schrägsicht */
+function reichweiteMalen(ctx: CanvasRenderingContext2D, kreis: NonNullable<DrawOptions['reichweite']>): void {
+  const schritte = 56
+  ctx.beginPath()
+  for (let i = 0; i <= schritte; i++) {
+    const winkel = (i / schritte) * Math.PI * 2
+    const p = toScreen(kreis.x + Math.cos(winkel) * kreis.radius, kreis.y + Math.sin(winkel) * kreis.radius)
+    if (i === 0) ctx.moveTo(p.sx, p.sy)
+    else ctx.lineTo(p.sx, p.sy)
+  }
+  ctx.closePath()
+  ctx.fillStyle = kreis.fuellung
+  ctx.fill()
+  ctx.strokeStyle = kreis.rand
+  ctx.lineWidth = 2
+  ctx.stroke()
+}
+
 function melden(fehler: unknown): void {
   const text = fehler instanceof Error ? `${fehler.name}: ${fehler.message}` : String(fehler)
   if (gemeldet.has(text)) return
@@ -839,6 +859,7 @@ function stadtMalen(
   }
 
   if (options.kriminalitaet) kriminalitaetZeigen(ctx, city)
+  if (options.reichweite) reichweiteMalen(ctx, options.reichweite)
 
   // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst.
   const g = tiefenRichtung()

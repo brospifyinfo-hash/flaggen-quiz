@@ -482,6 +482,17 @@ export function drawKarte(
       }
     }
 
+    if (options.reichweite) {
+      const kreis = options.reichweite
+      ctx.beginPath()
+      ctx.arc(kreis.x, kreis.y, kreis.radius, 0, Math.PI * 2)
+      ctx.fillStyle = kreis.fuellung
+      ctx.fill()
+      ctx.strokeStyle = kreis.rand
+      ctx.lineWidth = 2 / K
+      ctx.stroke()
+    }
+
     if (options.kriminalitaet) {
       const feld = kriminalitaetsfeld(city)
       const n = city.land

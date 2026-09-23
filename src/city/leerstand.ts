@@ -150,8 +150,19 @@ export const hausName = (placed: Placed): string => `${buildingDef(placed.type)?
 /**
  * Ein Schritt: Beschwerden beginnen, enden oder werden zum Auszug. Höchstens `maxAuszuege`
  * Häuser auf einmal, damit es nicht wie ein Erdrutsch wirkt – Menschen gehen nach und nach.
+ *
+ * `geschaut` ist die Zeit in Millisekunden, die seit dem letzten Schritt in der Stadt
+ * vergangen ist. Wer die Stadt verlässt, übergibt 0 – die Beschwerde bleibt stehen.
+ * `neueErlauben` ist falsch, solange nicht genug Zeit für eine neue Beschwerde vergangen ist.
  */
-export function leerstandSchritt(city: CityState, now: number, stimmung: number, maxAuszuege = 2): LeerstandSchritt {
+export function leerstandSchritt(
+  city: CityState,
+  now: number,
+  stimmung: number,
+  maxAuszuege = 2,
+  geschaut = 0,
+  neueErlauben = true,
+): LeerstandSchritt {
   if (city.population <= 0) return { city, meldungen: [] }
   const meldungen: string[] = []
   let kapazitaet = 0
@@ -185,7 +196,8 @@ export function leerstandSchritt(city: CityState, now: number, stimmung: number,
         const { beschwerde: _weg, ...ruhig } = placed
         return ruhig
       }
-      if (auszugErlaubt && now - placed.beschwerde.seit >= AUSZUG_NACH && auszuege < maxAuszuege) {
+      const dauer = (placed.beschwerde.dauer ?? 0) + Math.max(0, geschaut)
+      if (auszugErlaubt && dauer >= AUSZUG_NACH && auszuege < maxAuszuege) {
         auszuege++
         geaendert = true
         const def = buildingDef(placed.type)!
@@ -197,15 +209,20 @@ export function leerstandSchritt(city: CityState, now: number, stimmung: number,
         const { beschwerde: _weg, ...leer } = placed
         return { ...leer, verlassen: now }
       }
+      if (dauer !== (placed.beschwerde.dauer ?? 0)) {
+        geaendert = true
+        return { ...placed, beschwerde: { ...placed.beschwerde, dauer } }
+      }
       return placed
     }
 
-    // Beschwert wird sich nur über einen konkreten Nachbarn – und nicht alle auf einmal
-    if (lage.wert < BESCHWERDE_AB && lage.grund && neueBeschwerden < NEUE_BESCHWERDEN_MAX) {
+    // Beschwert wird sich nur über einen konkreten Nachbarn – und nicht alle auf einmal.
+    // Neue Beschwerden entstehen nur, während man in der Stadt zusieht.
+    if (neueErlauben && lage.wert < BESCHWERDE_AB && lage.grund && neueBeschwerden < NEUE_BESCHWERDEN_MAX) {
       neueBeschwerden++
       geaendert = true
       meldungen.push(`😠 ${hausName(placed)}: Die Bewohner beschweren sich über ${lage.grund}.`)
-      return { ...placed, beschwerde: { seit: now, grund: lage.grund } }
+      return { ...placed, beschwerde: { seit: now, grund: lage.grund, dauer: 0 } }
     }
     return placed
   })

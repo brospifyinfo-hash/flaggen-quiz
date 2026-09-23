@@ -15,10 +15,15 @@ export const CITY_VERSION = 10
 
 /** Eine laufende Beschwerde der Bewohner eines Hauses */
 export interface Beschwerde {
-  /** seit wann */
+  /** seit wann, nur für die Anzeige */
   seit: number
   /** worüber, lesbar – "den Lärm aus dem Stripclub" */
   grund: string
+  /**
+   * Wie lange die Beschwerde schon läuft, in Millisekunden. Gezählt wird nur,
+   * solange man in der Stadt ist – wer woanders spielt, lässt die Uhr stehen.
+   */
+  dauer?: number
 }
 
 /** Eine Kachel ist der kleinste Bauplatz. Gebäude belegen ein Rechteck aus Kacheln. */

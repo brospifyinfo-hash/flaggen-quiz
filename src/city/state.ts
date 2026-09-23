@@ -12,7 +12,7 @@ import {
   unlockInfo,
 } from './catalog'
 import type { Seite } from './geo'
-import { leerstandSchritt, leerstandVon, leerstandZuruecksetzen } from './leerstand'
+import { leerstandVon, leerstandZuruecksetzen } from './leerstand'
 import { REQUEST_ZEIT, sanitizeRequest } from './requests'
 import { gesellschaft, KLASSEN, kriminalitaetBei, STEUER_MAX, STEUER_MIN, STEUER_START, steuerVon } from './society'
 import { DEFAULT_THEME, themeById } from './themes'
@@ -641,8 +641,8 @@ export function problemsOf(city: CityState): string[] {
   if (g.obdachlose > 0) {
     list.push(`🛏️ ${g.obdachlose} ${g.obdachlose === 1 ? 'Mensch schläft' : 'Menschen schlafen'} auf der Straße. Arbeit und günstiger Wohnraum helfen.`)
   }
-  if (g.abdeckung.gesundheit === 0 && city.population >= 100) list.push('🏥 Kranke müssen weit fahren. Eine Arztpraxis hilft.')
-  if (g.abdeckung.feuer === 0 && city.buildings.length >= 25) list.push('🚒 Ohne Feuerwehr brennt es länger.')
+  if (g.abdeckung.feuer === 0 && city.buildings.length >= 12) list.push('🚒 Ohne Feuerwehr in der Nähe kann ein Haus abbrennen.')
+  if (g.abdeckung.gesundheit === 0 && city.population >= 20) list.push('🏥 Ohne Krankenhaus in der Nähe können Bewohner sterben.')
   if (steuerVon(city) > 20) list.push('💸 Die Steuern sind hoch – die Reichen ziehen weg.')
   if (sums.environment < 10 && city.population >= 20) {
     list.push('🌳 Die Stadt braucht mehr Grün.')
@@ -736,13 +736,7 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
     }
     next = { ...next, population, coins: next.coins + income.total, materials: next.materials + ziegel }
 
-    // Wer sich schon lange beschwert, ist bis zum nächsten Zyklus ausgezogen; neue
-    // Beschwerden entstehen, wo die Wohnlage nicht stimmt
-    const leer = leerstandSchritt(next, zeit, mood, 2)
-    if (leer.city !== next) {
-      next = leer.city
-      meldungen.push(...leer.meldungen.filter((m) => m.startsWith('🏚️')))
-    }
+    // Beschwerden laufen nur, solange man in der Stadt zusieht – nicht in der Zwischenzeit
 
     // Bei guter Stimmung bauen Zugezogene selbst – je besser, desto mehr
     const bauten = mood >= WACHSTUM_STIMMUNG ? 1 + Math.floor((mood - WACHSTUM_STIMMUNG) / 12) : 0
@@ -990,6 +984,64 @@ export function razzia(city: CityState, id: string): { city: CityState; beute: n
   }
 }
 
+const KEIN_BRAND = new Set(['natur', 'schmuck', 'wege'])
+
+/** Wie viele Menschen in diesem Haus wohnen – Anteil am Wohnraum der Stadt */
+function bewohnerImHaus(city: CityState, placed: Placed): number {
+  const def = buildingDef(placed.type)
+  if (!def || def.category !== 'wohnen' || placed.verlassen) return 0
+  const kap = effectsOf(def, placed.level).capacity ?? 0
+  if (kap <= 0 || city.population <= 0) return 0
+  let gesamt = 0
+  for (const other of city.buildings) {
+    if (other.verlassen) continue
+    const d = buildingDef(other.type)
+    if (!d || d.category !== 'wohnen') continue
+    gesamt += effectsOf(d, other.level).capacity ?? 0
+  }
+  if (gesamt <= 0) return 0
+  return Math.min(city.population, Math.max(1, Math.round((city.population * kap) / gesamt)))
+}
+
+/**
+ * Ein Brand ohne Feuerwehr in der Nähe vernichtet das Haus. Bewohner, die darin
+ * waren, sind weg. Rathaus, Bäume und Bänke brennen nicht ab.
+ */
+export function abbrennen(city: CityState, id: string): { city: CityState; name: string; bewohner: number } | null {
+  const placed = city.buildings.find((b) => b.id === id)
+  const def = placed ? buildingDef(placed.type) : undefined
+  if (!placed || !def || def.id === RATHAUS || KEIN_BRAND.has(def.category)) return null
+  const bewohner = bewohnerImHaus(city, placed)
+  return {
+    city: withLevel({
+      ...city,
+      buildings: city.buildings.filter((b) => b.id !== id),
+      population: Math.max(0, city.population - bewohner),
+    }),
+    name: `${def.name} (${placed.x}|${placed.y})`,
+    bewohner,
+  }
+}
+
+/**
+ * Ein Notfall ohne Krankenhaus in der Nähe. Ein Bewohner stirbt, in einem großen
+ * Haus zwei. Das Haus bleibt stehen.
+ */
+export function sterben(city: CityState, id: string): { city: CityState; name: string; anzahl: number } | null {
+  const placed = city.buildings.find((b) => b.id === id)
+  const def = placed ? buildingDef(placed.type) : undefined
+  if (!placed || !def || placed.verlassen || def.category !== 'wohnen') return null
+  const imHaus = bewohnerImHaus(city, placed)
+  if (imHaus <= 0) return null
+  const anzahl = Math.min(imHaus, (effectsOf(def, placed.level).capacity ?? 0) >= 10 ? 2 : 1)
+  if (anzahl <= 0) return null
+  return {
+    city: { ...city, population: Math.max(0, city.population - anzahl) },
+    name: `${def.name} (${placed.x}|${placed.y})`,
+    anzahl,
+  }
+}
+
 /** Steuersatz setzen – zwischen 0 und 30 Prozent */
 export function setTax(city: CityState, satz: number): CityState {
   const tax = Math.max(STEUER_MIN, Math.min(STEUER_MAX, Math.round(satz)))
@@ -1202,7 +1254,15 @@ export function sanitizeCity(input: unknown): CityState | null {
         ...(item.auto === true ? { auto: true } : {}),
         ...(typeof item.verlassen === 'number' && item.verlassen > 0 ? { verlassen: int(item.verlassen) } : {}),
         ...(typeof item.beschwerde === 'object' && item.beschwerde !== null && typeof (item.beschwerde as Record<string, unknown>).grund === 'string'
-          ? { beschwerde: { seit: int((item.beschwerde as Record<string, unknown>).seit), grund: (item.beschwerde as Record<string, unknown>).grund as string } }
+          ? {
+              beschwerde: {
+                seit: int((item.beschwerde as Record<string, unknown>).seit),
+                grund: (item.beschwerde as Record<string, unknown>).grund as string,
+                ...(int((item.beschwerde as Record<string, unknown>).dauer) > 0
+                  ? { dauer: int((item.beschwerde as Record<string, unknown>).dauer) }
+                  : {}),
+              },
+            }
           : {}),
       }
       // Ein Rathaus gibt es nur einmal

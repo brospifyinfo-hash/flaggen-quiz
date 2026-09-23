@@ -54,8 +54,10 @@ import {
   istGeheimcode,
   MOVE_IN_MOOD,
   schattenkasse,
+  abbrennen,
   razzia,
   razziaMoeglich,
+  sterben,
   runCycles,
   setRequest,
   setTax,
@@ -68,7 +70,7 @@ import {
 import { MAX_TAGE, TAG_TEXT, phaseInfo, tagFaellig, tageszeit, zeitText } from '../city/zeit'
 import { Tagesuhr, useTageszeit } from '../components/Tagesuhr'
 import { anpassen, createLife, signatureOf, stepLife, type Ereignis, type Life } from '../city/life'
-import { bewohnerVon, euro, gesellschaft, KLASSEN, STEUER_MAX, STEUER_MIN } from '../city/society'
+import { DIENST_FARBE, bewohnerVon, dienstVon, euro, gesellschaft, haeuserInReichweite, KLASSEN, STEUER_MAX, STEUER_MIN } from '../city/society'
 import { BauBlatt, KLASSE_NAME } from './CityBuildSheet'
 import { GebaeudeListe } from './CityGebaeudeListe'
 import {
@@ -272,6 +274,39 @@ function CityWorld({ data }: { data: SaveData }) {
         if (beute > 0 && !zerstoert) melde(`🚔 Razzia: ${name} verliert eine Ausbaustufe, ${beute} 🪙 beschlagnahmt.`)
         else melde(beute > 0 ? `${e.text} ${beute} 🪙 beschlagnahmt.` : e.text)
         haptic('success')
+      } else if (e.art === 'brand') {
+        let text = e.text
+        let geschehen = false
+        setState((current) => {
+          if (!current.city) return current
+          const r = abbrennen(current.city, e.ort)
+          if (!r) return current
+          geschehen = true
+          text =
+            r.bewohner > 0
+              ? `🔥 ${r.name} ist abgebrannt. ${r.bewohner === 1 ? 'Ein Bewohner hat es nicht geschafft.' : `${r.bewohner} Bewohner haben es nicht geschafft.`}`
+              : `🔥 ${r.name} ist abgebrannt. Keine Feuerwehr in der Nähe.`
+          return { ...current, city: r.city }
+        })
+        if (geschehen) {
+          melde(text)
+          haptic('strong')
+        }
+      } else if (e.art === 'tod') {
+        let text = e.text
+        let geschehen = false
+        setState((current) => {
+          if (!current.city) return current
+          const r = sterben(current.city, e.ort)
+          if (!r) return current
+          geschehen = true
+          text = `✝️ ${r.name}: ${r.anzahl === 1 ? 'Ein Bewohner ist gestorben' : `${r.anzahl} Bewohner sind gestorben`}. Kein Krankenhaus in der Nähe.`
+          return { ...current, city: r.city }
+        })
+        if (geschehen) {
+          melde(text)
+          haptic('strong')
+        }
       } else {
         melde(e.text)
       }
@@ -322,9 +357,12 @@ function CityWorld({ data }: { data: SaveData }) {
     let naechsterZuzug = start + 12_000
     let naechsterBau = start + 18_000
     let naechsteUnterwelt = start + 100_000
-    let naechsteBeschwerde = start + 20_000
+    let naechsteNeueBeschwerde = start + 20_000
+    let zuletzt = start
     const takt = window.setInterval(() => {
       const jetzt = performance.now()
+      const geschaut = Math.max(0, Math.min(2500, jetzt - zuletzt))
+      zuletzt = jetzt
       const stadt = getState().city
       if (!stadt) return
       const stimmung = happinessBreakdown(stadt).total
@@ -339,15 +377,15 @@ function CityWorld({ data }: { data: SaveData }) {
         }
       }
 
-      // Wo die Wohnlage nicht stimmt, wird gemurrt – und wer lange genug murrt, geht
-      if (jetzt >= naechsteBeschwerde) {
-        naechsteBeschwerde = jetzt + 12_000
-        const schritt = leerstandSchritt(stadt, Date.now(), stimmung)
-        if (schritt.city !== stadt) {
-          setState((current) => (current.city === stadt ? { ...current, city: schritt.city } : current))
-          for (const text of schritt.meldungen) melde(text)
-          if (schritt.meldungen.some((m) => m.startsWith('🏚️'))) haptic('strong')
-        }
+      // Wo die Wohnlage nicht stimmt, wird gemurrt – und wer lange genug murrt, geht.
+      // Die Uhr läuft nur in diesem Takt, also nur solange die Stadt offen ist.
+      const neueErlauben = jetzt >= naechsteNeueBeschwerde
+      if (neueErlauben) naechsteNeueBeschwerde = jetzt + 12_000
+      const schritt = leerstandSchritt(stadt, Date.now(), stimmung, 2, geschaut, neueErlauben)
+      if (schritt.city !== stadt) {
+        setState((current) => (current.city === stadt ? { ...current, city: schritt.city } : current))
+        for (const text of schritt.meldungen) melde(text)
+        if (schritt.meldungen.some((m) => m.startsWith('🏚️'))) haptic('strong')
       }
 
       if (jetzt >= naechsterZuzug) {
@@ -479,6 +517,7 @@ function CityWorld({ data }: { data: SaveData }) {
         blick: winkel.current,
         life: life.current,
         kriminalitaet: state.krimKarte,
+        reichweite: reichweiteKreis(state.city, state.selected, shown),
         bubble: bitte ? { buildingId: bitte.buildingId, emoji: bitte.citizen.emoji } : null,
         time: now / 1000,
         stunde: tageszeit(state.city).stunde,
@@ -1713,8 +1752,8 @@ function CityWorld({ data }: { data: SaveData }) {
                 </li>
               </ul>
               <p className="city-hint">
-                Wer sich beschwert, zieht nach ein paar Minuten aus, wenn sich nichts ändert. Das Haus bleibt als Ruine stehen –
-                du kannst es sanieren oder abreißen.
+                Wer sich beschwert, zieht nach etwa zwei Minuten aus, wenn sich nichts ändert – aber nur, solange du in der Stadt
+                bist. Das Haus bleibt als Ruine stehen, du kannst es sanieren oder abreißen.
               </p>
 
               <p className="city-label-line">
@@ -1817,6 +1856,15 @@ function CityWorld({ data }: { data: SaveData }) {
             <p className="city-place-text">
               {movingId ? 'Tippe auf den neuen Platz.' : `Tippe auf die Karte, wo ${buildingDef(pick)?.name} stehen soll.`}
             </p>
+            <ReichweiteZeile
+              city={city}
+              type={pick}
+              x={ghost.x}
+              y={ghost.y}
+              rot={ghost.rot}
+              level={movingId ? (city.buildings.find((b) => b.id === movingId)?.level ?? 1) : 1}
+              selbst={movingId ?? undefined}
+            />
             <div className="city-place-row">
               <button className="city-btn" onClick={cancel}>
                 Abbrechen
@@ -1878,6 +1926,7 @@ function CityWorld({ data }: { data: SaveData }) {
                 )}
               </ul>
             )}
+            {!chosen.verlassen && <ReichweiteZeile city={city} type={chosen.type} x={chosen.x} y={chosen.y} rot={chosen.rot} level={chosen.level} selbst={chosen.id} />}
             {!chosen.verlassen && chosenDef.category === 'wohnen' && chosenDef.effects.capacity && (
               <WohnlageZeile city={city} placed={chosen} stimmung={stats.happiness} />
             )}
@@ -1963,7 +2012,7 @@ function CityWorld({ data }: { data: SaveData }) {
 function WohnlageZeile({ city, placed, stimmung }: { city: NonNullable<SaveData['city']>; placed: Placed; stimmung: number }) {
   const lage = wohnlageVon(city, placed, stimmung)
   const farbe = lage.wert >= 48 ? '#3ce08a' : lage.wert >= 38 ? '#ffb020' : '#ff5f7a'
-  const rest = placed.beschwerde ? Math.max(0, AUSZUG_NACH - (Date.now() - placed.beschwerde.seit)) : 0
+  const rest = placed.beschwerde ? Math.max(0, AUSZUG_NACH - (placed.beschwerde.dauer ?? 0)) : 0
   return (
     <div className="city-wohnlage">
       <div className="city-sicherheit-zeile">
@@ -1983,7 +2032,7 @@ function WohnlageZeile({ city, placed, stimmung }: { city: NonNullable<SaveData[
       {placed.beschwerde ? (
         <p className="city-hint city-hint-warn">
           😠 Die Bewohner beschweren sich über {placed.beschwerde.grund}. Ändert sich nichts, ziehen sie in etwa{' '}
-          {dauerText(rest)} aus.
+          {dauerText(rest)} aus – die Zeit läuft nur, solange du in der Stadt bist.
         </p>
       ) : lage.wert < 48 ? (
         <p className="city-hint">Die Wohnlage ist knapp. Sinkt sie unter 38 %, beginnen die Beschwerden.</p>
@@ -2001,6 +2050,63 @@ function dauerText(ms: number): string {
   const h = Math.round(m / 60)
   if (h < 48) return h === 1 ? 'einer Stunde' : `${h} Stunden`
   return `${Math.round(h / 24)} Tagen`
+}
+
+/** Kreis auf der Karte: die gewählte Wache, oder die, die man gerade setzen will */
+function reichweiteKreis(
+  city: NonNullable<SaveData['city']>,
+  selected: string | null,
+  ghost: { type: string; x: number; y: number; rot: 0 | 1 | 2 | 3 } | null,
+): { x: number; y: number; radius: number; fuellung: string; rand: string } | null {
+  const placed = !ghost && selected ? city.buildings.find((b) => b.id === selected) : null
+  const type = ghost?.type ?? placed?.type
+  const def = type ? buildingDef(type) : undefined
+  if (!def || placed?.verlassen) return null
+  const dienst = dienstVon(def, ghost ? 1 : (placed?.level ?? 1))
+  if (!dienst) return null
+  const x = ghost?.x ?? placed?.x ?? 0
+  const y = ghost?.y ?? placed?.y ?? 0
+  const rot = ghost?.rot ?? placed?.rot ?? 0
+  const [w, h] = footprint(def, rot)
+  const farbe = DIENST_FARBE[dienst.art]
+  return { x: x + w / 2, y: y + h / 2, radius: dienst.radius, fuellung: farbe.fuellung, rand: farbe.rand }
+}
+
+/** Wie weit eine Wache reicht und wie viele Häuser in dem Kreis stehen */
+function ReichweiteZeile({
+  city,
+  type,
+  x,
+  y,
+  rot,
+  level,
+  selbst,
+}: {
+  city: NonNullable<SaveData['city']>
+  type: string
+  x: number
+  y: number
+  rot: 0 | 1 | 2 | 3
+  level: number
+  selbst?: string
+}) {
+  const def = buildingDef(type)
+  const dienst = def ? dienstVon(def, level) : null
+  if (!def || !dienst) return null
+  const [w, h] = footprint(def, rot)
+  const kreis = haeuserInReichweite(city, x + w / 2, y + h / 2, dienst.radius, selbst)
+  const folge =
+    dienst.art === 'fire'
+      ? 'Häuser außerhalb können abbrennen.'
+      : dienst.art === 'health'
+        ? 'Bewohner außerhalb können sterben.'
+        : 'Außerhalb steigt die Kriminalität.'
+  return (
+    <p className="city-hint">
+      Reichweite {dienst.radius} Kacheln. Im Kreis: {kreis.haeuser} {kreis.haeuser === 1 ? 'Haus' : 'Häuser'}
+      {kreis.wohnen > 0 ? `, davon ${kreis.wohnen} ${kreis.wohnen === 1 ? 'Wohnhaus' : 'Wohnhäuser'}` : ''}. {folge}
+    </p>
+  )
 }
 
 /** Was ein Gebäude bewirkt, lesbar – Klasse und Reichweiten eigens beschrieben */
