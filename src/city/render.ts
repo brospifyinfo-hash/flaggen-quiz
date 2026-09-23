@@ -50,7 +50,7 @@ export interface DrawOptions {
   bubble?: { buildingId: string; emoji: string } | null
   /** Sekunden, für ruhige Animationen */
   time?: number
-  /** Kleinteile zeichnen? false, wenn das Gerät sonst ins Stocken gerät */
+  /** Kleinteile zeichnen? Die Startseite schaltet das bei zu langen Bildern ab. */
   detail?: boolean
   /** Aus welcher Richtung man auf die Stadt schaut, als Winkel */
   blick?: Blick
@@ -715,6 +715,20 @@ type Ding = { x: number; y: number; breite: number; tiefe: number; malen: () => 
 const gemeldet = new Set<string>()
 
 /**
+ * Ob die Nahansicht gilt. Einmal nah, bleibt sie nah, bis man deutlich herauszoomt –
+ * und umgekehrt. Ein großer Sprung (Seitenwechsel, „alles zeigen“) entscheidet neu.
+ */
+let nahMerker = 1
+function nahGenug(zoom: number): boolean {
+  if (!Number.isFinite(zoom)) return false
+  if (Math.abs(zoom - nahMerker) > 0.45) nahMerker = zoom
+  const nah = nahMerker >= 0.7
+  if (nah && zoom < 0.58) nahMerker = zoom
+  else if (!nah && zoom >= 0.78) nahMerker = zoom
+  return nahMerker >= 0.7
+}
+
+/**
  * Malt die ganze Stadt. Der Aufrufer setzt vorher Größe und Kamera.
  *
  * Geht beim Zeichnen etwas schief, wird der Zeichenzustand wieder aufgeräumt: Ohne
@@ -793,9 +807,9 @@ function stadtMalen(
       melden(fehler)
     }
   }
-  // Kleinteile nur zeichnen, wenn man sie auch sehen kann – und nur, solange das
-  // Gerät mitkommt. Die Bildrate zählt mehr als eine Fensterbank.
-  const fein = camera.zoom >= 0.7 && options.detail !== false
+  // Kleinteile nur in der Nahansicht. Die Schwelle hat Spielraum, damit ein Zittern
+  // beim Zoomen nicht bei jedem Bild die Fassaden umschaltet.
+  const fein = nahGenug(camera.zoom) && options.detail !== false
 
   drawGround(ctx, city, options.buildMode === true, theme, fein)
   drawRoads(ctx, city, theme, fein)

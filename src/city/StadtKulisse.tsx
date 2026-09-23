@@ -51,14 +51,11 @@ export function StadtKulisse({ city }: { city: CityState }) {
     let raf = 0
     let last = performance.now()
     let gezeichnet = 0
-    let bildzeit = 16
-    let detail = true
 
     const zeichne = (now: number) => {
       if (size.w < 1) return
       setBlick(0, stadt.current.land)
       drawCity(ctx, stadt.current, camera, size, {
-        detail,
         blick: 0,
         life,
         time: now / 1000,
@@ -70,9 +67,6 @@ export function StadtKulisse({ city }: { city: CityState }) {
       raf = requestAnimationFrame(frame)
       if (now - gezeichnet < BILDABSTAND) return
       const dt = Math.min(0.1, Math.max(0, (now - last) / 1000))
-      bildzeit = bildzeit * 0.9 + Math.min(200, now - gezeichnet) * 0.1
-      if (detail && bildzeit > 44) detail = false
-      else if (!detail && bildzeit < 30) detail = true
       last = now
       gezeichnet = now
       if (!life) life = createLife(stadt.current)
