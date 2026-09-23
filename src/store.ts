@@ -8,6 +8,7 @@ import { isContinentId, isCountry, sessionKey } from './quiz'
 import { isRoute } from './routes'
 import type {
   CountryStat,
+  Konto,
   MathRunnerStats,
   Mistake,
   Mode,
@@ -317,11 +318,16 @@ function sanitize(input: unknown): SaveData | null {
     }
   }
 
+  const postfach = isObject(input.postfach) && isStringList(input.postfach.gelesen) ? { gelesen: input.postfach.gelesen } : undefined
+  const konto = leseKonto(input.konto)
+
   return {
     version: 2,
     stats,
     progress,
     sessions,
+    ...(postfach ? { postfach } : {}),
+    ...(konto ? { konto } : {}),
     lastResult: isResult(input.lastResult) ? input.lastResult : null,
     xp: count(input.xp),
     modes,
@@ -346,8 +352,21 @@ function sanitize(input: unknown): SaveData | null {
   }
 }
 
+function leseKonto(value: unknown): Konto | undefined {
+  if (!isObject(value)) return undefined
+  if (typeof value.id !== 'string' || typeof value.email !== 'string' || typeof value.token !== 'string') return undefined
+  if (!value.id || !value.token) return undefined
+  return {
+    id: value.id,
+    email: value.email,
+    name: typeof value.name === 'string' ? value.name : '',
+    token: value.token,
+    stand: count(value.stand),
+  }
+}
+
 /** Holt einen beiseitegelegten Stand zurück, ohne Antworten doppelt zu zählen */
-function mergeSaves(current: SaveData, older: SaveData): SaveData {
+export function mergeSaves(current: SaveData, older: SaveData): SaveData {
   const stats = { ...older.stats }
   for (const [code, stat] of Object.entries(current.stats)) {
     const old = stats[code]
@@ -427,9 +446,13 @@ function mergeSaves(current: SaveData, older: SaveData): SaveData {
     knowledge[id] = Math.max(value, knowledge[id] ?? 0)
   }
 
+  const gelesen = [...new Set([...(older.postfach?.gelesen ?? []), ...(current.postfach?.gelesen ?? [])])]
+
   return {
     ...current,
     ...(city ? { city } : {}),
+    ...(gelesen.length > 0 ? { postfach: { gelesen } } : {}),
+    ...(current.konto ?? older.konto ? { konto: current.konto ?? older.konto } : {}),
     ...(Object.keys(knowledge).length > 0 ? { knowledge } : {}),
     ...(lernen ? { lernen } : {}),
     stats,

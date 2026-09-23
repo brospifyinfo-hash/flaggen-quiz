@@ -225,6 +225,8 @@ export type Route =
   | { name: 'kursErgebnis' }
   | { name: 'bitte' }
   | { name: 'herausforderungen' }
+  | { name: 'postfach' }
+  | { name: 'konto' }
 
 export interface SaveData {
   version: 2
@@ -259,5 +261,19 @@ export interface SaveData {
   route: Route
   /** stimme: Sprachausgabe in den Sprachkursen · langsam: ruhigeres Sprechtempo */
   settings: { haptics: boolean; sound: boolean; stimme?: boolean; langsam?: boolean }
+  /** Postfach: Kennungen der gelesenen Nachrichten, siehe src/postfach.ts */
+  postfach?: { gelesen: string[] }
+  /** Angemeldetes Konto – Fortschritt und Stadt werden dort gesichert, siehe src/konto.ts */
+  konto?: Konto
   updatedAt: number
+}
+
+export interface Konto {
+  id: string
+  email: string
+  name: string
+  /** Sitzungsschlüssel für den Server */
+  token: string
+  /** Stand (updatedAt), der zuletzt auf dem Server lag */
+  stand: number
 }

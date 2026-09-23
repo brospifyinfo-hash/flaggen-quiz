@@ -16,6 +16,7 @@ import { RunScreen } from './screens/RunScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { SpecificScreen } from './screens/SpecificScreen'
 import { HerausforderungenScreen } from './screens/HerausforderungenScreen'
+import { PostfachScreen } from './screens/PostfachScreen'
 import { useSaveData } from './store'
 import type { Route, SaveData } from './types'
 
@@ -39,6 +40,8 @@ function resolveRoute(data: SaveData): Route {
     case 'mathRunner':
     case 'city':
     case 'herausforderungen':
+    case 'postfach':
+    case 'konto':
       return route
     case 'mode':
       // Kurse der Lernwelten haben ihre eigene Seite
@@ -104,6 +107,10 @@ export function App() {
       return <SpecificScreen data={data} />
     case 'herausforderungen':
       return <HerausforderungenScreen data={data} />
+    case 'postfach':
+      return <PostfachScreen data={data} />
+    case 'konto':
+      return <HomeScreen data={data} />
     case 'kurse':
       return <KurseScreen data={data} />
     case 'mode':

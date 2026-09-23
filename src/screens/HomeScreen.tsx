@@ -4,7 +4,8 @@
 import { useMemo } from 'react'
 import { StadtKulisse } from '../city/StadtKulisse'
 import { cityTitle, createCity, statsOf } from '../city/state'
-import { IconPlay, IconSettings } from '../components/Icons'
+import { IconMail, IconPlay, IconSettings } from '../components/Icons'
+import { ungelesen } from '../postfach'
 import { haptic } from '../haptics'
 import { bilanz } from '../herausforderungen'
 import { RankCrest } from '../components/RankCrest'
@@ -32,6 +33,7 @@ export function HomeScreen({ data }: { data: SaveData }) {
   const einwohner = stadt ? statsOf(stadt).population : 0
   const tag = useTageszeit(stadt)
   const hf = bilanz(data)
+  const neuePost = ungelesen(data).length
 
   const gehe = (ziel: Parameters<typeof navigate>[0]) => {
     haptic('soft')
@@ -59,6 +61,14 @@ export function HomeScreen({ data }: { data: SaveData }) {
             </span>
             {tag && <Tagesuhr zeit={tag} size={38} className="home-uhr" />}
           </div>
+          <button
+            className={`glas home-zahnrad home-post${neuePost > 0 ? ' hat-neues' : ''}`}
+            aria-label={neuePost > 0 ? `Postfach, ${neuePost} neue Nachrichten` : 'Postfach'}
+            onClick={() => gehe({ name: 'postfach' })}
+          >
+            <IconMail />
+            {neuePost > 0 && <span className="home-post-zahl">{neuePost}</span>}
+          </button>
           <button className="glas home-zahnrad" aria-label="Einstellungen" onClick={() => gehe({ name: 'settings' })}>
             <IconSettings />
           </button>

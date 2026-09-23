@@ -105,3 +105,17 @@ export const IconTrash = (props: IconProps) => (
     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
   </Icon>
 )
+
+export const IconMail = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="3" y="5" width="18" height="14" rx="3" />
+    <path d="M3.5 7.5 12 13l8.5-5.5" />
+  </Icon>
+)
+
+export const IconUser = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4.5 20.5c1.2-3.8 4-5.5 7.5-5.5s6.3 1.7 7.5 5.5" />
+  </Icon>
+)
