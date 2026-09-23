@@ -10,6 +10,7 @@
  * Sitzungen sind signierte Zeichen ohne Serverzustand: <id>.<ablauf>.<hmac>.
  */
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { gabenAuffuellen, leseGaben } from './gaben'
 import { schummelSichern } from './schummel'
 import { KonfliktFehler, speicher } from './speicher'
 
@@ -36,6 +37,8 @@ interface Ablage {
   stand: number
   gespeichert: number
   daten: unknown
+  /** Summe aller Gutschriften der Verwaltung. Der Client kann sie nicht löschen. */
+  gaben?: { muenzen: number; ziegel: number }
 }
 
 const EIN_JAHR = 365 * 24 * 60 * 60 * 1000
@@ -199,7 +202,15 @@ export async function speichern(eingabe: Record<string, unknown>) {
       })
     }
     const stand = Math.max(Date.now(), (jetzt?.ablage.stand ?? 0) + 1)
-    const inhalt: Ablage = { stand, gespeichert: Date.now(), daten: schummelSichern(daten, jetzt?.ablage.daten) }
+    const serverGaben = leseGaben(jetzt?.ablage.gaben ?? (jetzt?.ablage.daten as { gaben?: unknown } | undefined)?.gaben)
+    const mitGabe =
+      daten && typeof daten === 'object' && 'gaben' in daten ? gabenAuffuellen(daten, serverGaben) : daten
+    const inhalt: Ablage = {
+      stand,
+      gespeichert: Date.now(),
+      daten: schummelSichern(mitGabe, jetzt?.ablage.daten),
+      ...(serverGaben.muenzen > 0 || serverGaben.ziegel > 0 ? { gaben: serverGaben } : {}),
+    }
     try {
       await ablage().schreiben(datenPfad(id), JSON.stringify(inhalt), jetzt?.marke)
       return { stand }

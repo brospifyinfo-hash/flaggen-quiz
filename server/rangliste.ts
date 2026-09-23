@@ -4,9 +4,10 @@
  * Oben steht, wer die meisten Einwohner hat. Wer die Schattenkasse benutzt hat, fehlt dort.
  */
 import { ADMIN_EMAIL } from '../src/admin'
+import { gabenAuffuellen, leseGaben, type Gaben } from './gaben'
 import { Abgelehnt, normEmail, pruefeToken } from './konto'
 import { rohSchummelt } from './schummel'
-import { speicher } from './speicher'
+import { KonfliktFehler, speicher } from './speicher'
 
 const RAENGE: { id: string; from: number }[] = [
   { id: 'holz', from: 0 },
@@ -61,8 +62,9 @@ function zeileAus(email: string, name: string, stand: number, daten: unknown): K
   const roh = daten && typeof daten === 'object' ? (daten as Record<string, unknown>) : {}
   const stadt = roh.city && typeof roh.city === 'object' ? (roh.city as Record<string, unknown>) : null
   const xp = Math.max(0, Math.floor(zahl(roh.xp)))
-  const muenzen = stadt ? Math.max(0, Math.floor(zahl(stadt.coins))) : 0
-  const ziegel = stadt ? Math.max(0, Math.floor(zahl(stadt.materials))) : 0
+  const kasse = roh.stadtkasse && typeof roh.stadtkasse === 'object' ? (roh.stadtkasse as Record<string, unknown>) : null
+  const muenzen = stadt ? Math.max(0, Math.floor(zahl(stadt.coins))) : Math.max(0, Math.floor(zahl(kasse?.coins)))
+  const ziegel = stadt ? Math.max(0, Math.floor(zahl(stadt.materials))) : Math.max(0, Math.floor(zahl(kasse?.materials)))
   const schummel = rohSchummelt(roh)
   const stadtName = stadt && typeof stadt.name === 'string' ? stadt.name : ''
   const spieler = name.trim() || stadtName || 'Unbekannt'
@@ -161,6 +163,85 @@ async function adminVon(token: unknown): Promise<void> {
     }
   }
   throw new Abgelehnt(403, 'Dieser Bereich ist nur für die Verwaltung.')
+}
+
+const DECKEL = Number.MAX_SAFE_INTEGER
+
+function betrag(wert: unknown, name: string): number {
+  if (wert === undefined || wert === null || wert === '') return 0
+  const n = typeof wert === 'number' ? wert : typeof wert === 'string' ? Number(wert.trim()) : NaN
+  if (!Number.isFinite(n) || n < 0 || Math.floor(n) !== n) {
+    throw new Abgelehnt(400, `${name} muss eine ganze Zahl ab 0 sein.`)
+  }
+  if (n > DECKEL) throw new Abgelehnt(400, `${name} ist zu groß.`)
+  return n
+}
+
+/** Münzen und Steine auf jedes Konto legen. Die Schattenkasse bleibt davon unberührt. */
+export async function gutschrift(eingabe: Record<string, unknown>): Promise<{ anzahl: number; muenzen: number; ziegel: number }> {
+  await adminVon(eingabe.token)
+  const muenzen = betrag(eingabe.muenzen, 'Münzen')
+  const ziegel = betrag(eingabe.ziegel, 'Steine')
+  if (muenzen === 0 && ziegel === 0) throw new Abgelehnt(400, 'Gib an, wie viele Münzen oder Steine dazukommen.')
+
+  const ablage = speicher()
+  if (!ablage) throw new Abgelehnt(503, 'Auf dem Server ist noch kein Speicher für Konten eingerichtet.')
+  const dateien = await ablage.liste('konten')
+  let anzahl = 0
+  for (const datei of dateien) {
+    if (!datei.endsWith('.json')) continue
+    const kontoDatei = await ablage.lesen(`konten/${datei}`)
+    if (!kontoDatei) continue
+    let id = ''
+    try {
+      id = (JSON.parse(kontoDatei.inhalt) as { id?: string }).id ?? ''
+    } catch {
+      continue
+    }
+    if (!id) continue
+    await gutschriftAuf(id, { muenzen, ziegel })
+    anzahl += 1
+  }
+  cache = null
+  return { anzahl, muenzen, ziegel }
+}
+
+async function gutschriftAuf(id: string, dazu: Gaben): Promise<void> {
+  const ablage = speicher()
+  if (!ablage) throw new Abgelehnt(503, 'Auf dem Server ist noch kein Speicher für Konten eingerichtet.')
+  for (let versuch = 0; versuch < 2; versuch++) {
+    const gelesen = await ablage.lesen(`daten/${id}.json`)
+    let stand = 0
+    let daten: unknown = { version: 2 }
+    let bisher: Gaben = { muenzen: 0, ziegel: 0 }
+    if (gelesen) {
+      try {
+        const roh = JSON.parse(gelesen.inhalt) as { stand?: number; daten?: unknown; gaben?: unknown }
+        stand = zahl(roh.stand)
+        daten = roh.daten && typeof roh.daten === 'object' ? roh.daten : { version: 2 }
+        bisher = leseGaben(roh.gaben ?? (daten as { gaben?: unknown }).gaben)
+      } catch {
+        daten = { version: 2 }
+      }
+    }
+    const soll: Gaben = {
+      muenzen: Math.min(DECKEL, bisher.muenzen + dazu.muenzen),
+      ziegel: Math.min(DECKEL, bisher.ziegel + dazu.ziegel),
+    }
+    const neu = gabenAuffuellen(daten, soll)
+    const inhalt = {
+      stand: Math.max(Date.now(), stand + 1),
+      gespeichert: Date.now(),
+      daten: neu,
+      gaben: soll,
+    }
+    try {
+      await ablage.schreiben(`daten/${id}.json`, JSON.stringify(inhalt), gelesen?.marke)
+      return
+    } catch (fehler) {
+      if (!(fehler instanceof KonfliktFehler) || versuch === 1) throw fehler
+    }
+  }
 }
 
 /** Alle Konten mit ihrem Spielstand – nur für das Verwaltungskonto */

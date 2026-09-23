@@ -20,6 +20,16 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-e',
+    datum: '23. September 2026',
+    titel: 'Gutschrift von der Verwaltung',
+    text: 'Die Verwaltung kann allen Städten Münzen und Steine gutschreiben. Sie kommen mit dem nächsten Abgleich in die Kasse.',
+    punkte: [
+      'Eine Gutschrift gilt für jedes Konto, auch wenn die Stadt noch nicht gegründet ist. Dann wartet sie in der Stadtkasse auf die Gründung.',
+      'Gutgeschriebene Münzen und Steine zählen nicht als Schattenkasse und werfen niemanden aus der Rangliste.',
+    ],
+  },
+  {
     id: '2026-09-23-d',
     datum: '23. September 2026',
     titel: 'Rangliste auf eigener Seite',

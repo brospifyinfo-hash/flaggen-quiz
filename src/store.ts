@@ -320,11 +320,14 @@ function sanitize(input: unknown): SaveData | null {
 
   const postfach = isObject(input.postfach) && isStringList(input.postfach.gelesen) ? { gelesen: input.postfach.gelesen } : undefined
   const konto = leseKonto(input.konto)
-  const schummel =
-    input.schummel === true ||
-    city?.schummel === true ||
-    (city != null && vorratVerrat(city.coins, city.materials))
-  if (schummel && city) city.schummel = true
+  const gaben = leseGaben(input.gaben)
+  const eigenMuenzen = Math.max(0, (city?.coins ?? 0) - gaben.muenzen)
+  const eigenZiegel = Math.max(0, (city?.materials ?? 0) - gaben.ziegel)
+  const schummel = input.schummel === true || (city != null && vorratVerrat(eigenMuenzen, eigenZiegel))
+  if (city) {
+    if (schummel) city.schummel = true
+    else delete city.schummel
+  }
 
   return {
     version: 2,
@@ -334,6 +337,7 @@ function sanitize(input: unknown): SaveData | null {
     ...(postfach ? { postfach } : {}),
     ...(konto ? { konto } : {}),
     ...(schummel ? { schummel: true } : {}),
+    ...(gaben.muenzen > 0 || gaben.ziegel > 0 ? { gaben } : {}),
     lastResult: isResult(input.lastResult) ? input.lastResult : null,
     xp: count(input.xp),
     modes,
@@ -371,8 +375,40 @@ function leseKonto(value: unknown): Konto | undefined {
   }
 }
 
+function leseGaben(wert: unknown): { muenzen: number; ziegel: number } {
+  if (!isObject(wert)) return { muenzen: 0, ziegel: 0 }
+  return { muenzen: count(wert.muenzen), ziegel: count(wert.ziegel) }
+}
+
+/** Beide Stände auf denselben Gutschrift-Stand heben, bevor die Städte verglichen werden */
+function hebeGaben(save: SaveData, ziel: { muenzen: number; ziegel: number }): SaveData {
+  const addM = ziel.muenzen - (save.gaben?.muenzen ?? 0)
+  const addZ = ziel.ziegel - (save.gaben?.ziegel ?? 0)
+  const gaben = ziel.muenzen > 0 || ziel.ziegel > 0 ? { muenzen: ziel.muenzen, ziegel: ziel.ziegel } : undefined
+  if (addM <= 0 && addZ <= 0) return gaben ? { ...save, gaben } : save
+  if (save.city) {
+    return {
+      ...save,
+      ...(gaben ? { gaben } : {}),
+      city: { ...save.city, coins: save.city.coins + Math.max(0, addM), materials: save.city.materials + Math.max(0, addZ) },
+    }
+  }
+  const kasse = save.stadtkasse ?? { coins: 0, materials: 0 }
+  return {
+    ...save,
+    ...(gaben ? { gaben } : {}),
+    stadtkasse: { coins: kasse.coins + Math.max(0, addM), materials: kasse.materials + Math.max(0, addZ) },
+  }
+}
+
 /** Holt einen beiseitegelegten Stand zurück, ohne Antworten doppelt zu zählen */
-export function mergeSaves(current: SaveData, older: SaveData): SaveData {
+export function mergeSaves(a: SaveData, b: SaveData): SaveData {
+  const ziel = {
+    muenzen: Math.max(a.gaben?.muenzen ?? 0, b.gaben?.muenzen ?? 0),
+    ziegel: Math.max(a.gaben?.ziegel ?? 0, b.gaben?.ziegel ?? 0),
+  }
+  let current = hebeGaben(a, ziel)
+  let older = hebeGaben(b, ziel)
   const stats = { ...older.stats }
   for (const [code, stat] of Object.entries(current.stats)) {
     const old = stats[code]

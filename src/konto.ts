@@ -126,6 +126,22 @@ export async function ladeRangliste(): Promise<RanglisteEintrag[]> {
   return Array.isArray(antwort.spieler) ? (antwort.spieler as RanglisteEintrag[]) : []
 }
 
+/** Münzen und Steine auf jedes Konto. Nur das Verwaltungskonto. */
+export async function gutschreiben(muenzen: number, ziegel: number): Promise<{ anzahl: number; muenzen: number; ziegel: number }> {
+  const konto = getState().konto
+  if (!konto) throw new KontoFehler('Du bist nicht angemeldet.', 401)
+  const antwort = await anfrage<{ anzahl?: unknown; muenzen?: unknown; ziegel?: unknown }>('gutschrift', {
+    token: konto.token,
+    muenzen,
+    ziegel,
+  })
+  return {
+    anzahl: typeof antwort.anzahl === 'number' ? antwort.anzahl : 0,
+    muenzen: typeof antwort.muenzen === 'number' ? antwort.muenzen : muenzen,
+    ziegel: typeof antwort.ziegel === 'number' ? antwort.ziegel : ziegel,
+  }
+}
+
 /** Alle Konten mit Stand. Der Server lässt nur das Verwaltungskonto durch. */
 export async function ladeVerwaltung(): Promise<{ konten: KontoZeile[]; spieler: RanglisteEintrag[] }> {
   const konto = getState().konto

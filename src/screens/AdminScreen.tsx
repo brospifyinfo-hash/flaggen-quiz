@@ -1,9 +1,10 @@
 // Die Verwaltung: alle Konten mit ihrem Stand. Der Server lässt nur ein Konto hinein.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import type { KontoZeile, RanglisteEintrag } from '../admin'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Rangliste } from '../components/Rangliste'
 import { IconBack } from '../components/Icons'
-import { KontoFehler, ladeVerwaltung } from '../konto'
+import { gutschreiben, KontoFehler, ladeVerwaltung } from '../konto'
 import { RANKS, rankById } from '../progression'
 import { RankCrest } from '../components/RankCrest'
 import { goBack } from '../router'
@@ -15,11 +16,25 @@ function standText(stand: number): string {
   return new Date(stand).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+function ganzeZahl(text: string): number | null {
+  const roh = text.trim().replace(/\./g, '').replace(/\s/g, '')
+  if (!/^\d+$/.test(roh)) return null
+  const n = Number(roh)
+  if (!Number.isSafeInteger(n)) return null
+  return n
+}
+
 export function AdminScreen() {
   const [konten, setKonten] = useState<KontoZeile[] | null>(null)
   const [spieler, setSpieler] = useState<RanglisteEintrag[]>([])
   const [fehler, setFehler] = useState('')
   const [laeuft, setLaeuft] = useState(false)
+  const [muenzen, setMuenzen] = useState('')
+  const [steine, setSteine] = useState('')
+  const [gabeFehler, setGabeFehler] = useState('')
+  const [gabeHinweis, setGabeHinweis] = useState('')
+  const [gabeLaeuft, setGabeLaeuft] = useState(false)
+  const [bestaetigen, setBestaetigen] = useState<{ muenzen: number; ziegel: number } | null>(null)
 
   const laden = useCallback(async () => {
     setLaeuft(true)
@@ -41,6 +56,44 @@ export function AdminScreen() {
     void laden()
   }, [laden])
 
+  const vorbereiten = (event: FormEvent) => {
+    event.preventDefault()
+    setGabeFehler('')
+    setGabeHinweis('')
+    const muenzenZahl = ganzeZahl(muenzen)
+    const steineZahl = ganzeZahl(steine)
+    if (muenzenZahl === null || steineZahl === null) {
+      setGabeFehler('Münzen und Steine müssen ganze Zahlen ab 0 sein.')
+      return
+    }
+    if (muenzenZahl === 0 && steineZahl === 0) {
+      setGabeFehler('Trag ein, wie viele Münzen oder Steine dazukommen sollen.')
+      return
+    }
+    setBestaetigen({ muenzen: muenzenZahl, ziegel: steineZahl })
+  }
+
+  const ausfuehren = async () => {
+    if (!bestaetigen) return
+    const plan = bestaetigen
+    setBestaetigen(null)
+    setGabeLaeuft(true)
+    setGabeFehler('')
+    try {
+      const antwort = await gutschreiben(plan.muenzen, plan.ziegel)
+      setGabeHinweis(
+        `${zahl(antwort.muenzen)} Münzen und ${zahl(antwort.ziegel)} Steine an ${zahl(antwort.anzahl)} Konten gutgeschrieben.`,
+      )
+      setMuenzen('')
+      setSteine('')
+      await laden()
+    } catch (err) {
+      setGabeFehler(err instanceof KontoFehler ? err.message : 'Die Gutschrift ist nicht angekommen.')
+    } finally {
+      setGabeLaeuft(false)
+    }
+  }
+
   return (
     <main className="screen">
       <header className="topbar">
@@ -52,6 +105,48 @@ export function AdminScreen() {
           {laeuft ? 'Lädt …' : 'Aktualisieren'}
         </button>
       </header>
+
+      <h2 className="section-title">Allen gutschreiben</h2>
+      <p className="verwaltung-hinweis">
+        Kommt auf jedes Konto, auch ohne Stadt. Eine Gutschrift zählt nicht als Schattenkasse. Wer gerade spielt, sieht sie nach dem nächsten Abgleich.
+      </p>
+      <form className="list gutschrift" onSubmit={vorbereiten}>
+        <div className="row row-stack">
+          <label className="city-label" htmlFor="gabe-muenzen">
+            Münzen
+          </label>
+          <input
+            id="gabe-muenzen"
+            className="city-input"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="0"
+            value={muenzen}
+            onChange={(event) => setMuenzen(event.target.value)}
+          />
+        </div>
+        <div className="row row-stack">
+          <label className="city-label" htmlFor="gabe-steine">
+            Steine
+          </label>
+          <input
+            id="gabe-steine"
+            className="city-input"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="0"
+            value={steine}
+            onChange={(event) => setSteine(event.target.value)}
+          />
+        </div>
+        {gabeFehler && <p className="verwaltung-fehler gutschrift-meldung">{gabeFehler}</p>}
+        {gabeHinweis && <p className="verwaltung-hinweis gutschrift-meldung">{gabeHinweis}</p>}
+        <div className="row row-stack">
+          <button className="btn btn-primary" type="submit" disabled={gabeLaeuft || konten === null}>
+            {gabeLaeuft ? 'Wird gutgeschrieben …' : 'Allen gutschreiben'}
+          </button>
+        </div>
+      </form>
 
       <h2 className="section-title">Rangliste</h2>
       <p className="verwaltung-hinweis">Die fünf Städte mit den meisten Einwohnern. Die Schattenkasse zählt hier nicht mit.</p>
@@ -86,7 +181,7 @@ export function AdminScreen() {
                     {konto.stadtLevel > 0 ? ` · Stadtstufe ${konto.stadtLevel}` : ''} · {zahl(konto.einwohner)} Einwohner
                   </span>
                   <span>
-                    {zahl(konto.muenzen)} Münzen · {zahl(konto.ziegel)} Ziegel · {konto.gebaeude} Gebäude
+                    {zahl(konto.muenzen)} Münzen · {zahl(konto.ziegel)} Steine · {konto.gebaeude} Gebäude
                   </span>
                   <span>{standText(konto.stand)}</span>
                 </div>
@@ -94,6 +189,16 @@ export function AdminScreen() {
             )
           })}
         </ul>
+      )}
+
+      {bestaetigen && (
+        <ConfirmDialog
+          title="Allen gutschreiben?"
+          text={`${zahl(bestaetigen.muenzen)} Münzen und ${zahl(bestaetigen.ziegel)} Steine kommen auf jedes Konto. Das lässt sich nicht zurücknehmen.`}
+          confirmLabel="Gutschreiben"
+          onConfirm={() => void ausfuehren()}
+          onCancel={() => setBestaetigen(null)}
+        />
       )}
     </main>
   )

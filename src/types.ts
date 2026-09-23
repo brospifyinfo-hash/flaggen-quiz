@@ -267,6 +267,8 @@ export interface SaveData {
   postfach?: { gelesen: string[] }
   /** Die Schattenkasse wurde benutzt – dieses Konto erscheint nicht in der Rangliste */
   schummel?: boolean
+  /** Münzen und Steine, die die Verwaltung gutgeschrieben hat. Zählen nicht als Schattenkasse. */
+  gaben?: { muenzen: number; ziegel: number }
   /** Angemeldetes Konto – Fortschritt und Stadt werden dort gesichert, siehe src/konto.ts */
   konto?: Konto
   updatedAt: number
