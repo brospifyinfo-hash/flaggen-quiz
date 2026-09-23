@@ -22,7 +22,6 @@
   ],
   "functions": {
     "api/konto.js": {
-      "runtime": "nodejs20.x",
       "maxDuration": 15
     }
   }
