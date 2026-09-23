@@ -20,7 +20,7 @@ npm run preview -- --host 127.0.0.1 --port 4822
 
 Ohne Konto geht das Spiel nicht weiter: Fortschritt und Stadt werden dem Konto zugeordnet.
 
-- In der Entwicklung liegen die Konten im Ordner `.konto-daten` (nicht im Git).
+- In der Entwicklung liegen die Konten im Ordner `.konto-daten` (nicht im Git). Die Funktion dafür wird beim Bauen nach `server/konto.bundle.js` gepackt.
 - Auf dem Server (Vercel) liegen sie in einem privaten GitHub-Repository. Dafür braucht die Funktion diese Variablen:
   - `KONTO_GITHUB_TOKEN` – Zugriff auf das Repository
   - `KONTO_GITHUB_REPO` – `besitzer/name`
