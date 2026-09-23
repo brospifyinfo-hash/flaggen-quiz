@@ -40,6 +40,23 @@ export function setBlick(neu: Blick, land: number): void {
 
 export const blickJetzt = (): Blick => winkel
 
+/**
+ * Wie die Karte auf den Bildschirm kommt: schräg von der Seite (iso) oder senkrecht
+ * von oben (oben). Beide teilen sich Drehung und Kamera – ein Tipper landet in beiden
+ * Ansichten auf derselben Kachel.
+ */
+export type Projektion = 'iso' | 'oben'
+
+let projektion: Projektion = 'iso'
+/** Kantenlänge einer Kachel in der Ansicht von oben */
+export const OBEN_KACHEL = 46
+
+export function setProjektion(neu: Projektion): void {
+  projektion = neu
+}
+
+export const projektionJetzt = (): Projektion => projektion
+
 /** Eine Kachel in die Blickrichtung drehen */
 export function dreh(x: number, y: number): { x: number; y: number } {
   const dx = x - mitte
@@ -66,17 +83,20 @@ export function drehRichtung(dx: number, dy: number): { x: number; y: number } {
 /** Mitte einer Kachel im Weltkoordinatensystem (vor Kamera und Zoom) */
 export function toScreen(x: number, y: number): { sx: number; sy: number } {
   const d = dreh(x, y)
+  if (projektion === 'oben') return { sx: (d.x - mitte) * OBEN_KACHEL, sy: (d.y - mitte) * OBEN_KACHEL }
   return { sx: (d.x - d.y) * (TILE_W / 2), sy: (d.x + d.y) * (TILE_H / 2) }
 }
 
 /** Eine Richtung auf den Bildschirm rechnen, ohne Ort */
 export function dirToScreen(dx: number, dy: number): { sx: number; sy: number } {
   const d = drehRichtung(dx, dy)
+  if (projektion === 'oben') return { sx: d.x * OBEN_KACHEL, sy: d.y * OBEN_KACHEL }
   return { sx: (d.x - d.y) * (TILE_W / 2), sy: (d.x + d.y) * (TILE_H / 2) }
 }
 
 /** Umkehrung: Welche Kachel liegt unter diesem Punkt? */
 export function toTile(sx: number, sy: number): { x: number; y: number } {
+  if (projektion === 'oben') return entdreh(sx / OBEN_KACHEL + mitte, sy / OBEN_KACHEL + mitte)
   const a = sx / (TILE_W / 2)
   const b = sy / (TILE_H / 2)
   return entdreh((b + a) / 2, (b - a) / 2)

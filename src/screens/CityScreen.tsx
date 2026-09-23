@@ -16,8 +16,9 @@ import { AUSZUG_NACH, beschwerdenVon, leerstandSchritt, leerstandVon, wohnlageVo
 import { nimmVorgemerkt } from '../city/vormerkung'
 import { istKursBitte } from '../lernen/bitten'
 import { ladeAlle } from '../lernen/kurse'
-import { blickJetzt, setBlick, toScreen, toTile, type Blick } from '../city/iso'
+import { blickJetzt, setBlick, setProjektion, toScreen, toTile, type Blick, type Projektion } from '../city/iso'
 import { cityFrame, drawCity, hitTest, type Camera } from '../city/render'
+import { drawKarte, hitTestOben, karteFrame } from '../city/karte'
 import {
   canPlace,
   cityTitle,
@@ -225,6 +226,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const meldungsNr = useRef(1)
   /** Kriminalität als Tönung auf der Karte */
   const [krimKarte, setKrimKarte] = useState(false)
+  /** Schräg von der Seite (iso) oder senkrecht von oben (oben) */
+  const [ansicht, setAnsicht] = useState<Projektion>('iso')
   /** Blickwinkel im Bogenmaß – bleibt, wenn man die Stadt verlässt und wiederkommt */
   const winkel = useRef<Blick>(blickJetzt())
   /** Zurückdrehen nach Norden, wenn der Kompass angetippt wurde */
@@ -238,8 +241,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const framed = useRef(false)
   const stroke = useRef<string[]>([])
   const life = useRef<Life | null>(null)
-  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte })
-  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte }
+  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht })
+  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht }
 
   const melde = useCallback((text: string) => {
     const id = meldungsNr.current++
@@ -425,6 +428,7 @@ function CityWorld({ data }: { data: SaveData }) {
       else if (!detail && bildzeit < 22) detail = true
       last = now
       const state = live.current
+      setProjektion(state.ansicht)
 
       // Zurück nach Norden: der Punkt in der Bildmitte bleibt in der Bildmitte
       if (heimweg.current) {
@@ -471,7 +475,8 @@ function CityWorld({ data }: { data: SaveData }) {
             }
           : null
       const bitte = state.city.request as CityRequest | null
-      drawCity(ctx, state.city, camera.current, size.current, {
+      const malen = state.ansicht === 'oben' ? drawKarte : drawCity
+      malen(ctx, state.city, camera.current, size.current, {
         ghost: shown,
         paint: state.mode === 'road' ? { tiles: stroke.current, type: state.roadType, adding: !state.erase } : null,
         selected: state.selected,
@@ -525,6 +530,7 @@ function CityWorld({ data }: { data: SaveData }) {
 
     const tileAt = (clientX: number, clientY: number) => {
       const { wx, wy } = worldAt(clientX, clientY)
+      setProjektion(live.current.ansicht)
       const tile = toTile(wx, wy)
       return { x: Math.floor(tile.x), y: Math.floor(tile.y) }
     }
@@ -594,6 +600,7 @@ function CityWorld({ data }: { data: SaveData }) {
         // Wer selbst dreht, hält die Rückkehr nach Norden an
         heimweg.current = null
         const mitte = worldAt((a.x + b.x) / 2, (a.y + b.y) / 2)
+        setProjektion(live.current.ansicht)
         anker = toTile(mitte.wx, mitte.wy)
         painting = false
         stroke.current = []
@@ -616,6 +623,7 @@ function CityWorld({ data }: { data: SaveData }) {
         const schritt = Math.atan2(Math.sin(jetzt - fingerWinkel), Math.cos(jetzt - fingerWinkel))
         fingerWinkel = jetzt
         winkel.current += schritt
+        setProjektion(live.current.ansicht)
         setBlick(winkel.current, live.current.city.land)
 
         // Der Bodenpunkt, der beim Aufsetzen unter den Fingern lag, bleibt dort
@@ -642,7 +650,8 @@ function CityWorld({ data }: { data: SaveData }) {
       camera.current.y -= dy / camera.current.zoom
       const limit = live.current.city.land * 64
       camera.current.x = Math.max(-limit, Math.min(limit, camera.current.x))
-      camera.current.y = Math.max(-140, Math.min(live.current.city.land * 32 + 240, camera.current.y))
+      if (live.current.ansicht === 'oben') camera.current.y = Math.max(-limit, Math.min(limit, camera.current.y))
+      else camera.current.y = Math.max(-140, Math.min(live.current.city.land * 32 + 240, camera.current.y))
     }
 
     const up = (event: PointerEvent) => {
@@ -679,7 +688,8 @@ function CityWorld({ data }: { data: SaveData }) {
 
       // Trifft die sichtbare Gestalt, nicht nur die Bodenkachel
       const punkt = worldAt(event.clientX, event.clientY)
-      const hit = hitTest(state.city, punkt.wx, punkt.wy)
+      setProjektion(state.ansicht)
+      const hit = state.ansicht === 'oben' ? hitTestOben(state.city, punkt.wx, punkt.wy) : hitTest(state.city, punkt.wx, punkt.wy)
       if (hit) {
         setSelected(hit.id)
         // Das Rathaus öffnet den Stadtbericht – der einzige Weg dorthin
@@ -818,10 +828,17 @@ function CityWorld({ data }: { data: SaveData }) {
   const zumRathaus = () => {
     const rathaus = rathausVon(city)
     if (!rathaus) return
+    setProjektion(ansicht)
     const ziel = toScreen(rathaus.x + 1, rathaus.y + 1)
-    camera.current = { x: ziel.sx, y: ziel.sy - 20, zoom: Math.max(camera.current.zoom, 1.4) }
+    camera.current = { x: ziel.sx, y: ziel.sy - (ansicht === 'oben' ? 0 : 20), zoom: Math.max(camera.current.zoom, 1.4) }
     setSelected(rathaus.id)
     haptic('tick')
+  }
+
+  /** Kamera, die das ganze Gebiet zeigt – je nach Ansicht anders gerechnet */
+  const rahmenFuer = (welche: Projektion, stadt = city): Camera => {
+    setBlick(winkel.current, stadt.land)
+    return welche === 'oben' ? karteFrame(stadt, size.current) : cityFrame(stadt, size.current)
   }
 
   const doExpand = () => {
@@ -837,12 +854,26 @@ function CityWorld({ data }: { data: SaveData }) {
     // Kamera zeigt das neue, größere Gebiet
     window.setTimeout(() => {
       const grown = live.current.city
-      camera.current = { ...cityFrame(grown, size.current), zoom: cityFrame(grown, size.current).zoom * 0.7 }
+      const rahmen = rahmenFuer(live.current.ansicht, grown)
+      camera.current = { ...rahmen, zoom: rahmen.zoom * 0.7 }
     }, 60)
   }
 
   const look = () => {
-    camera.current = cityFrame(city, size.current)
+    camera.current = rahmenFuer(ansicht)
+    haptic('tick')
+  }
+
+  /** Zwischen schräger Ansicht und Ansicht von oben wechseln – die Bildmitte bleibt dieselbe Stelle */
+  const wechselAnsicht = () => {
+    const neu: Projektion = ansicht === 'oben' ? 'iso' : 'oben'
+    setBlick(winkel.current, city.land)
+    setProjektion(ansicht)
+    const mitte = toTile(camera.current.x, camera.current.y)
+    setProjektion(neu)
+    const ziel = toScreen(mitte.x, mitte.y)
+    camera.current = { x: ziel.sx, y: ziel.sy, zoom: camera.current.zoom }
+    setAnsicht(neu)
     haptic('tick')
   }
 
@@ -970,6 +1001,26 @@ function CityWorld({ data }: { data: SaveData }) {
 
       <div className="city-stage" ref={wrap}>
         <canvas ref={canvas} className="city-canvas" />
+
+        <button
+          className="city-ansicht"
+          onClick={wechselAnsicht}
+          aria-label={ansicht === 'oben' ? 'Schräge Ansicht' : 'Ansicht von oben'}
+          aria-pressed={ansicht === 'oben'}
+          title={ansicht === 'oben' ? 'Schräge Ansicht' : 'Ansicht von oben'}
+        >
+          {ansicht === 'oben' ? (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9L12 3Z" />
+              <path d="M4 7.5 12 12l8-4.5M12 12v9" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+            </svg>
+          )}
+        </button>
 
         <button
           ref={kompass}

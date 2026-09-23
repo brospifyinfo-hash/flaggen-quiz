@@ -6,7 +6,7 @@ import { RATHAUS, buildingDef, footprint, roadDef } from './catalog'
 import { fade, lift, quad, quadPath, roundedPath, wobble, type Point } from './draw'
 import { drawAgent } from './figures'
 import { umlauf, type Grund } from './geo'
-import { nachRechts, setBlick, setLichtSeite, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
+import { nachRechts, setBlick, setLichtSeite, setProjektion, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
 import { leuchtSchichtBeginnen, leuchtenLeeren, leuchtenMalen, lichtFuer, setLicht, verdecken, type Licht } from './licht'
 import { brennt, type Life } from './life'
 import { kriminalitaetsfeld } from './society'
@@ -758,6 +758,7 @@ function stadtMalen(
   options: DrawOptions,
 ): void {
   // Zuerst Blick und Licht setzen – alles Weitere rechnet schon damit
+  setProjektion('iso')
   setBlick(options.blick ?? 0, city.land)
   const licht = lichtFuer(options.stunde ?? 9)
   setLicht(licht)
