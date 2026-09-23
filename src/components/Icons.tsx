@@ -119,3 +119,10 @@ export const IconUser = (props: IconProps) => (
     <path d="M4.5 20.5c1.2-3.8 4-5.5 7.5-5.5s6.3 1.7 7.5 5.5" />
   </Icon>
 )
+
+export const IconList = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M9 5h10M9 12h10M9 19h10" />
+    <path d="M4.5 5h.01M4.5 12h.01M4.5 19h.01" />
+  </Icon>
+)

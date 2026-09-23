@@ -443,7 +443,7 @@ export const istGeheimcode = (text: string): boolean => normiert(text) === GEHEI
 
 /** Die Schattenkasse öffnet sich: Münzen und Material ohne Ende */
 export function schattenkasse(city: CityState): CityState {
-  return { ...city, coins: city.coins + CHEAT_MUENZEN, materials: city.materials + CHEAT_MATERIAL }
+  return { ...city, schummel: true, coins: city.coins + CHEAT_MUENZEN, materials: city.materials + CHEAT_MATERIAL }
 }
 
 /** Eine neue Bitte hinterlegen */
@@ -1223,6 +1223,9 @@ export function sanitizeCity(input: unknown): CityState | null {
     lastGrowth: Math.max(0, int(raw.lastGrowth)),
     nextId: Math.max(buildings.length + 1, int(raw.nextId, 1)),
     foundedAt: int(raw.foundedAt),
+    ...(raw.schummel === true || Math.max(0, int(raw.coins)) >= CHEAT_MUENZEN || Math.max(0, int(raw.materials)) >= CHEAT_MATERIAL
+      ? { schummel: true }
+      : {}),
   }
 
   // Version 2 und älter kannten keine Einwohnerzahl: Dort wohnte jeder, der Platz fand.
@@ -1244,5 +1247,6 @@ export function mergeCities(a?: CityState | null, b?: CityState | null): CitySta
   if (!a || !b) return a ?? b ?? undefined
   const worth = (city: CityState) =>
     city.buildings.length * 100 + Object.keys(city.roads).length * 20 + city.coins + city.materials * 10
-  return worth(a) >= worth(b) ? a : b
+  const gewinner = worth(a) >= worth(b) ? a : b
+  return a.schummel || b.schummel ? { ...gewinner, schummel: true } : gewinner
 }

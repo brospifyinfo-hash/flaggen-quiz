@@ -74,6 +74,8 @@ export interface CityState {
   lastGrowth: number
   nextId: number
   foundedAt: number
+  /** Die Schattenkasse wurde geöffnet – diese Stadt zählt nicht für die Rangliste */
+  schummel?: boolean
 }
 
 /** Ein Posten in der Aufschlüsselung von Stimmung oder Einnahmen */

@@ -1767,7 +1767,9 @@ function CityWorld({ data }: { data: SaveData }) {
                     // Der Geheimcode als Wahlspruch öffnet die Schattenkasse – und bleibt unsichtbar
                     if (istGeheimcode(newMotto)) {
                       haptic('celebrate')
-                      setState((current) => (current.city ? { ...current, city: schattenkasse(current.city) } : current))
+                      setState((current) =>
+                        current.city ? { ...current, schummel: true, city: schattenkasse(current.city) } : current,
+                      )
                       setNewMotto(city.motto)
                       melde(`💰 Die Schattenkasse ist offen: +${CHEAT_MUENZEN.toLocaleString('de-DE')} 🪙 · +${CHEAT_MATERIAL.toLocaleString('de-DE')} 🧱`)
                       return

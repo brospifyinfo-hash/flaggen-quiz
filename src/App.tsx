@@ -4,7 +4,9 @@ import { getMode } from './modes/registry'
 import { isContinentUnlocked, sessionKey } from './quiz'
 import { navigate } from './router'
 import { routeToHash } from './routes'
+import { istAdmin } from './admin'
 import { CityScreen } from './screens/CityScreen'
+import { AdminScreen } from './screens/AdminScreen'
 import { ContinentScreen } from './screens/ContinentScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { MathRunnerScreen } from './screens/MathRunnerScreen'
@@ -45,6 +47,8 @@ function resolveRoute(data: SaveData): Route {
     case 'postfach':
     case 'konto':
       return route
+    case 'verwaltung':
+      return data.konto && istAdmin(data.konto.email) ? route : { name: 'home' }
     case 'mode':
       // Kurse der Lernwelten haben ihre eigene Seite
       if (route.id.startsWith('kurs:') && kursById(route.id.slice(5))) return { name: 'kurs', id: route.id.slice(5) }
@@ -118,6 +122,8 @@ export function App() {
       return <PostfachScreen data={data} />
     case 'konto':
       return <KontoScreen data={data} />
+    case 'verwaltung':
+      return <AdminScreen />
     case 'kurse':
       return <KurseScreen data={data} />
     case 'mode':

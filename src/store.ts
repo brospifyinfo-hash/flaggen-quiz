@@ -1,7 +1,7 @@
 // Der gesamte Fortschritt liegt als JSON im localStorage dieses Geräts.
 // Jede Änderung wird sofort und synchron geschrieben – ohne Server, ohne Konto, auch offline.
 import { useSyncExternalStore } from 'react'
-import { mergeCities, sanitizeCity } from './city/state'
+import { CHEAT_MATERIAL, CHEAT_MUENZEN, mergeCities, sanitizeCity } from './city/state'
 import { CONTINENTS } from './data/countries'
 import { fuehreZusammen, leseLernen } from './lernen/fortschritt'
 import { isContinentId, isCountry, sessionKey } from './quiz'
@@ -320,6 +320,11 @@ function sanitize(input: unknown): SaveData | null {
 
   const postfach = isObject(input.postfach) && isStringList(input.postfach.gelesen) ? { gelesen: input.postfach.gelesen } : undefined
   const konto = leseKonto(input.konto)
+  const schummel =
+    input.schummel === true ||
+    city?.schummel === true ||
+    (city != null && (city.coins >= CHEAT_MUENZEN || city.materials >= CHEAT_MATERIAL))
+  if (schummel && city) city.schummel = true
 
   return {
     version: 2,
@@ -328,6 +333,7 @@ function sanitize(input: unknown): SaveData | null {
     sessions,
     ...(postfach ? { postfach } : {}),
     ...(konto ? { konto } : {}),
+    ...(schummel ? { schummel: true } : {}),
     lastResult: isResult(input.lastResult) ? input.lastResult : null,
     xp: count(input.xp),
     modes,
@@ -452,6 +458,7 @@ export function mergeSaves(current: SaveData, older: SaveData): SaveData {
     ...current,
     ...(city ? { city } : {}),
     ...(gelesen.length > 0 ? { postfach: { gelesen } } : {}),
+    ...(current.schummel || older.schummel || city?.schummel ? { schummel: true } : {}),
     ...(current.konto ?? older.konto ? { konto: current.konto ?? older.konto } : {}),
     ...(Object.keys(knowledge).length > 0 ? { knowledge } : {}),
     ...(lernen ? { lernen } : {}),

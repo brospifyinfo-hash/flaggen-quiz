@@ -227,6 +227,7 @@ export type Route =
   | { name: 'herausforderungen' }
   | { name: 'postfach' }
   | { name: 'konto' }
+  | { name: 'verwaltung' }
 
 export interface SaveData {
   version: 2
@@ -263,6 +264,8 @@ export interface SaveData {
   settings: { haptics: boolean; sound: boolean; stimme?: boolean; langsam?: boolean }
   /** Postfach: Kennungen der gelesenen Nachrichten, siehe src/postfach.ts */
   postfach?: { gelesen: string[] }
+  /** Die Schattenkasse wurde benutzt – dieses Konto erscheint nicht in der Rangliste */
+  schummel?: boolean
   /** Angemeldetes Konto – Fortschritt und Stadt werden dort gesichert, siehe src/konto.ts */
   konto?: Konto
   updatedAt: number

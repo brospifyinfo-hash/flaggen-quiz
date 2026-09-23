@@ -20,6 +20,18 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-c',
+    datum: '23. September 2026',
+    titel: 'Rangliste und schärfere Häuser',
+    text: 'Auf der Startseite stehen die fünf größten Städte. Wer näher heranzoomt, sieht die Häuser durchgehend im Detail.',
+    punkte: [
+      'Rangliste: Die fünf Städte mit den meisten Einwohnern. Neben dem Namen stehen das Rangabzeichen, das Level, die Stadtstufe und die Einwohnerzahl. Oben steht, wer die meisten Einwohner hat.',
+      'Wer die Schattenkasse benutzt hat, erscheint nicht in der Rangliste.',
+      'Verwaltung: Das Verwaltungskonto sieht alle Konten mit ihrem Stand, einschließlich der Städte, die nicht in der Rangliste stehen.',
+      'Nahansicht: Häuser bleiben detailliert, wenn man heranzoomt, und springen nicht mehr zwischen fein und grob.',
+    ],
+  },
+  {
     id: '2026-09-23-b',
     datum: '23. September 2026',
     titel: 'Konten, Postfach, Ansicht von oben',

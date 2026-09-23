@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import type { Rank } from '../progression'
 import { RANKS } from '../progression'
 
@@ -7,7 +8,8 @@ const STAR = 'M0 -6 1.76 -1.85 6 -1.85 2.47 1.05 4 6 0 3.1 -4 6 -2.47 1.05 -6 -1
 export function RankCrest({ rank, size = 104 }: { rank: Rank; size?: number }) {
   const tier = RANKS.findIndex((entry) => entry.id === rank.id)
   const stars = tier + 1
-  const gradient = `crest-${rank.id}`
+  // Jedes Wappen braucht eigene Verlaufs-Kennungen, sonst teilen sich gleiche Ränge eine Füllung
+  const gradient = `crest-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
 
   return (
     <svg

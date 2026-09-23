@@ -2,7 +2,7 @@
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 // server/speicher.ts
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 var KonfliktFehler = class extends Error {
   constructor() {
@@ -53,6 +53,14 @@ function githubSpeicher(token, repo) {
       if (!antwort2.ok) throw new Error(`GitHub schreiben: ${antwort2.status} ${(await antwort2.text()).slice(0, 200)}`);
       const json = await antwort2.json();
       return json.content?.sha;
+    },
+    async liste(ordner) {
+      const antwort2 = await fetch(basis + pruefePfad(ordner), { headers: kopf, cache: "no-store" });
+      if (antwort2.status === 404) return [];
+      if (!antwort2.ok) throw new Error(`GitHub auflisten: ${antwort2.status}`);
+      const json = await antwort2.json();
+      if (!Array.isArray(json)) return [];
+      return json.filter((eintrag) => eintrag.type === "file" && typeof eintrag.name === "string").map((eintrag) => eintrag.name);
     }
   };
 }
@@ -73,6 +81,15 @@ function dateiSpeicher(ordner) {
       await mkdir(dirname(ziel), { recursive: true });
       await writeFile(ziel, inhalt, "utf8");
       return void 0;
+    },
+    async liste(ordnerName) {
+      try {
+        const namen = await readdir(join(ordner, pruefePfad(ordnerName)));
+        return namen.filter((name) => name.endsWith(".json"));
+      } catch (fehler) {
+        if (fehler.code === "ENOENT") return [];
+        throw fehler;
+      }
     }
   };
 }
@@ -260,8 +277,147 @@ function zustand() {
   return { ok: s !== null, speicher: s?.art ?? "keiner" };
 }
 
+// src/admin.ts
+var ADMIN_EMAIL = "devidkasbeitzer@gmail.com";
+
+// server/rangliste.ts
+var CHEAT_MUENZEN = 1e8;
+var CHEAT_MATERIAL = 5e6;
+var RAENGE = [
+  { id: "holz", from: 0 },
+  { id: "bronze", from: 750 },
+  { id: "silber", from: 3e3 },
+  { id: "gold", from: 1e4 },
+  { id: "platin", from: 25e3 },
+  { id: "diamant", from: 6e4 },
+  { id: "champion", from: 15e4 }
+];
+var levelAus = (xp) => {
+  let level = 1;
+  let needed = 100;
+  let rest = Math.max(0, Math.floor(xp));
+  while (rest >= needed) {
+    rest -= needed;
+    level += 1;
+    needed += 100;
+  }
+  return level;
+};
+var rangAus = (xp) => {
+  let id = RAENGE[0].id;
+  for (const rang of RAENGE) if (xp >= rang.from) id = rang.id;
+  return id;
+};
+var zahl = (wert) => typeof wert === "number" && Number.isFinite(wert) ? wert : 0;
+function zeileAus(email, name, stand, daten) {
+  const roh = daten && typeof daten === "object" ? daten : {};
+  const stadt = roh.city && typeof roh.city === "object" ? roh.city : null;
+  const xp = Math.max(0, Math.floor(zahl(roh.xp)));
+  const muenzen = stadt ? Math.max(0, Math.floor(zahl(stadt.coins))) : 0;
+  const ziegel = stadt ? Math.max(0, Math.floor(zahl(stadt.materials))) : 0;
+  const schummel = roh.schummel === true || stadt?.schummel === true || muenzen >= CHEAT_MUENZEN || ziegel >= CHEAT_MATERIAL;
+  const stadtName = stadt && typeof stadt.name === "string" ? stadt.name : "";
+  const spieler = name.trim() || stadtName || "Unbekannt";
+  return {
+    name: spieler.slice(0, 30),
+    email,
+    rangId: rangAus(xp),
+    level: levelAus(xp),
+    stadt: stadtName,
+    stadtLevel: stadt ? Math.max(1, Math.floor(zahl(stadt.level))) : 0,
+    einwohner: stadt ? Math.max(0, Math.floor(zahl(stadt.population))) : 0,
+    xp,
+    muenzen,
+    ziegel,
+    gebaeude: stadt && Array.isArray(stadt.buildings) ? stadt.buildings.length : 0,
+    schummel,
+    stand
+  };
+}
+async function alleZeilen() {
+  const ablage2 = speicher();
+  if (!ablage2) throw new Abgelehnt(503, "Auf dem Server ist noch kein Speicher f\xFCr Konten eingerichtet.");
+  const dateien = await ablage2.liste("konten");
+  const zeilen2 = [];
+  for (const datei of dateien) {
+    if (!datei.endsWith(".json")) continue;
+    const kontoDatei = await ablage2.lesen(`konten/${datei}`);
+    if (!kontoDatei) continue;
+    let konto;
+    try {
+      konto = JSON.parse(kontoDatei.inhalt);
+    } catch {
+      continue;
+    }
+    if (!konto.id || !konto.email) continue;
+    const datenDatei = await ablage2.lesen(`daten/${konto.id}.json`);
+    let stand = 0;
+    let daten = null;
+    if (datenDatei) {
+      try {
+        const abgelegt = JSON.parse(datenDatei.inhalt);
+        stand = zahl(abgelegt.stand);
+        daten = abgelegt.daten ?? null;
+      } catch {
+        daten = null;
+      }
+    }
+    zeilen2.push(zeileAus(konto.email, typeof konto.name === "string" ? konto.name : "", stand, daten));
+  }
+  zeilen2.sort((a, b) => b.einwohner - a.einwohner || b.stadtLevel - a.stadtLevel || b.xp - a.xp || a.name.localeCompare(b.name, "de"));
+  return zeilen2;
+}
+var cache = null;
+var CACHE_MS = 2e4;
+async function zeilen(frisch) {
+  if (!frisch && cache && cache.bis > Date.now()) return cache.zeilen;
+  const zeilen2 = await alleZeilen();
+  cache = { bis: Date.now() + CACHE_MS, zeilen: zeilen2 };
+  return zeilen2;
+}
+var oeffentlich2 = (zeile) => ({
+  name: zeile.name,
+  rangId: zeile.rangId,
+  level: zeile.level,
+  stadt: zeile.stadt,
+  stadtLevel: zeile.stadtLevel,
+  einwohner: zeile.einwohner
+});
+async function rangliste(_eingabe) {
+  const alle = await zeilen(false);
+  return { spieler: alle.filter((zeile) => !zeile.schummel && zeile.stadtLevel > 0).slice(0, 5).map(oeffentlich2) };
+}
+async function adminVon(token) {
+  const id = pruefeToken(token);
+  const ablage2 = speicher();
+  if (!ablage2) throw new Abgelehnt(503, "Auf dem Server ist noch kein Speicher f\xFCr Konten eingerichtet.");
+  const dateien = await ablage2.liste("konten");
+  for (const datei of dateien) {
+    const gelesen = await ablage2.lesen(`konten/${datei}`);
+    if (!gelesen) continue;
+    try {
+      const konto = JSON.parse(gelesen.inhalt);
+      if (konto.id === id) {
+        if (normEmail(konto.email ?? "") !== ADMIN_EMAIL) throw new Abgelehnt(403, "Dieser Bereich ist nur f\xFCr die Verwaltung.");
+        return;
+      }
+    } catch (fehler) {
+      if (fehler instanceof Abgelehnt) throw fehler;
+    }
+  }
+  throw new Abgelehnt(403, "Dieser Bereich ist nur f\xFCr die Verwaltung.");
+}
+async function verwaltung(eingabe) {
+  await adminVon(eingabe.token);
+  const konten = await zeilen(true);
+  return {
+    konten,
+    spieler: konten.filter((zeile) => !zeile.schummel && zeile.stadtLevel > 0).slice(0, 5).map(oeffentlich2)
+  };
+}
+
 // server/handler.ts
-var AKTIONEN = { registrieren, anmelden, laden, speichern, passwortAendern };
+var AKTIONEN = { registrieren, anmelden, laden, speichern, passwortAendern, rangliste, verwaltung };
 var versuche = /* @__PURE__ */ new Map();
 function bremse(schluessel) {
   const jetzt = Date.now();

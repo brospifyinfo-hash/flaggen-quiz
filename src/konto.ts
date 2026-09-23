@@ -7,6 +7,7 @@
  * (anderes Gerät), werden beide zusammengeführt und das Ergebnis erneut gesichert.
  */
 import { useSyncExternalStore } from 'react'
+import type { KontoZeile, RanglisteEintrag } from './admin'
 import { getState, leseStand, mergeSaves, setState } from './store'
 import type { Konto, SaveData } from './types'
 
@@ -117,6 +118,23 @@ export async function passwortAendern(altes: string, neues: string): Promise<voi
   const konto = getState().konto
   if (!konto) throw new KontoFehler('Du bist nicht angemeldet.', 401)
   await anfrage('passwortAendern', { token: konto.token, email: konto.email, altesPasswort: altes, neuesPasswort: neues })
+}
+
+/** Die fünf größten Städte. Öffentlich, ohne Anmeldung. */
+export async function ladeRangliste(): Promise<RanglisteEintrag[]> {
+  const antwort = await anfrage<{ spieler?: unknown }>('rangliste', {})
+  return Array.isArray(antwort.spieler) ? (antwort.spieler as RanglisteEintrag[]) : []
+}
+
+/** Alle Konten mit Stand. Der Server lässt nur das Verwaltungskonto durch. */
+export async function ladeVerwaltung(): Promise<{ konten: KontoZeile[]; spieler: RanglisteEintrag[] }> {
+  const konto = getState().konto
+  if (!konto) throw new KontoFehler('Du bist nicht angemeldet.', 401)
+  const antwort = await anfrage<{ konten?: unknown; spieler?: unknown }>('verwaltung', { token: konto.token })
+  return {
+    konten: Array.isArray(antwort.konten) ? (antwort.konten as KontoZeile[]) : [],
+    spieler: Array.isArray(antwort.spieler) ? (antwort.spieler as RanglisteEintrag[]) : [],
+  }
 }
 
 // ---------- Ohne Konto weiter, wenn der Server nicht da ist ----------

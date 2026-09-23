@@ -4250,6 +4250,151 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- Rangliste: die fünf größten Städte ---- */
+
+.home-rangliste {
+  display: grid;
+  gap: 8px;
+  padding: 12px 12px 10px;
+}
+
+.home-rangliste h2 {
+  margin: 0;
+  color: rgb(255 255 255 / 0.62);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rang-liste {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: inherit;
+}
+
+.rang-zeile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 14px;
+}
+
+.home-rangliste .rang-zeile {
+  background: rgb(255 255 255 / 0.06);
+}
+
+.home-rangliste .rang-zeile.is-eins {
+  background: rgb(255 255 255 / 0.13);
+}
+
+.rang-name {
+  display: grid;
+  min-width: 0;
+}
+
+.rang-name strong {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rang-name small,
+.rang-zahlen span,
+.rang-hinweis {
+  color: rgb(255 255 255 / 0.62);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rang-hinweis {
+  margin: 0;
+}
+
+.rang-zahlen {
+  display: grid;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.rang-zahlen b {
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+/* Auf der hellen Verwaltungsseite erbt die Liste die Schriftfarbe der App */
+.screen .rang-name small,
+.screen .rang-zahlen span,
+.screen .rang-hinweis,
+.verwaltung-hinweis {
+  color: var(--muted);
+}
+
+.screen .rang-zeile {
+  padding: 6px 4px;
+  background: var(--surface);
+}
+
+.screen .rang-zeile.is-eins {
+  background: var(--surface-2);
+}
+
+.verwaltung-hinweis,
+.verwaltung-fehler {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.verwaltung-fehler {
+  color: #9a3412;
+}
+
+.verwaltung-neu {
+  margin-left: auto;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--line);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.verwaltung-neu:disabled {
+  opacity: 0.6;
+}
+
+.verwaltung-zeile {
+  align-items: flex-start;
+}
+
+.verwaltung-zeile .crest {
+  flex: none;
+  margin-top: 2px;
+}
+
+.schummel-marke {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f3d0c4;
+  color: #7a2e16;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  vertical-align: 1px;
+}
+
 /* Hier schaut man der Stadt beim Leben zu */
 .home-luft {
   flex: 1 1 auto;
