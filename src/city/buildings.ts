@@ -819,11 +819,12 @@ function zeichneRuine(
   const [w, h] = footprint(def, placed.rot)
   const seed = hashOf(placed.id + placed.type)
   const stufe = Math.max(1, placed.level)
+  const wahl = Math.floor(seed * 1e6)
 
   const verfallen: Look = {
     ...look,
-    wall: RUINENFARBEN[seed % RUINENFARBEN.length],
-    roof: RUINENDACH[seed % RUINENDACH.length],
+    wall: RUINENFARBEN[wahl % RUINENFARBEN.length],
+    roof: RUINENDACH[wahl % RUINENDACH.length],
     accent: '#3a3835',
     stil: look.stil
       ? {
