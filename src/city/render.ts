@@ -214,8 +214,8 @@ function schattenWerfen(ctx: CanvasRenderingContext2D, koerper: (Reihenfolge | n
 function silhouette(k: Reihenfolge | null): Point[] {
   if (!k || k.flach || !k.grund) return []
   const fuss = umlauf(k.grund)
-  // Dächer ragen über die Wandhöhe hinaus, ein Viertel Zuschlag reicht für Giebel und Aufbauten
-  const hoch = k.hoehe * 1.3 + 4
+  // Dächer ragen über die Wandhöhe hinaus – der Zuschlag deckt First, Giebel und Aufbauten ab
+  const hoch = k.hoehe * 1.15 + TILE_H * 0.9
   return huelle([...fuss, ...fuss.map((p) => ({ sx: p.sx, sy: p.sy - hoch }))])
 }
 
