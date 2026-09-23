@@ -3,7 +3,7 @@
 // wohin und wie lang die Schatten fallen, ob die Fenster leuchten und die Laternen
 // brennen. Der Stand gilt für ein ganzes Bild und wird vor dem Zeichnen gesetzt.
 //
-// Der Stadttag hat 24 Stunden: 0–6 Morgen, 6–12 Mittag, 12–18 Abend, 18–24 Nacht.
+// Der Stadttag hat 24 Stadtstunden (sechs echte): 0–6 Morgen, 6–12 Mittag, 12–18 Abend, 18–24 Nacht.
 // Die Sonne geht zur Stunde 0 auf und zur Stunde 17 unter; danach steht der Mond.
 
 export interface Licht {
@@ -87,16 +87,16 @@ const TON: Stuetz[] = [
 
 /** Nacht (0..1), Fenster an (0..1), Lampen (0..1), Helligkeit */
 const NACHT: Stuetz[] = [
-  [0, 0.55, 0.55, 1, 0.78],
-  [1.5, 0.25, 0.3, 0.6, 0.9],
+  [0, 0.55, 0.7, 1, 0.78],
+  [1.5, 0.25, 0.4, 0.6, 0.9],
   [3, 0.05, 0.12, 0, 1],
   [12, 0, 0.06, 0, 1],
-  [14.5, 0.1, 0.2, 0.2, 0.96],
-  [16, 0.35, 0.45, 0.8, 0.86],
-  [17.5, 0.75, 0.68, 1, 0.66],
-  [19, 1, 0.62, 1, 0.5],
-  [21.5, 1, 0.4, 1, 0.46],
-  [23, 0.85, 0.42, 1, 0.6],
+  [14.5, 0.1, 0.25, 0.2, 0.96],
+  [16, 0.35, 0.6, 0.8, 0.86],
+  [17.5, 0.75, 0.86, 1, 0.66],
+  [19, 1, 0.9, 1, 0.5],
+  [21.5, 1, 0.78, 1, 0.46],
+  [23, 0.85, 0.72, 1, 0.6],
 ]
 
 const klemme = (v: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v))

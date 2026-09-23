@@ -19,11 +19,11 @@ export function xpForAnswer(comboBefore: number): number {
 }
 
 /**
- * Aus einem XP-Gewinn wird Zeit: Jeder Punkt spult die Uhr der Stadt um eine halbe Minute
- * vor. Ein guter Run von 300 XP bringt so zweieinhalb Stunden – der Tagesabschluss mit
- * Münzen und Ziegeln kommt entsprechend früher.
+ * Aus einem XP-Gewinn wird Zeit: Jeder Punkt spult die Uhr der Stadt um siebeneinhalb
+ * Sekunden vor. Ein guter Run von 300 XP bringt so gut zweieinhalb Stadtstunden (ein
+ * Stadttag dauert sechs echte Stunden) – der Tagesabschluss kommt entsprechend früher.
  */
-export const ZEIT_PRO_XP = 30_000
+export const ZEIT_PRO_XP = 7_500
 
 /** So viel Zeit bringt ein XP-Gewinn */
 export const zeitFuerXp = (xp: number): number => Math.max(0, Math.round(xp)) * ZEIT_PRO_XP
@@ -45,11 +45,11 @@ export const PERFEKTLAUF = 15
 /**
  * Der Jackpot für einen Perfektlauf: einmal je Run, sichtbar schon auf der Startseite.
  * Er läuft bewusst nicht über die XP-Kette – hier geht es um den Tag der Stadt,
- * nicht um den Rang: Die Uhr springt um sechs Stunden vor.
+ * nicht um den Rang: Die Uhr springt um sechs Stadtstunden vor.
  */
 export const PERFEKT_ZEIT = 6 * STUNDE_MS
 
-/** Dasselbe für eine fehlerfreie Kurs-Session – acht Stunden */
+/** Dasselbe für eine fehlerfreie Kurs-Session – acht Stadtstunden */
 export const PERFEKT_ZEIT_KURS = 8 * STUNDE_MS
 
 /** Die Uhr der Stadt vorspulen, ohne XP zu vergeben (Jackpots, Stadtereignisse) */

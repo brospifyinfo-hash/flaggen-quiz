@@ -84,7 +84,7 @@ export function KurseScreen({ data }: { data: SaveData }) {
 
       <p className="footnote">
         Jede Session zahlt XP für den Rang, Wissen für das Fach – und spult die Uhr deiner Stadt vor, damit der
-        Tagesabschluss mit Münzen und Ziegeln früher kommt. Eine fehlerfreie Session springt zusätzlich acht Stunden.
+        Tagesabschluss mit Münzen und Ziegeln früher kommt. Eine fehlerfreie Session springt zusätzlich acht Stadtstunden vor.
       </p>
     </main>
   )

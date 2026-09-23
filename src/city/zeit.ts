@@ -1,13 +1,16 @@
-// Der Tag der Stadt. Ein Wirtschaftstag dauert 24 Stunden und läuft auch, wenn niemand
-// zuschaut. Steht der Zeiger wieder oben, ist Tagesabschluss: Die Kasse bekommt die
-// Einnahmen, der Bauhof liefert Ziegel. Quiz und Kurse bringen keine Münzen mehr,
-// sondern spulen die Uhr vor – wer lernt, erlebt den Tagesabschluss früher.
+// Der Tag der Stadt. Ein Stadttag hat 24 Stadtstunden und dauert sechs echte Stunden;
+// er läuft auch, wenn niemand zuschaut. Steht der Zeiger wieder oben, ist Tagesabschluss:
+// Die Kasse bekommt die Einnahmen, der Bauhof liefert Ziegel. Quiz und Kurse bringen
+// keine Münzen mehr, sondern spulen die Uhr vor – wer lernt, erlebt den Abschluss früher.
 import type { CityState } from './types'
 
-export const STUNDE_MS = 60 * 60 * 1000
+/** Eine Stadtstunde in echten Millisekunden: 24 Stadtstunden = 6 echte Stunden */
+export const STUNDE_MS = 15 * 60 * 1000
 export const TAG_MS = 24 * STUNDE_MS
-/** So viele Tage werden höchstens nachgeholt – länger stapelt sich kein Ertrag */
-export const MAX_TAGE = 7
+/** So viele Stadttage werden höchstens nachgeholt – eine echte Woche, länger stapelt sich kein Ertrag */
+export const MAX_TAGE = 28
+/** Wie lange ein Stadttag wirklich dauert, lesbar */
+export const TAG_TEXT = '6 Stunden'
 
 export type Tagesphase = 'morgen' | 'mittag' | 'abend' | 'nacht'
 

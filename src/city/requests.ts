@@ -4,6 +4,7 @@ import { kursBitte } from '../lernen/bitten'
 import { getMode, pickRandomMode } from '../modes/registry'
 import type { ModeQuestion, SaveData } from '../types'
 import { buildingDef } from './catalog'
+import { STUNDE_MS } from './zeit'
 
 export interface Citizen {
   name: string
@@ -24,8 +25,8 @@ export interface CityRequest {
   at: number
 }
 
-/** Dank für eine gelöste Bitte: XP – und die Uhr der Stadt springt eine Stunde vor */
-export const REQUEST_ZEIT = 60 * 60 * 1000
+/** Dank für eine gelöste Bitte: XP – und die Uhr der Stadt springt eine Stadtstunde vor */
+export const REQUEST_ZEIT = STUNDE_MS
 export const REQUEST_XP = 25
 /** So lange dauert es mindestens bis zur nächsten Bitte */
 export const REQUEST_PAUSE = 25 * 60 * 1000

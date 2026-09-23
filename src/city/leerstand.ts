@@ -7,15 +7,17 @@ import { abdeckungBei, kriminalitaetBei } from './society'
 import type { CityState, Part, Placed } from './types'
 
 /** Unter dieser Wohnlage beginnen die Beschwerden */
-export const BESCHWERDE_AB = 35
+export const BESCHWERDE_AB = 42
 /** Ab dieser Wohnlage beruhigen sich die Bewohner wieder */
-export const BERUHIGT_AB = 45
+export const BERUHIGT_AB = 50
 /** So lange wird sich beschwert, bevor die Bewohner wirklich ausziehen */
-export const AUSZUG_NACH = 6 * 60 * 1000
+export const AUSZUG_NACH = 2 * 60 * 1000
+/** So viele Häuser beginnen je Schritt höchstens neu zu murren */
+export const NEUE_BESCHWERDEN_MAX = 3
 /** Ein Auszug drückt die Stimmung der Nachbarn – so weit reicht die Ruine */
 export const RUINEN_REICHWEITE = 2
 /** Mehr als dieser Anteil der Häuser steht nie leer – irgendwo müssen die Leute ja wohnen */
-export const LEERSTAND_MAX = 0.12
+export const LEERSTAND_MAX = 0.2
 
 /** Worüber sich Nachbarn beschweren – je Bauwerk ein Satz, der in "… beschweren sich über" passt */
 const GRUND: Record<string, string> = {
@@ -149,7 +151,7 @@ export const hausName = (placed: Placed): string => `${buildingDef(placed.type)?
  * Ein Schritt: Beschwerden beginnen, enden oder werden zum Auszug. Höchstens `maxAuszuege`
  * Häuser auf einmal, damit es nicht wie ein Erdrutsch wirkt – Menschen gehen nach und nach.
  */
-export function leerstandSchritt(city: CityState, now: number, stimmung: number, maxAuszuege = 1): LeerstandSchritt {
+export function leerstandSchritt(city: CityState, now: number, stimmung: number, maxAuszuege = 2): LeerstandSchritt {
   if (city.population <= 0) return { city, meldungen: [] }
   const meldungen: string[] = []
   let kapazitaet = 0
@@ -164,7 +166,7 @@ export function leerstandSchritt(city: CityState, now: number, stimmung: number,
   }
   const belegung = kapazitaet > 0 ? Math.min(1, city.population / kapazitaet) : 0
   // Es darf nie mehr als ein Fünftel der Häuser leer stehen – ab da bleiben die Leute
-  // murrend wohnen, bis sich etwas bessert
+  // murrend wohnen, bis sich etwas bessert. Bis dahin ziehen bis zu zwei Häuser je Schritt aus.
   const auszugErlaubt = ruinen < Math.max(1, Math.floor(haeuser * LEERSTAND_MAX))
 
   let auszuege = 0
@@ -199,7 +201,7 @@ export function leerstandSchritt(city: CityState, now: number, stimmung: number,
     }
 
     // Beschwert wird sich nur über einen konkreten Nachbarn – und nicht alle auf einmal
-    if (lage.wert < BESCHWERDE_AB && lage.grund && neueBeschwerden < 2) {
+    if (lage.wert < BESCHWERDE_AB && lage.grund && neueBeschwerden < NEUE_BESCHWERDEN_MAX) {
       neueBeschwerden++
       geaendert = true
       meldungen.push(`😠 ${hausName(placed)}: Die Bewohner beschweren sich über ${lage.grund}.`)

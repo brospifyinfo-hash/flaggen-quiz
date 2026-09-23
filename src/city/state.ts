@@ -33,9 +33,9 @@ export const MAX_CYCLES = MAX_TAGE
 /** Ziegel, die der Bauhof am Rathaus jeden Tag liefert – auch ohne Ziegelei */
 export const BAUHOF_ZIEGEL = 6
 /** Ab dieser Stimmung ziehen Menschen zu */
-export const MOVE_IN_MOOD = 55
+export const MOVE_IN_MOOD = 60
 /** Darunter ziehen sie weg */
-export const MOVE_OUT_MOOD = 35
+export const MOVE_OUT_MOOD = 40
 
 /** Kantenlänge des Startgebiets in Kacheln */
 export const START_LAND = 12
@@ -199,9 +199,10 @@ export function place(
     nextId: city.nextId + 1,
   }
 
-  // Neuer Wohnraum bleibt nicht leer: ein Teil zieht sofort ein, der Rest mit der Zeit
+  // Neuer Wohnraum füllt sich langsam: nur ein kleiner Teil zieht sofort ein, der Rest
+  // mit der Zeit – und nur, wenn die Stimmung stimmt
   const platz = effectsOf(def, 1).capacity ?? 0
-  const willkommen = platz > 0 && happinessBreakdown(gebaut).total >= 50 ? Math.ceil(platz * 0.35) : 0
+  const willkommen = platz > 0 && happinessBreakdown(gebaut).total >= MOVE_IN_MOOD ? Math.ceil(platz * 0.15) : 0
   return withLevel({
     ...gebaut,
     population: Math.min(statsOf(gebaut).capacity, gebaut.population + willkommen),
@@ -708,11 +709,12 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
       population -= weg
       movedOut += weg
     } else if (mood >= MOVE_IN_MOOD && population < platz) {
-      const zuzug = Math.min(platz - population, Math.max(1, Math.round(platz * 0.08 * ((mood - 40) / 60))))
+      // Zuzug kommt langsam: je Stadttag höchstens ein kleiner Teil des freien Platzes
+      const zuzug = Math.min(platz - population, Math.max(1, Math.round(platz * 0.03 * ((mood - 40) / 60))))
       population += zuzug
       movedIn += zuzug
     } else if (mood < MOVE_OUT_MOOD && population > 0) {
-      const wegzug = Math.min(population, Math.max(1, Math.round(population * 0.06)))
+      const wegzug = Math.min(population, Math.max(1, Math.round(population * 0.1)))
       population -= wegzug
       movedOut += wegzug
     }

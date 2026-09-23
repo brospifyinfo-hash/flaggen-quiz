@@ -64,7 +64,7 @@ import {
   wohnplatz,
   ziegelBreakdown,
 } from '../city/state'
-import { MAX_TAGE, phaseInfo, tagFaellig, tageszeit, zeitText } from '../city/zeit'
+import { MAX_TAGE, TAG_TEXT, phaseInfo, tagFaellig, tageszeit, zeitText } from '../city/zeit'
 import { Tagesuhr, useTageszeit } from '../components/Tagesuhr'
 import { anpassen, createLife, signatureOf, stepLife, type Ereignis, type Life } from '../city/life'
 import { bewohnerVon, euro, gesellschaft, KLASSEN, STEUER_MAX, STEUER_MIN } from '../city/society'
@@ -335,7 +335,7 @@ function CityWorld({ data }: { data: SaveData }) {
 
       // Wo die Wohnlage nicht stimmt, wird gemurrt – und wer lange genug murrt, geht
       if (jetzt >= naechsteBeschwerde) {
-        naechsteBeschwerde = jetzt + 25_000
+        naechsteBeschwerde = jetzt + 12_000
         const schritt = leerstandSchritt(stadt, Date.now(), stimmung)
         if (schritt.city !== stadt) {
           setState((current) => (current.city === stadt ? { ...current, city: schritt.city } : current))
@@ -345,10 +345,11 @@ function CityWorld({ data }: { data: SaveData }) {
       }
 
       if (jetzt >= naechsterZuzug) {
-        naechsterZuzug = jetzt + 15_000
+        // Zuzug ist langsam: alle 45 Sekunden ein Mensch, bei sehr guter Stimmung zwei
+        naechsterZuzug = jetzt + 45_000
         const platz = wohnplatz(stadt)
         if (stimmung >= MOVE_IN_MOOD && stadt.population < platz) {
-          const neu = Math.min(platz - stadt.population, 1 + Math.floor((stimmung - MOVE_IN_MOOD) / 15))
+          const neu = Math.min(platz - stadt.population, stimmung >= 85 ? 2 : 1)
           setState((current) => (current.city ? { ...current, city: { ...current.city, population: current.city.population + neu } } : current))
         }
       }
@@ -359,7 +360,7 @@ function CityWorld({ data }: { data: SaveData }) {
         const schritt = wachsen(stadt, Date.now())
         if (schritt.gebaut) {
           const def = buildingDef(schritt.gebaut.type)
-          const bewohner = Math.round((def?.effects.capacity ?? 0) * 0.6)
+          const bewohner = Math.round((def?.effects.capacity ?? 0) * 0.3)
           setState((current) =>
             current.city === stadt ? { ...current, city: { ...schritt.city, population: schritt.city.population + bewohner } } : current,
           )
@@ -1335,8 +1336,8 @@ function CityWorld({ data }: { data: SaveData }) {
                 </li>
               </ul>
               <p className="city-hint">
-                Ein Tag der Stadt dauert 24 Stunden und läuft weiter, wenn du weg bist. Steht der Zeiger oben, wird
-                abgerechnet – höchstens {MAX_TAGE} Tage auf einmal.
+                Ein Tag der Stadt dauert {TAG_TEXT} und läuft weiter, wenn du weg bist. Steht der Zeiger oben, wird
+                abgerechnet – höchstens {MAX_TAGE} Tage (eine Woche) auf einmal.
               </p>
 
               <p className="city-label-line">⏩ So spulst du die Uhr vor</p>
