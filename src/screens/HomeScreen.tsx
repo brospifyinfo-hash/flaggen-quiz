@@ -1,11 +1,13 @@
 // Die Startseite ist der Blick über die eigene Stadt: Sie läuft als Kulisse im Hintergrund,
 // davor steht, wie weit man ist – und die drei Wege weiter: in die Stadt, ins schnelle Spiel,
 // in die Lernkurse.
-import { useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { StadtKulisse } from '../city/StadtKulisse'
 import { cityTitle, createCity, statsOf } from '../city/state'
 import { istAdmin } from '../admin'
-import { IconList, IconMail, IconPlay, IconSettings, IconTrophy } from '../components/Icons'
+import { IconList, IconMail, IconMenu, IconPlay, IconSettings, IconTrophy } from '../components/Icons'
+import { ladeRangliste } from '../konto'
+import { gelesenerPlatz, platzGelesen } from '../platz'
 import { ungelesen } from '../postfach'
 import { haptic } from '../haptics'
 import { bilanz } from '../herausforderungen'
@@ -35,9 +37,56 @@ export function HomeScreen({ data }: { data: SaveData }) {
   const tag = useTageszeit(stadt)
   const hf = bilanz(data)
   const neuePost = ungelesen(data).length
+  const [menu, setMenu] = useState(false)
+  const [erster, setErster] = useState('')
+  const [gemerkt, setGemerkt] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let weg = false
+    ladeRangliste()
+      .then((liste) => {
+        if (weg) return
+        const name = liste[0]?.name ?? ''
+        const bisher = gelesenerPlatz()
+        if (bisher === null && name) {
+          platzGelesen(name)
+          setGemerkt(name)
+        } else {
+          setGemerkt(bisher)
+        }
+        setErster(name)
+      })
+      .catch(() => {
+        if (!weg) setGemerkt(gelesenerPlatz())
+      })
+    return () => {
+      weg = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!menu) return
+    const zu = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenu(false)
+    }
+    const taste = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenu(false)
+    }
+    document.addEventListener('pointerdown', zu)
+    document.addEventListener('keydown', taste)
+    return () => {
+      document.removeEventListener('pointerdown', zu)
+      document.removeEventListener('keydown', taste)
+    }
+  }, [menu])
+
+  const neuerPlatz = Boolean(erster && gemerkt && erster !== gemerkt)
+  const achtung = neuePost > 0 || neuerPlatz
 
   const gehe = (ziel: Parameters<typeof navigate>[0]) => {
     haptic('soft')
+    setMenu(false)
     navigate(ziel)
   }
 
@@ -48,6 +97,45 @@ export function HomeScreen({ data }: { data: SaveData }) {
 
       <div className="home-inhalt">
         <header className="home-kopf">
+          <div className="home-menu" ref={menuRef}>
+            <button
+              className={`glas home-menu-knopf${achtung ? ' hat-neues' : ''}`}
+              aria-label={achtung ? 'Menü, es gibt etwas Neues' : 'Menü'}
+              aria-expanded={menu}
+              aria-haspopup="menu"
+              onClick={() => {
+                haptic('soft')
+                setMenu((offen) => !offen)
+              }}
+            >
+              <IconMenu />
+              {achtung && <span className="menu-punkt" />}
+            </button>
+            {menu && (
+              <div className="glas home-menu-liste" role="menu">
+                <button className="home-menu-zeile" role="menuitem" onClick={() => gehe({ name: 'settings' })}>
+                  <IconSettings />
+                  Einstellungen
+                </button>
+                <button className="home-menu-zeile" role="menuitem" onClick={() => gehe({ name: 'postfach' })}>
+                  <IconMail />
+                  Neuigkeiten
+                  {neuePost > 0 && <span className="menu-punkt" />}
+                </button>
+                <button className="home-menu-zeile" role="menuitem" onClick={() => gehe({ name: 'rangliste' })}>
+                  <IconTrophy />
+                  Rang
+                  {neuerPlatz && <span className="menu-punkt" />}
+                </button>
+                {istAdmin(data.konto?.email) && (
+                  <button className="home-menu-zeile" role="menuitem" onClick={() => gehe({ name: 'verwaltung' })}>
+                    <IconList />
+                    Verwaltung
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <div className="glas home-stadt">
             <span className="home-wappen" aria-hidden="true">
               {kulisse.emblem}
@@ -62,25 +150,6 @@ export function HomeScreen({ data }: { data: SaveData }) {
             </span>
             {tag && <Tagesuhr zeit={tag} size={38} className="home-uhr" />}
           </div>
-          <button className="glas home-zahnrad home-pokal" aria-label="Rangliste" onClick={() => gehe({ name: 'rangliste' })}>
-            <IconTrophy />
-          </button>
-          <button
-            className={`glas home-zahnrad home-post${neuePost > 0 ? ' hat-neues' : ''}`}
-            aria-label={neuePost > 0 ? `Postfach, ${neuePost} neue Nachrichten` : 'Postfach'}
-            onClick={() => gehe({ name: 'postfach' })}
-          >
-            <IconMail />
-            {neuePost > 0 && <span className="home-post-zahl">{neuePost}</span>}
-          </button>
-          {istAdmin(data.konto?.email) && (
-            <button className="glas home-zahnrad" aria-label="Verwaltung" onClick={() => gehe({ name: 'verwaltung' })}>
-              <IconList />
-            </button>
-          )}
-          <button className="glas home-zahnrad" aria-label="Einstellungen" onClick={() => gehe({ name: 'settings' })}>
-            <IconSettings />
-          </button>
         </header>
 
         <section className="glas home-rang">

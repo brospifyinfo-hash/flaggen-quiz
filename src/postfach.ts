@@ -20,6 +20,16 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-h',
+    datum: '23. September 2026',
+    titel: 'Menü oben links',
+    text: 'Stadtname und Tageszeit haben wieder Platz. Einstellungen, Neuigkeiten und die Rangliste liegen hinter einem Menü.',
+    punkte: [
+      'Oben links ist nur noch ein kleines Menü. Darin: Einstellungen, Neuigkeiten und Rang.',
+      'Ein roter Punkt am Menü bedeutet neue Neuigkeiten oder einen neuen ersten Platz in der Rangliste.',
+    ],
+  },
+  {
     id: '2026-09-23-g',
     datum: '23. September 2026',
     titel: 'Die Rangliste hat ein Podest',
@@ -27,7 +37,7 @@ export const NACHRICHTEN: Nachricht[] = [
     punkte: [
       'Platz eins thront in der Mitte, daneben Platz zwei und drei. Darunter folgen die weiteren Plätze.',
       'Zu sehen sind der Pokal, der Name, der Rang, das Level, die Stadtstufe und die Einwohner.',
-      'Auf der Startseite ist die Rangliste nur noch das Pokal-Symbol im Kopf der Seite.',
+      'Auf der Startseite liegt die Rangliste im Menü oben links, unter Rang.',
     ],
   },
   {

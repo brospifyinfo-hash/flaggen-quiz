@@ -4076,7 +4076,71 @@ svg {
 .home-kopf {
   display: flex;
   align-items: stretch;
+  gap: 8px;
+}
+
+.home-menu {
+  position: relative;
+  flex: none;
+}
+
+.home-menu-knopf {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 100%;
+  min-height: 42px;
+  color: #fff;
+}
+
+.home-menu-knopf .menu-punkt {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  margin: 0;
+  box-shadow: 0 0 0 2px rgb(8 13 26 / 0.9);
+}
+
+.home-menu-liste {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 6;
+  display: grid;
+  gap: 2px;
+  min-width: 214px;
+  padding: 6px;
+}
+
+.home-menu-zeile {
+  display: flex;
+  align-items: center;
   gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.home-menu-zeile svg {
+  flex: none;
+}
+
+.home-menu-zeile:active {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.menu-punkt {
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: #ff3b30;
+  flex: none;
 }
 
 .home-stadt {

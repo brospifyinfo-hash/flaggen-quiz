@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react'
 import type { RanglisteEintrag } from '../admin'
 import { IconBack } from '../components/Icons'
 import { ladeRangliste } from '../konto'
+import { platzGelesen } from '../platz'
 import { RANKS, rankById } from '../progression'
 import { goBack } from '../router'
 
@@ -87,7 +88,9 @@ export function RanglisteScreen() {
     let weg = false
     ladeRangliste()
       .then((liste) => {
-        if (!weg) setSpieler(liste)
+        if (weg) return
+        setSpieler(liste)
+        if (liste[0]?.name) platzGelesen(liste[0].name)
       })
       .catch(() => {
         if (!weg) {
