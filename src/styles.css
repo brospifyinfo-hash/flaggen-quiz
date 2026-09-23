@@ -5053,3 +5053,231 @@ svg {
   stroke-linejoin: round;
   stroke-linecap: round;
 }
+
+/* Gebäudeliste im Rathaus */
+.gebaeude-liste {
+  display: grid;
+  gap: 4px;
+}
+
+.gebaeude-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.gebaeude-kopf strong {
+  color: #fff;
+  font-size: 15px;
+}
+
+.gebaeude-zaehler {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  letter-spacing: 0;
+}
+
+.gebaeude-gruppe {
+  display: grid;
+  gap: 6px;
+}
+
+.gebaeude-art {
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.08);
+  overflow: hidden;
+}
+
+.gebaeude-art.is-open {
+  box-shadow: inset 0 0 0 2px rgb(255 210 63 / 0.6);
+}
+
+.gebaeude-art.is-none {
+  opacity: 0.55;
+}
+
+.gebaeude-zeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  color: #fff;
+  text-align: left;
+}
+
+.gebaeude-zeile:active:not(:disabled) {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.gebaeude-bild {
+  flex: none;
+  width: 56px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.08);
+  overflow: hidden;
+}
+
+.gebaeude-bild canvas {
+  width: 56px;
+  height: 38px;
+}
+
+.gebaeude-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.gebaeude-text strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.gebaeude-text span {
+  color: rgb(255 255 255 / 0.6);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gebaeude-anzahl {
+  display: grid;
+  justify-items: end;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.gebaeude-anzahl strong {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.gebaeude-anzahl small {
+  color: rgb(255 255 255 / 0.55);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.gebaeude-pfeil {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  color: rgb(255 255 255 / 0.5);
+  transition: transform 0.18s ease;
+}
+
+.gebaeude-pfeil svg {
+  width: 16px;
+  height: 16px;
+}
+
+.gebaeude-art.is-open .gebaeude-pfeil {
+  transform: rotate(90deg);
+}
+
+.gebaeude-details {
+  display: grid;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.gebaeude-haeuser {
+  display: grid;
+  gap: 4px;
+}
+
+.gebaeude-haeuser li {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.gebaeude-haeuser li.is-ruine {
+  opacity: 0.7;
+}
+
+.gebaeude-haus {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.25);
+  color: #fff;
+  text-align: left;
+}
+
+.gebaeude-haus strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.gebaeude-haus span {
+  color: rgb(255 255 255 / 0.6);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.gebaeude-haus:active {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.gebaeude-ausbau {
+  display: grid;
+  justify-items: end;
+  flex: none;
+  min-width: 118px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.12);
+  color: rgb(255 255 255 / 0.85);
+  text-align: right;
+}
+
+.gebaeude-ausbau strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.gebaeude-ausbau span {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.gebaeude-ausbau.is-ok {
+  background: #2f9e5c;
+  color: #fff;
+}
+
+.gebaeude-ausbau:active {
+  transform: translateY(1px);
+}
+
+.gebaeude-fertig {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 118px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.5);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}

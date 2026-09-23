@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react'
 import { IconClose } from '../components/Icons'
 import { drawBuilding, umrissPunkte } from '../city/buildings'
 import { CATEGORIES, type BuildingDef, type Category, type Klasse } from '../city/catalog'
-import { blickJetzt, feldJetzt, setBlick, toScreen } from '../city/iso'
+import { blickJetzt, feldJetzt, projektionJetzt, setBlick, setProjektion, toScreen } from '../city/iso'
 import { catalogFor } from '../city/state'
 import { themeById } from '../city/themes'
 import type { CityState } from '../city/types'
@@ -48,7 +48,7 @@ function kurzwirkung(def: BuildingDef): string[] {
 }
 
 /** Das Gebäude in klein, so wie es in der Stadt steht */
-function Vorschau({ def, theme }: { def: BuildingDef; theme: string }) {
+export function Vorschau({ def, theme, stufe = 1 }: { def: BuildingDef; theme: string; stufe?: number }) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const leinwand = ref.current
@@ -64,9 +64,11 @@ function Vorschau({ def, theme }: { def: BuildingDef; theme: string }) {
     // vorn, danach wieder genau so, wie es war
     const altWinkel = blickJetzt()
     const altFeld = feldJetzt()
+    const altProjektion = projektionJetzt()
     try {
+      setProjektion('iso')
       setBlick(0, 4)
-      const placed = { id: `vorschau-${def.id}`, type: def.id, x: 0, y: 0, rot: 0 as const, level: 1, at: 0 }
+      const placed = { id: `vorschau-${def.id}`, type: def.id, x: 0, y: 0, rot: 0 as const, level: stufe, at: 0 }
       const punkte = umrissPunkte(placed, 'o')
       const xs = punkte.map((p) => p.sx)
       const ys = punkte.map((p) => p.sy)
@@ -92,8 +94,9 @@ function Vorschau({ def, theme }: { def: BuildingDef; theme: string }) {
       drawBuilding(ctx, placed, 0, t, true, 'o')
     } finally {
       setBlick(altWinkel, altFeld)
+      setProjektion(altProjektion)
     }
-  }, [def.id, theme])
+  }, [def.id, theme, stufe])
   return <canvas ref={ref} className="bau-vorschau" aria-hidden="true" />
 }
 

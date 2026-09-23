@@ -70,6 +70,7 @@ import { Tagesuhr, useTageszeit } from '../components/Tagesuhr'
 import { anpassen, createLife, signatureOf, stepLife, type Ereignis, type Life } from '../city/life'
 import { bewohnerVon, euro, gesellschaft, KLASSEN, STEUER_MAX, STEUER_MIN } from '../city/society'
 import { BauBlatt, KLASSE_NAME } from './CityBuildSheet'
+import { GebaeudeListe } from './CityGebaeudeListe'
 import {
   REQUEST_XP,
   REQUEST_ZEIT,
@@ -228,6 +229,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const [krimKarte, setKrimKarte] = useState(false)
   /** Schräg von der Seite (iso) oder senkrecht von oben (oben) */
   const [ansicht, setAnsicht] = useState<Projektion>('iso')
+  /** Im Rathaus: der Bericht oder die Liste aller Gebäude */
+  const [berichtReiter, setBerichtReiter] = useState<'bericht' | 'gebaeude'>('bericht')
   /** Blickwinkel im Bogenmaß – bleibt, wenn man die Stadt verlässt und wiederkommt */
   const winkel = useRef<Blick>(blickJetzt())
   /** Zurückdrehen nach Norden, wenn der Kompass angetippt wurde */
@@ -800,6 +803,57 @@ function CityWorld({ data }: { data: SaveData }) {
     const id = chosen.id
     haptic('celebrate')
     setState((current) => (current.city ? { ...current, city: upgrade(current.city, id) } : current))
+  }
+
+  /** Ausbau aus der Gebäudeliste im Rathaus – ein Haus nach Kennung */
+  const ausbauVon = (id: string) => {
+    const haus = city.buildings.find((p) => p.id === id)
+    const def = haus ? buildingDef(haus.type) : undefined
+    if (!haus || !def) return
+    const next = nextUpgrade(def, haus.level)
+    if (!next) return
+    if (city.coins < next.coins || city.materials < next.materials) {
+      say(
+        `Dafür fehlen dir ${Math.max(0, next.coins - city.coins)} Münzen und ${Math.max(0, next.materials - city.materials)} Ziegel.`,
+      )
+      return
+    }
+    haptic('celebrate')
+    setState((current) => (current.city ? { ...current, city: upgrade(current.city, id) } : current))
+  }
+
+  /** Alle genannten Häuser um eine Stufe – der Reihe nach, bis die Kasse leer ist */
+  const alleAusbauen = (ids: string[]) => {
+    let geschafft = 0
+    setState((current) => {
+      if (!current.city) return current
+      let stadt = current.city
+      for (const id of ids) {
+        const danach = upgrade(stadt, id)
+        if (danach !== stadt) geschafft++
+        stadt = danach
+      }
+      return { ...current, city: stadt }
+    })
+    window.setTimeout(() => {
+      if (geschafft === 0) say('Dafür reicht die Kasse nicht.')
+      else if (geschafft < ids.length) melde(`${geschafft} von ${ids.length} ausgebaut – für den Rest reicht die Kasse nicht.`)
+      else melde(`${geschafft} Gebäude ausgebaut.`)
+    }, 0)
+    haptic(geschafft > 0 ? 'celebrate' : 'error')
+  }
+
+  /** Kamera zu einem Haus aus der Liste fahren und es auswählen */
+  const zeigeHaus = (haus: Placed) => {
+    const def = buildingDef(haus.type)
+    const [w, h] = def ? footprint(def, haus.rot) : [1, 1]
+    setProjektion(ansicht)
+    setBlick(winkel.current, city.land)
+    const ziel = toScreen(haus.x + w / 2, haus.y + h / 2)
+    camera.current = { x: ziel.sx, y: ziel.sy - (ansicht === 'oben' ? 0 : 20), zoom: Math.max(camera.current.zoom, 1.4) }
+    setSelected(haus.id)
+    setMode(haus.type === RATHAUS ? 'report' : 'select')
+    haptic('tick')
   }
 
   const doRemove = () => {
@@ -1417,7 +1471,7 @@ function CityWorld({ data }: { data: SaveData }) {
         {mode === 'report' && !cycle && (
           <div className="city-sheet">
             <div className="city-sheet-head">
-              <strong>🏛️ Rathaus · Stadtbericht</strong>
+              <strong>🏛️ Rathaus</strong>
               <button
                 className="city-close"
                 aria-label="Schließen"
@@ -1429,6 +1483,33 @@ function CityWorld({ data }: { data: SaveData }) {
                 <IconClose />
               </button>
             </div>
+            <div className="city-tabs" role="tablist">
+              {(
+                [
+                  ['bericht', 'Stadtbericht'],
+                  ['gebaeude', `Gebäude · ${city.buildings.length.toLocaleString('de-DE')}`],
+                ] as const
+              ).map(([id, name]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={berichtReiter === id}
+                  className={`city-tab${berichtReiter === id ? ' is-on' : ''}`}
+                  onClick={() => {
+                    setBerichtReiter(id)
+                    haptic('tick')
+                  }}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            {berichtReiter === 'gebaeude' && (
+              <div className="city-list">
+                <GebaeudeListe city={city} onAusbau={ausbauVon} onAlleAusbauen={alleAusbauen} onZeigen={zeigeHaus} />
+              </div>
+            )}
+            {berichtReiter === 'bericht' && (
             <div className="city-list">
               <p className="city-hint">
                 {cityTitle(city.level)} · Stufe {city.level} · Rathaus-Ausbau {rathausVon(city)?.level ?? 1} von{' '}
@@ -1712,6 +1793,7 @@ function CityWorld({ data }: { data: SaveData }) {
                 </button>
               </div>
             </div>
+            )}
           </div>
         )}
 
