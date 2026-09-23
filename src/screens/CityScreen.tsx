@@ -2057,7 +2057,7 @@ function reichweiteKreis(
   city: NonNullable<SaveData['city']>,
   selected: string | null,
   ghost: { type: string; x: number; y: number; rot: 0 | 1 | 2 | 3 } | null,
-): { x: number; y: number; radius: number; fuellung: string; rand: string } | null {
+): { x: number; y: number; radius: number; fuellung: string; rand: string; selbst?: string } | null {
   const placed = !ghost && selected ? city.buildings.find((b) => b.id === selected) : null
   const type = ghost?.type ?? placed?.type
   const def = type ? buildingDef(type) : undefined
@@ -2069,7 +2069,14 @@ function reichweiteKreis(
   const rot = ghost?.rot ?? placed?.rot ?? 0
   const [w, h] = footprint(def, rot)
   const farbe = DIENST_FARBE[dienst.art]
-  return { x: x + w / 2, y: y + h / 2, radius: dienst.radius, fuellung: farbe.fuellung, rand: farbe.rand }
+  return {
+    x: x + w / 2,
+    y: y + h / 2,
+    radius: dienst.radius,
+    fuellung: farbe.fuellung,
+    rand: farbe.rand,
+    selbst: placed?.id,
+  }
 }
 
 /** Wie weit eine Wache reicht und wie viele Häuser in dem Kreis stehen */

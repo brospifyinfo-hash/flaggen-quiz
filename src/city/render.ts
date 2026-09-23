@@ -57,7 +57,7 @@ export interface DrawOptions {
   /** Kriminalität je Kachel als rote Tönung zeigen */
   kriminalitaet?: boolean
   /** Kreis einer Polizei-, Feuer- oder Arztwache, Mittelpunkt und Radius in Kacheln */
-  reichweite?: { x: number; y: number; radius: number; fuellung: string; rand: string } | null
+  reichweite?: { x: number; y: number; radius: number; fuellung: string; rand: string; selbst?: string } | null
   /** Tagesstunde der Stadt (0 bis 24) – färbt das Licht über der Karte */
   stunde?: number
 }
@@ -759,22 +759,72 @@ export function drawCity(
   }
 }
 
-/** Der Umkreis einer Wache, als Ellipse in der Schrägsicht */
-function reichweiteMalen(ctx: CanvasRenderingContext2D, kreis: NonNullable<DrawOptions['reichweite']>): void {
-  const schritte = 56
-  ctx.beginPath()
-  for (let i = 0; i <= schritte; i++) {
-    const winkel = (i / schritte) * Math.PI * 2
-    const p = toScreen(kreis.x + Math.cos(winkel) * kreis.radius, kreis.y + Math.sin(winkel) * kreis.radius)
-    if (i === 0) ctx.moveTo(p.sx, p.sy)
-    else ctx.lineTo(p.sx, p.sy)
+const OHNE_REICHWEITE = new Set(['natur', 'schmuck', 'wege'])
+
+/** Der Umkreis einer Wache. Liegt über Häusern und Tageslicht, damit die Kante scharf bleibt. */
+function reichweiteMalen(
+  ctx: CanvasRenderingContext2D,
+  kreis: NonNullable<DrawOptions['reichweite']>,
+  city: CityState,
+  zoom: number,
+): void {
+  const schritte = 96
+  const pfad = () => {
+    ctx.beginPath()
+    for (let i = 0; i <= schritte; i++) {
+      const winkel = (i / schritte) * Math.PI * 2
+      const p = toScreen(kreis.x + Math.cos(winkel) * kreis.radius, kreis.y + Math.sin(winkel) * kreis.radius)
+      if (i === 0) ctx.moveTo(p.sx, p.sy)
+      else ctx.lineTo(p.sx, p.sy)
+    }
+    ctx.closePath()
   }
-  ctx.closePath()
+  pfad()
   ctx.fillStyle = kreis.fuellung
   ctx.fill()
-  ctx.strokeStyle = kreis.rand
-  ctx.lineWidth = 2
+
+  // Strichstärke in Bildpunkten, unabhängig vom Zoom
+  const px = (n: number) => n / Math.max(0.35, zoom)
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  pfad()
+  ctx.strokeStyle = 'rgba(8, 12, 20, 0.92)'
+  ctx.lineWidth = px(8)
   ctx.stroke()
+  pfad()
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = px(5)
+  ctx.stroke()
+  pfad()
+  ctx.strokeStyle = kreis.rand
+  ctx.lineWidth = px(2.6)
+  ctx.stroke()
+
+  for (const placed of city.buildings) {
+    if (placed.id === kreis.selbst || placed.verlassen) continue
+    const def = buildingDef(placed.type)
+    if (!def || OHNE_REICHWEITE.has(def.category)) continue
+    const [w, h] = footprint(def, placed.rot)
+    const mx = placed.x + w / 2
+    const my = placed.y + h / 2
+    if (Math.hypot(mx - kreis.x, my - kreis.y) > kreis.radius) continue
+    const n = toScreen(placed.x, placed.y)
+    const e = toScreen(placed.x + w, placed.y)
+    const s = toScreen(placed.x + w, placed.y + h)
+    const west = toScreen(placed.x, placed.y + h)
+    ctx.beginPath()
+    ctx.moveTo(n.sx, n.sy)
+    ctx.lineTo(e.sx, e.sy)
+    ctx.lineTo(s.sx, s.sy)
+    ctx.lineTo(west.sx, west.sy)
+    ctx.closePath()
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = px(4)
+    ctx.stroke()
+    ctx.strokeStyle = kreis.rand
+    ctx.lineWidth = px(2)
+    ctx.stroke()
+  }
 }
 
 function melden(fehler: unknown): void {
@@ -859,7 +909,6 @@ function stadtMalen(
   }
 
   if (options.kriminalitaet) kriminalitaetZeigen(ctx, city)
-  if (options.reichweite) reichweiteMalen(ctx, options.reichweite)
 
   // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst.
   const g = tiefenRichtung()
@@ -990,7 +1039,9 @@ function stadtMalen(
   ctx.save()
   kamera()
 
-  // Zeichen und Blasen liegen über dem Licht – sie gehören zur Bedienung, nicht zur Stadt
+  // Zeichen und Blasen liegen über dem Licht – sie gehören zur Bedienung, nicht zur Stadt.
+  // Der Kreis der Wache auch: unter den Dächern und unter der Tagesfarbe war die Kante nicht zu lesen.
+  if (options.reichweite) reichweiteMalen(ctx, options.reichweite, city, camera.zoom)
   if (options.kriminalitaet) kriminalitaetMarken(ctx, city)
 
   // Das Rathaus ist immer markiert: goldener Rahmen am Boden und ein schwebendes Zeichen

@@ -80,9 +80,9 @@ export type DienstArt = 'police' | 'fire' | 'health'
 
 /** Farben für den Kreis auf der Karte: Polizei blau, Feuerwehr rot, Ärzte grün */
 export const DIENST_FARBE: Record<DienstArt, { fuellung: string; rand: string }> = {
-  police: { fuellung: 'rgba(46,134,255,0.2)', rand: 'rgba(46,134,255,0.95)' },
-  fire: { fuellung: 'rgba(255,90,31,0.2)', rand: 'rgba(255,90,31,0.95)' },
-  health: { fuellung: 'rgba(60,224,138,0.18)', rand: 'rgba(60,224,138,0.95)' },
+  police: { fuellung: 'rgba(46,134,255,0.28)', rand: '#2e86ff' },
+  fire: { fuellung: 'rgba(255,90,31,0.28)', rand: '#ff4d1a' },
+  health: { fuellung: 'rgba(60,224,138,0.28)', rand: '#1ec96a' },
 }
 
 const KEIN_HAUS = new Set(['natur', 'schmuck', 'wege'])

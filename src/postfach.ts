@@ -20,6 +20,13 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-23-k',
+    datum: '23. September 2026',
+    titel: 'Der Kreis der Wachen ist scharf',
+    text: 'Polizei, Feuerwehr und Krankenhaus zeichnen ihre Reichweite als klaren Rand über die Dächer. Jedes Haus im Kreis hat denselben Umriss.',
+    punkte: ['Der Rand bleibt weiß umrandet und in der Farbe der Wache, auch über Häusern und bei jedem Zoom.'],
+  },
+  {
     id: '2026-09-23-j',
     datum: '23. September 2026',
     titel: 'Wachen, Brände und die Uhr der Beschwerden',

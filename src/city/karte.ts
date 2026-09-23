@@ -482,17 +482,6 @@ export function drawKarte(
       }
     }
 
-    if (options.reichweite) {
-      const kreis = options.reichweite
-      ctx.beginPath()
-      ctx.arc(kreis.x, kreis.y, kreis.radius, 0, Math.PI * 2)
-      ctx.fillStyle = kreis.fuellung
-      ctx.fill()
-      ctx.strokeStyle = kreis.rand
-      ctx.lineWidth = 2 / K
-      ctx.stroke()
-    }
-
     if (options.kriminalitaet) {
       const feld = kriminalitaetsfeld(city)
       const n = city.land
@@ -557,12 +546,71 @@ export function drawKarte(
       ctx.fillRect(0, 0, view.w, view.h)
       ctx.restore()
     }
+
+    // Der Kreis kommt nach dem Licht, sonst färbt der Tag die Kante weg
+    if (options.reichweite) {
+      ctx.save()
+      ctx.translate(view.w / 2, view.h / 2)
+      ctx.scale(camera.zoom, camera.zoom)
+      ctx.translate(-camera.x, -camera.y)
+      ctx.rotate(blickJetzt())
+      ctx.scale(K, K)
+      ctx.translate(-city.land / 2, -city.land / 2)
+      reichweiteOben(ctx, options.reichweite, city, camera.zoom)
+      ctx.restore()
+    }
   } catch (fehler) {
     for (let i = 0; i < 64; i++) ctx.restore()
     ctx.setTransform(grund)
     ctx.globalAlpha = 1
     ctx.globalCompositeOperation = 'source-over'
     console.error('Karte konnte nicht gezeichnet werden:', fehler)
+  }
+}
+
+const OHNE_REICHWEITE = new Set(['natur', 'schmuck', 'wege'])
+
+/** Kreis und Hausumrisse von oben – Strichstärke in Bildpunkten, nicht in Kacheln */
+function reichweiteOben(
+  ctx: CanvasRenderingContext2D,
+  kreis: NonNullable<DrawOptions['reichweite']>,
+  city: CityState,
+  zoom: number,
+): void {
+  const px = (n: number) => n / (Math.max(0.35, zoom) * K)
+  const bogen = () => {
+    ctx.beginPath()
+    ctx.arc(kreis.x, kreis.y, kreis.radius, 0, Math.PI * 2)
+  }
+  bogen()
+  ctx.fillStyle = kreis.fuellung
+  ctx.fill()
+  ctx.lineJoin = 'round'
+  bogen()
+  ctx.strokeStyle = 'rgba(8, 12, 20, 0.92)'
+  ctx.lineWidth = px(8)
+  ctx.stroke()
+  bogen()
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = px(5)
+  ctx.stroke()
+  bogen()
+  ctx.strokeStyle = kreis.rand
+  ctx.lineWidth = px(2.6)
+  ctx.stroke()
+
+  for (const placed of city.buildings) {
+    if (placed.id === kreis.selbst || placed.verlassen) continue
+    const def = buildingDef(placed.type)
+    if (!def || OHNE_REICHWEITE.has(def.category)) continue
+    const [w, h] = footprint(def, placed.rot)
+    if (Math.hypot(placed.x + w / 2 - kreis.x, placed.y + h / 2 - kreis.y) > kreis.radius) continue
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = px(4)
+    ctx.strokeRect(placed.x, placed.y, w, h)
+    ctx.strokeStyle = kreis.rand
+    ctx.lineWidth = px(2)
+    ctx.strokeRect(placed.x, placed.y, w, h)
   }
 }
 
