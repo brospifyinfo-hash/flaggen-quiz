@@ -9,6 +9,17 @@
 
 export const TILE_W = 64
 export const TILE_H = 32
+/**
+ * Bildlänge einer Kachelkante bei Blick 0. Alles, was in festen Stücken an einer Wand
+ * hängt – Fenster, Säulen, Streifen –, wird daran gemessen und nicht an der Länge im
+ * Bild: Die ändert sich mit dem Drehen, und ein Haus soll nicht mal drei, mal vier
+ * Fenster haben.
+ */
+export const KACHEL_PX = Math.hypot(TILE_W / 2, TILE_H / 2)
+
+/** Bildlänge einer Strecke auf der Karte, unabhängig vom Blick */
+export const kartenLaenge = (a: { x: number; y: number }, b: { x: number; y: number }): number =>
+  Math.hypot(b.x - a.x, b.y - a.y) * KACHEL_PX
 
 /** Blickwinkel im Bogenmaß */
 export type Blick = number

@@ -9,7 +9,7 @@
 import type { Klasse } from './catalog'
 import { bodenSchatten, fade, groundRect, isoFrame, lift, mix, quad, roundedPath, shade, wobble, type Point } from './draw'
 import { leuchte, lichtJetzt } from './licht'
-import { dirToScreen, toScreen } from './iso'
+import { dirToScreen, TILE_W, toScreen } from './iso'
 import type { Agent } from './life'
 
 // ---------------------------------------------------------------------------
@@ -1516,14 +1516,29 @@ function zweirad(ctx: CanvasRenderingContext2D, p: Point, dx: number, dy: number
 function radfahrer(ctx: CanvasRenderingContext2D, p: Point, agent: Agent, t: number, blick: number, fein: boolean): void {
   const seed = agent.seed
   const drehung = t * 9 + seed * 6
-  const hinten = { sx: p.sx - 4.4 * blick, sy: p.sy - 2.8 }
-  const vorne = { sx: p.sx + 4.4 * blick, sy: p.sy - 2.8 }
-  bodenSchatten(ctx, p, 6, 2.4)
-  for (const r of [hinten, vorne]) {
+  // Das Rad liegt in Fahrtrichtung – auf dem Bildschirm also entlang der Straße, nicht
+  // immer quer. Eine Strecke von einem Bildpunkt in Fahrtrichtung erscheint je nach
+  // Blick kürzer (Straße läuft in die Tiefe) oder voll (Straße läuft quer).
+  const r = dirToScreen(agent.rx, agent.ry)
+  const rl = Math.hypot(r.sx, r.sy) || 1
+  const f = Math.max(0.5, rl / (TILE_W / 2) / Math.SQRT2)
+  const ux = (r.sx / rl) * f
+  const uy = (r.sy / rl) * f
+  /** Ein Punkt am Rad: vor (positiv) oder hinter der Mitte, und wie hoch über dem Boden */
+  const L = (vor: number, hoch: number): Point => ({ sx: p.sx + ux * vor, sy: p.sy + uy * vor - hoch })
+  const hinten = L(-4.4, 2.8)
+  const vorne = L(4.4, 2.8)
+  bodenSchatten(ctx, p, 3 + 3 * f, 2.4)
+  for (const rad of [hinten, vorne]) {
+    // Die Scheibe steht senkrecht in der Fahrtebene: quer zur Blickrichtung ein Kreis,
+    // in die Tiefe eine schmale Ellipse
+    ctx.save()
+    ctx.transform(ux, uy, 0, -1, rad.sx, rad.sy)
+    ctx.beginPath()
+    ctx.arc(0, 0, 2.9, 0, Math.PI * 2)
+    ctx.restore()
     ctx.strokeStyle = 'rgba(22,28,44,0.92)'
     ctx.lineWidth = 1.3
-    ctx.beginPath()
-    ctx.arc(r.sx, r.sy, 2.9, 0, Math.PI * 2)
     ctx.stroke()
     if (fein) {
       ctx.lineWidth = 0.5
@@ -1531,53 +1546,66 @@ function radfahrer(ctx: CanvasRenderingContext2D, p: Point, agent: Agent, t: num
       ctx.beginPath()
       for (let i = 0; i < 3; i++) {
         const w = drehung + (i * Math.PI) / 3
-        ctx.moveTo(r.sx - Math.cos(w) * 2.5, r.sy - Math.sin(w) * 2.5)
-        ctx.lineTo(r.sx + Math.cos(w) * 2.5, r.sy + Math.sin(w) * 2.5)
+        const a0 = { sx: rad.sx - ux * Math.cos(w) * 2.5, sy: rad.sy - uy * Math.cos(w) * 2.5 + Math.sin(w) * 2.5 }
+        const a1 = { sx: rad.sx + ux * Math.cos(w) * 2.5, sy: rad.sy + uy * Math.cos(w) * 2.5 - Math.sin(w) * 2.5 }
+        ctx.moveTo(a0.sx, a0.sy)
+        ctx.lineTo(a1.sx, a1.sy)
       }
       ctx.stroke()
     }
   }
   const rahmen = griff(['#e74c3c', '#2e86c1', '#27ae60', '#1c1c1c', '#f39c12', '#ecf0f1', '#8e44ad'], seed, 3)
+  const sattel = L(-0.4, 7)
+  const tretlager = L(1.2, 3)
+  const lenkerFuss = L(3.6, 9)
+  const lenker = L(5.8, 9.4)
   ctx.strokeStyle = rahmen
   ctx.lineWidth = 1.4
   ctx.lineCap = 'round'
   ctx.beginPath()
   ctx.moveTo(hinten.sx, hinten.sy)
-  ctx.lineTo(p.sx - 0.4 * blick, p.sy - 7)
+  ctx.lineTo(sattel.sx, sattel.sy)
   ctx.lineTo(vorne.sx, vorne.sy)
-  ctx.moveTo(p.sx - 0.4 * blick, p.sy - 7)
-  ctx.lineTo(p.sx + 1.2 * blick, p.sy - 3)
+  ctx.moveTo(sattel.sx, sattel.sy)
+  ctx.lineTo(tretlager.sx, tretlager.sy)
   ctx.lineTo(hinten.sx, hinten.sy)
   ctx.moveTo(vorne.sx, vorne.sy)
-  ctx.lineTo(vorne.sx - 0.8 * blick, p.sy - 9)
-  ctx.lineTo(vorne.sx + 1.4 * blick, p.sy - 9.4)
+  ctx.lineTo(lenkerFuss.sx, lenkerFuss.sy)
+  ctx.lineTo(lenker.sx, lenker.sy)
   ctx.stroke()
   if (fein && wobble(seed, 4) < 0.3) {
+    const korb = L(4.6, 10.6)
     ctx.fillStyle = '#b98a54'
-    ctx.fillRect(vorne.sx - 1.2 + blick, p.sy - 10.6, 3, 2.2)
+    ctx.fillRect(korb.sx - 1.5, korb.sy, 3, 2.2)
   }
   const a = aussehenVon(seed, agent.rolle, agent.klasse)
-  const kopf = { sx: p.sx + 1 * blick, sy: p.sy - 15.6 }
+  const huefte = L(-0.6, 9.6)
+  const kopf = L(1, 15.6)
+  // Beine treten: vor und zurück in Fahrtrichtung, auf und ab
   ctx.strokeStyle = a.untenFarbe
   ctx.lineWidth = 1.8
   ctx.beginPath()
-  ctx.moveTo(p.sx - 0.6 * blick, p.sy - 9.6)
-  ctx.lineTo(p.sx + Math.cos(drehung) * 2.2 * blick, p.sy - 4.8 + Math.sin(drehung) * 1.6)
-  ctx.moveTo(p.sx - 0.6 * blick, p.sy - 9.6)
-  ctx.lineTo(p.sx - Math.cos(drehung) * 2.2 * blick, p.sy - 4.8 - Math.sin(drehung) * 1.6)
+  const fuss1 = L(1.2 + Math.cos(drehung) * 2.2, 4.8 - Math.sin(drehung) * 1.6)
+  const fuss2 = L(1.2 - Math.cos(drehung) * 2.2, 4.8 + Math.sin(drehung) * 1.6)
+  ctx.moveTo(huefte.sx, huefte.sy)
+  ctx.lineTo(fuss1.sx, fuss1.sy)
+  ctx.moveTo(huefte.sx, huefte.sy)
+  ctx.lineTo(fuss2.sx, fuss2.sy)
   ctx.stroke()
-  ctx.fillStyle = a.obenFarbe
-  ctx.save()
-  ctx.translate(p.sx, p.sy - 12.6)
-  ctx.rotate(blick * 0.3)
-  roundedPath(ctx, -2, 0, 4, 6.4, 1.6)
-  ctx.fill()
-  ctx.restore()
+  // Oberkörper, nach vorn zum Lenker geneigt
+  const schulter = L(0.8, 13.6)
+  ctx.strokeStyle = a.obenFarbe
+  ctx.lineWidth = 3.6
+  ctx.beginPath()
+  ctx.moveTo(huefte.sx, huefte.sy - 0.6)
+  ctx.lineTo(schulter.sx, schulter.sy)
+  ctx.stroke()
+  // Arme zum Lenker
   ctx.strokeStyle = a.haut
   ctx.lineWidth = 1.3
   ctx.beginPath()
-  ctx.moveTo(p.sx + 0.8 * blick, p.sy - 11.6)
-  ctx.lineTo(vorne.sx + 0.4 * blick, p.sy - 9.2)
+  ctx.moveTo(schulter.sx, schulter.sy + 1)
+  ctx.lineTo(lenker.sx - ux * 0.6, lenker.sy + 0.4)
   ctx.stroke()
   ctx.fillStyle = a.haut
   ctx.beginPath()

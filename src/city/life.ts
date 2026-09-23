@@ -384,8 +384,17 @@ function neuerAgent(life: Life, teil: Partial<Agent> & Pick<Agent, 'art' | 'roll
     ry: 0,
     ...teil,
   }
+  lage(a)
   life.agents.push(a)
   return a
+}
+
+/** Ein Auto fährt nur los, wenn vor der Tür Platz ist – sonst versucht es jemand anderes */
+function neuesAuto(life: Life, teil: Parameters<typeof neuerAgent>[1]): Agent | null {
+  const a = neuerAgent(life, teil)
+  if (platzFrei(a, life.agents)) return a
+  life.agents.pop()
+  return null
 }
 
 /** Jemand macht sich auf den Weg – mit Grund und Ziel */
@@ -406,7 +415,7 @@ function neueFahrt(life: Life, city: CityState, klassen: Record<Klasse, number>)
     const pfad = tuerZuTuer(life, city, von, nach, true)
     if (!pfad || pfad.weg.length < 3) return null
     const modell: Modell = /fabrik|lager|brauerei/.test(von.def.id + nach.def.id) ? 'lkw' : Math.random() < 0.2 ? 'muell' : 'transporter'
-    return neuerAgent(life, {
+    return neuesAuto(life, {
       art: 'auto',
       rolle: 'lieferant',
       klasse: 'mittel',
@@ -459,7 +468,7 @@ function neueFahrt(life: Life, city: CityState, klassen: Record<Klasse, number>)
       let modell = pick(MODELLE_NACH_KLASSE[klasse])
       if (Math.random() < 0.05) modell = 'taxi'
       const schnell = modell === 'sport' || modell === 'super' ? 0.6 : 0
-      return neuerAgent(life, {
+      return neuesAuto(life, {
         art: 'auto',
         rolle,
         klasse,
@@ -652,28 +661,57 @@ function lage(a: Agent): void {
   a.ry = ry
 }
 
-/** So viel Platz muss zwischen zwei Wagen bleiben – in Kacheln, Mitte zu Mitte */
-const WAGENABSTAND = 0.72
+/** Bildpunkte je Kachel in Fahrtrichtung – so lang ist ein Wagen auf der Karte */
+const PX_JE_KACHEL = 45
+
+/** Halbe Länge eines Fahrzeugs in Kacheln */
+const halbeLaenge = (a: Agent): number => (BAUARTEN[a.modell ?? 'kompakt']?.lang ?? 20) / PX_JE_KACHEL / 2
+
+/** So viel Luft bleibt zwischen zwei Wagen – in Kacheln, Stoßstange zu Stoßstange */
+const LUECKE = 0.22
+
+/** Abstand Mitte zu Mitte, den zwei Wagen mindestens halten */
+const wagenAbstand = (a: Agent, b: Agent): number => halbeLaenge(a) + halbeLaenge(b) + LUECKE
+
+const istWagen = (b: Agent): boolean => b.art === 'auto' || b.art === 'dienst'
 
 /**
- * Wie weit ein Wagen fahren kann, bevor er dem vor ihm zu nahe kommt. Gezählt wird
- * nur, wer in derselben Spur und in dieselbe Richtung fährt oder dort steht;
- * Gegenverkehr und Querverkehr stören nicht.
+ * Wie weit ein Wagen fahren kann, bevor er dem vor ihm zu nahe kommt. Gezählt wird,
+ * wer in derselben Spur in dieselbe Richtung fährt oder dort steht – und wer direkt
+ * vor der Stoßstange gerade abbiegt. Gegenverkehr und Querverkehr stören nicht.
  */
 function freieStrecke(a: Agent, agents: Agent[]): number {
   let frei = Infinity
   for (const b of agents) {
-    if (b === a || (b.art !== 'auto' && b.art !== 'dienst') || b.zustand !== 'unterwegs') continue
+    if (b === a || !istWagen(b) || b.zustand !== 'unterwegs') continue
     const dx = b.x - a.x
     const dy = b.y - a.y
+    const abstand = wagenAbstand(a, b)
     const voraus = dx * a.rx + dy * a.ry
-    if (voraus <= 0 || voraus > WAGENABSTAND + 0.5) continue
+    if (voraus <= 0 || voraus > abstand + 0.5) continue
     const seitlich = Math.abs(dx * a.ry - dy * a.rx)
-    if (seitlich > 0.2) continue
-    if (b.rx * a.rx + b.ry * a.ry < 0.5) continue
-    frei = Math.min(frei, voraus - WAGENABSTAND)
+    const gleich = b.rx * a.rx + b.ry * a.ry
+    if (gleich >= 0.5) {
+      if (seitlich > 0.2) continue
+    } else if (!(gleich > 0.05 && voraus < abstand && seitlich < 0.3)) continue
+    frei = Math.min(frei, voraus - abstand)
   }
   return Math.max(0, frei)
+}
+
+/**
+ * Ist am Standort von a Platz, oder stünde der Wagen in einem anderen? Geprüft, bevor
+ * ein Auto losfährt – aus der Garage oder nach dem Einkauf zurück auf die Straße.
+ */
+function platzFrei(a: Agent, agents: Agent[]): boolean {
+  for (const b of agents) {
+    if (b === a || !istWagen(b) || b.zustand !== 'unterwegs') continue
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const noetig = wagenAbstand(a, b) * 0.85
+    if (dx * dx + dy * dy < noetig * noetig) return false
+  }
+  return true
 }
 
 function umkehren(a: Agent): void {
@@ -729,6 +767,14 @@ export function stepLife(life: Life, city: CityState, dt: number): Ereignis[] {
         continue
       }
       umkehren(a)
+      lage(a)
+      if (istWagen(a) && !platzFrei(a, life.agents)) {
+        // Vor der Tür steht gerade jemand – kurz warten, statt in ihn hineinzufahren
+        umkehren(a)
+        a.zurueck = false
+        a.warte = 0.4 + Math.random() * 0.6
+        continue
+      }
       a.zustand = 'unterwegs'
       continue
     }

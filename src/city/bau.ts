@@ -25,7 +25,7 @@ import {
   type Seite,
   type Wand,
 } from './geo'
-import { TILE_H, toScreen, zeigtNachVorn } from './iso'
+import { TILE_H, kartenLaenge, toScreen, zeigtNachVorn } from './iso'
 import { FENSTER_TOENE, fensterAn, fensterDunkel, fensterGlas, leuchte, lichtJetzt } from './licht'
 import type { Placed } from './types'
 
@@ -271,9 +271,12 @@ function oberflaeche(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: n
 }
 
 /** Die Fensterreihen einer Wand, samt Rahmen, Kreuz, Bank, Läden und Gittern */
-function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: number, farbe: string, s: FassadenStil): void {
+function fenster(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farbe: string, s: FassadenStil): void {
   if (s.fenster === 'keine') return
-  const laenge = Math.hypot(b.sx - a.sx, b.sy - a.sy)
+  const a = w.a
+  const b = w.b
+  // Gemessen an der Karte, nicht am Bild – so bleibt die Fensterzahl beim Drehen gleich
+  const laenge = kartenLaenge(w.ka, w.kb)
   const sockel = s.art === 'glas' ? 0 : Math.min(4, hoehe * 0.2)
   const etagen = Math.max(1, Math.min(s.floors, Math.floor((hoehe - sockel) / 12)))
   const etage = (hoehe - sockel) / etagen
@@ -284,12 +287,17 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
   const hoch = Math.min(s.fenster === 'gross' ? 11 : s.fenster === 'klein' ? 5 : 8, etage * (s.fenster === 'gross' ? 0.66 : 0.5))
   const breiteAnteil = s.fenster === 'gross' ? 0.74 : s.fenster === 'klein' ? 0.36 : 0.48
 
-  type F = { p0: Point; p1: Point; an: boolean; unten: boolean }
+  // Welches Fenster leuchtet, hängt am Fenster selbst, nicht an seiner Lage im Bild:
+  // Die Wand wird immer von links nach rechts gezeichnet, aber "links" wechselt beim
+  // Drehen die Seite – deshalb werden die Spalten in Kartenrichtung durchgezählt
+  const kartenRichtung = w.ka.x < w.kb.x || (w.ka.x === w.kb.x && w.ka.y < w.kb.y)
+  const wandSamen = w.seite.charCodeAt(0) * 31
+  type F = { p0: Point; p1: Point; an: boolean; unten: boolean; nr: number }
   const liste: F[] = []
   for (let r = ersteReihe; r < etagen; r++) {
     const z = sockel + etage * r + (etage - hoch) * 0.52
     if (s.fenster === 'band') {
-      liste.push({ p0: lift(mix(a, b, 0.05), z), p1: lift(mix(a, b, 0.95), z), an: fensterAn(wobble(s.seed, r) * 0.8), unten: r === 0 })
+      liste.push({ p0: lift(mix(a, b, 0.05), z), p1: lift(mix(a, b, 0.95), z), an: fensterAn(wobble(s.seed, r) * 0.8), unten: r === 0, nr: r })
       continue
     }
     for (let c = 0; c < spalten; c++) {
@@ -297,11 +305,14 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
       if (s.vorn && s.unten === 'tuer' && r === 0 && spalten >= 2 && Math.abs((c + 0.5) / spalten - 0.5) < 0.2) continue
       const mitteT = (c + 0.5) / spalten
       const halb = breiteAnteil / spalten / 2
+      const ci = kartenRichtung ? c : spalten - 1 - c
+      const nr = r * 13 + ci * 7 + wandSamen
       liste.push({
         p0: lift(mix(a, b, mitteT - halb), z),
         p1: lift(mix(a, b, mitteT + halb), z),
-        an: fensterAn(wobble(s.seed, r * 13 + c * 7)),
+        an: fensterAn(wobble(s.seed, nr)),
         unten: r === 0,
+        nr,
       })
     }
   }
@@ -390,7 +401,7 @@ function fenster(ctx: CanvasRenderingContext2D, a: Point, b: Point, hoehe: numbe
     ctx.fillStyle = fade('#ffffff', 0.18 * (1 - licht.nacht * 0.7))
     ctx.fill()
     // Vorhänge: an manchen erleuchteten Fenstern ein heller Streifen am Rand
-    const vorhang = liste.filter((f) => f.an && !f.unten && wobble(s.seed, 900 + f.p0.sx) > 0.5)
+    const vorhang = liste.filter((f) => f.an && !f.unten && wobble(s.seed, 900 + f.nr) > 0.5)
     if (vorhang.length > 0) {
       ctx.beginPath()
       for (const f of vorhang) {
@@ -573,7 +584,7 @@ function erdgeschoss(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farb
   }
   if (s.unten === 'tor' || s.unten === 'garage') {
     // Rolltore – bei der Feuerwehr rot, sonst grau
-    const tore = s.unten === 'garage' ? 1 : Math.max(1, Math.min(3, Math.round(Math.hypot(b.sx - a.sx, b.sy - a.sy) / 26)))
+    const tore = s.unten === 'garage' ? 1 : Math.max(1, Math.min(3, Math.round(kartenLaenge(w.ka, w.kb) / 26)))
     const torFarbe = s.neon === '#ff3b30' ? '#c62f28' : shade(farbe, -38)
     for (let i = 0; i < tore; i++) {
       const t0 = mix(a, b, (i + 0.14) / tore)
@@ -622,8 +633,7 @@ function balkone(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farbe: s
   const etagen = Math.max(1, Math.min(floors, Math.floor(hoehe / 12)))
   if (etagen < 2) return
   const etage = hoehe / etagen
-  const laenge = Math.hypot(w.b.sx - w.a.sx, w.b.sy - w.a.sy)
-  const spalten = Math.max(1, Math.round(laenge / 22))
+  const spalten = Math.max(1, Math.round(kartenLaenge(w.ka, w.kb) / 22))
   const vor = { sx: w.raus.sx * 4.5, sy: w.raus.sy * 4.5 }
   const weg = (p: Point): Point => ({ sx: p.sx + vor.sx, sy: p.sy + vor.sy })
   ctx.beginPath()
@@ -705,7 +715,7 @@ function wand(ctx: CanvasRenderingContext2D, w: Wand, hoehe: number, farbe: stri
     const sockel = Math.min(4, hoehe * 0.22)
     quad(ctx, a, b, lift(b, sockel), lift(a, sockel), shade(farbe, -30))
   }
-  fenster(ctx, a, b, hoehe, farbe, s)
+  fenster(ctx, w, hoehe, farbe, s)
   if (s.vorn) erdgeschoss(ctx, w, hoehe, farbe, s)
   if (!s.fein) return
   if (s.extras.has('efeu')) efeu(ctx, w, hoehe, s.seed + (s.vorn ? 0 : 3))
@@ -807,6 +817,14 @@ function dach(
     const rand = 4
     const ecken = umlauf(r, h + rand)
     const [e0, e1, e2, e3] = ecken
+    // Die Brüstung braucht Seitenflächen zwischen Wandkrone und Deckel – ohne sie
+    // bliebe ein durchsichtiger Spalt zwischen Haus und Dach
+    const bruestung = waende(r, h)
+    for (const s of SEITEN) {
+      const w = bruestung[s]
+      if (!w.sichtbar) continue
+      quad(ctx, w.a, w.b, lift(w.b, rand), lift(w.a, rand), shade(wandFarbe, w.ton + 6))
+    }
     // Brüstung: außen hell, innen etwas dunkler – so wirkt das Dach vertieft
     quad(ctx, e0, e1, e2, e3, shade(farbe, 14))
     const innen: Grund = { x: r.x + 0.07, y: r.y + 0.07, w: r.w - 0.14, h: r.h - 0.14 }

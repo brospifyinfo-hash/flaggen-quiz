@@ -7,7 +7,7 @@
 import { drawBau, umrissBau } from './bau'
 import { buildingDef, footprint, type Look } from './catalog'
 import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, ziegelReihen, type Point } from './draw'
-import { nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
+import { kartenLaenge, nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
 import { SEITEN, umlauf, waende, schwerpunkt, type Grund, type Seite, type Wand } from './geo'
 import { FENSTER_TOENE, fensterAn, fensterDunkel, fensterGlas, leuchte, lichtJetzt } from './licht'
 import type { Theme } from './themes'
@@ -52,7 +52,7 @@ function facade(
   b: Point,
   height: number,
   color: string,
-  stil: { floors: number; seed: number; front: boolean; fein: boolean; balkon: boolean; licht: string },
+  stil: { floors: number; seed: number; front: boolean; fein: boolean; balkon: boolean; licht: string; breite: number },
 ): void {
   quad(ctx, a, b, lift(b, height), lift(a, height), color)
   if (height < 6) return
@@ -61,10 +61,11 @@ function facade(
   const sockel = Math.min(SOCKEL, height * 0.3)
   quad(ctx, a, b, lift(b, sockel), lift(a, sockel), shade(color, -30))
 
-  const breite = Math.hypot(b.sx - a.sx, b.sy - a.sy)
   if (stil.floors <= 0 || height < 14) return
 
-  const cols = Math.max(1, Math.round(breite / 20))
+  // Die Fensterzahl hängt an der Wandlänge auf der Karte, nicht im Bild – sonst
+  // hätte dieselbe Wand je nach Drehung mal drei, mal vier Fenster
+  const cols = Math.max(1, Math.round(stil.breite / 20))
   const rows = Math.min(stil.floors, Math.max(1, Math.floor((height - sockel) / 15)))
   const winH = Math.min(9, ((height - sockel) / rows) * 0.46)
 
@@ -210,6 +211,7 @@ function box(
   for (const wand of sichtbar) {
     facade(ctx, wand.a, wand.b, heightPx, shade(look.wall, wand.ton), {
       ...stil,
+      breite: kartenLaenge(wand.ka, wand.kb),
       front: wand.seite === stil.vorn,
       balkon: stil.balkon && wand.seite === stil.vorn,
     })
@@ -870,7 +872,7 @@ function zeichneRuine(
   for (const seite of SEITEN) {
     const wand = wandListe[seite]
     if (!wand.sichtbar) continue
-    const n = Math.max(1, Math.round(Math.hypot(wand.b.sx - wand.a.sx, wand.b.sy - wand.a.sy) / 22))
+    const n = Math.max(1, Math.round(kartenLaenge(wand.ka, wand.kb) / 22))
     for (let i = 0; i < n; i++) {
       if (wobble(seed, 400 + i + seite.charCodeAt(0)) < 0.35) continue
       const m = mix(wand.a, wand.b, (i + 0.5) / n)

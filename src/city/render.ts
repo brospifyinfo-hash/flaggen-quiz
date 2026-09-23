@@ -273,6 +273,91 @@ export function vorderTiefe(placed: Placed): number {
   return vorn
 }
 
+/**
+ * Liegt Grundstück A hinter Grundstück B? Zwei Grundstücke überlappen sich nie, also
+ * trennt sie mindestens eine Achse – und entlang der Blickrichtung sagt diese Achse
+ * genau, wer vor wem steht. Ein Vergleich nach der vordersten Kachel allein irrt bei
+ * langen Häusern: Ein kurzes Haus neben dem hinteren Ende eines langen stünde dann
+ * plötzlich hinter ihm und verschwände in seiner Wand.
+ * -1: A zuerst malen, 1: B zuerst, 0: nicht entscheidbar.
+ */
+function vorOderHinter(a: Grund, b: Grund, g: { x: number; y: number }): -1 | 0 | 1 {
+  const EPS = 1e-6
+  const achse = (a0: number, a1: number, b0: number, b1: number, richtung: number): -1 | 0 | 1 => {
+    if (Math.abs(richtung) < EPS) return 0
+    // b liegt in Richtung größerer Werte: dann steht b vorn, wenn die Tiefe dorthin wächst
+    if (a1 <= b0 + EPS) return richtung > 0 ? -1 : 1
+    if (b1 <= a0 + EPS) return richtung > 0 ? 1 : -1
+    return 0
+  }
+  const vx = achse(a.x, a.x + a.w, b.x, b.x + b.w, g.x)
+  const vy = achse(a.y, a.y + a.h, b.y, b.y + b.h, g.y)
+  if (vx === 0) return vy
+  if (vy === 0) return vx
+  return vx === vy ? vx : 0
+}
+
+let reihenfolgeCache: { buildings: Placed[]; gx: number; gy: number; folge: number[] } | null = null
+
+/**
+ * Die Reihenfolge, in der Gebäude gemalt werden: von hinten nach vorn, aber paarweise
+ * geprüft statt nur nach einer Zahl je Haus. Flache Anlagen kommen zuerst, sie liegen am
+ * Boden. Aus den Paaren wird ein Graph; wo er nicht entscheidet, gilt die vorderste Kachel.
+ */
+function malReihenfolge(buildings: Placed[], koerper: (Reihenfolge | null)[], g: { x: number; y: number }): number[] {
+  if (reihenfolgeCache && reihenfolgeCache.buildings === buildings && Math.abs(reihenfolgeCache.gx - g.x) < 1e-4 && Math.abs(reihenfolgeCache.gy - g.y) < 1e-4) {
+    return reihenfolgeCache.folge
+  }
+  const n = buildings.length
+  const tiefen = buildings.map((placed) => vorderTiefe(placed))
+  const flach: number[] = []
+  const hoch: number[] = []
+  for (let i = 0; i < n; i++) (koerper[i]?.flach !== false ? flach : hoch).push(i)
+  flach.sort((a, b) => tiefen[a] - tiefen[b])
+
+  // Kanten: vor[j] zählt, wie viele Häuser noch vor j gemalt werden müssen
+  const danach: number[][] = Array.from({ length: n }, () => [])
+  const offen = new Array<number>(n).fill(0)
+  for (let p = 0; p < hoch.length; p++) {
+    const i = hoch[p]
+    const ki = koerper[i]!
+    for (let q = p + 1; q < hoch.length; q++) {
+      const j = hoch[q]
+      const kj = koerper[j]!
+      let rel = vorOderHinter(ki.lot, kj.lot, g)
+      if (rel === 0) rel = tiefen[i] < tiefen[j] ? -1 : tiefen[i] > tiefen[j] ? 1 : 0
+      if (rel === -1) {
+        danach[i].push(j)
+        offen[j]++
+      } else if (rel === 1) {
+        danach[j].push(i)
+        offen[i]++
+      }
+    }
+  }
+  // Kahn: immer das hinterste malbare Haus zuerst; ein Kreis wird beim Hintersten aufgebrochen
+  const folge: number[] = [...flach]
+  const fertig = new Array<boolean>(n).fill(false)
+  let rest = hoch.length
+  while (rest > 0) {
+    let wahl = -1
+    let wahlFrei = -1
+    for (const i of hoch) {
+      if (fertig[i]) continue
+      if (offen[i] === 0) {
+        if (wahlFrei === -1 || tiefen[i] < tiefen[wahlFrei]) wahlFrei = i
+      } else if (wahl === -1 || tiefen[i] < tiefen[wahl]) wahl = i
+    }
+    const i = wahlFrei !== -1 ? wahlFrei : wahl
+    fertig[i] = true
+    rest--
+    folge.push(i)
+    for (const j of danach[i]) offen[j]--
+  }
+  reihenfolgeCache = { buildings, gx: g.x, gy: g.y, folge }
+  return folge
+}
+
 /** Formen ohne Baukörper: Figuren stehen auf ihnen, nie dahinter */
 const FLACHE_FORMEN = new Set(['park', 'wasser', 'flach', 'brunnen', 'bank', 'blumen', 'hecke', 'felsen', 'laterne', 'fahne'])
 
@@ -741,12 +826,12 @@ function stadtMalen(
   if (options.kriminalitaet) kriminalitaetZeigen(ctx, city)
 
   // Maler-Reihenfolge: was weiter hinten liegt, kommt zuerst.
-  // Gebäude von hinten nach vorn
-  const sorted = [...city.buildings].sort((a, b) => vorderTiefe(a) - vorderTiefe(b))
-
   const g = tiefenRichtung()
   const quer = { x: -g.y, y: g.x }
-  const koerper = sorted.map((placed) => koerperFuerReihenfolge(city, placed, g, quer))
+  const alleKoerper = city.buildings.map((placed) => koerperFuerReihenfolge(city, placed, g, quer))
+  const reihenfolge = malReihenfolge(city.buildings, alleKoerper, g)
+  const sorted = reihenfolge.map((i) => city.buildings[i])
+  const koerper = reihenfolge.map((i) => alleKoerper[i])
 
   // Die Schatten der Häuser liegen auf dem Boden, unter allem, was darauf steht
   schattenWerfen(ctx, koerper, licht)
