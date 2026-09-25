@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Flag } from './Flag'
+import { FlagStack } from './FlagStack'
 import { IconBack, IconClose, IconPlay } from './Icons'
 import { SpielZeichen, type PlakatArt } from './SpielPlakat'
+import { CONTINENTS } from '../data/countries'
 import { haptic } from '../haptics'
 import { ladeAlle } from '../lernen/kurse'
 import { WAS_IST_DAS, WAS_KATEGORIEN } from '../modes/wasIstDas'
@@ -12,7 +14,16 @@ import { navigate } from '../router'
 import { RANDOM, endRun, startRun } from '../run'
 import { setState } from '../store'
 
-type Seite = 'spiele' | 'was'
+type Seite = 'spiele' | 'was' | 'flaggen'
+
+const VORSCHAU: Record<string, string> = {
+  personen: '/people/albert-einstein.webp',
+  autos: '/motive/porsche.webp',
+  marken: '/motive/nutella.webp',
+  orte: '/motive/brandenburg.webp',
+  natur: '/motive/loewe.webp',
+  rap: '/motive/berlin.webp',
+}
 
 const SPIELE: { art: PlakatArt; kicker: string; name: string; text: string; breit?: boolean; ziel: string }[] = [
   { art: 'was', kicker: 'Erkennen', name: 'Was ist das', text: 'Kategorie oder Zufall', breit: true, ziel: 'was' },
@@ -108,18 +119,22 @@ export function SpieleBlatt() {
             className={`spiele-blatt${offen ? ' is-offen' : ''}`}
             role="dialog"
             aria-modal="true"
-            aria-label={seite === 'was' ? 'Was ist das' : 'Spielen'}
+            aria-label={seite === 'was' ? 'Was ist das' : seite === 'flaggen' ? 'Flaggen' : 'Spielen'}
           >
             <div className="spiele-griff" />
             <header className="spiele-kopf">
-              {seite === 'was' ? (
-                <button className="icon-btn" aria-label="Zurück zu den Spielen" onClick={() => setSeite('spiele')}>
+              {seite === 'spiele' ? (
+                <span className="spiele-kopf-platz" />
+              ) : (
+                <button
+                  className="icon-btn"
+                  aria-label={seite === 'flaggen' ? 'Zurück zu den Kategorien' : 'Zurück zu den Spielen'}
+                  onClick={() => setSeite(seite === 'flaggen' ? 'was' : 'spiele')}
+                >
                   <IconBack />
                 </button>
-              ) : (
-                <span className="spiele-kopf-platz" />
               )}
-              <h2>{seite === 'was' ? 'Was ist das' : 'Spielen'}</h2>
+              <h2>{seite === 'was' ? 'Was ist das' : seite === 'flaggen' ? 'Flaggen' : 'Spielen'}</h2>
               <button className="icon-btn" aria-label="Schließen" onClick={schliessen}>
                 <IconClose />
               </button>
@@ -143,34 +158,30 @@ export function SpieleBlatt() {
                     </button>
                   ))}
                 </div>
-              ) : (
+              ) : seite === 'was' ? (
                 <div className="spiel-gitter">
                   {WAS_KATEGORIEN.map((kategorie) =>
                     kategorie.id === 'flaggen' ? (
-                      <div key={kategorie.id} className="spiel-karte ton-flaggen">
-                        <button className="spiel-haupt" onClick={() => starte(`${WAS_IST_DAS}:flaggen`)}>
-                          <span className="spiel-zeichen">
-                            <span className="marke-flaggen">
-                              {FLAGGEN.map((code) => (
-                                <Flag key={code} code={code} />
-                              ))}
-                            </span>
+                      <button
+                        key={kategorie.id}
+                        className="spiel-karte ton-flaggen"
+                        onClick={() => {
+                          haptic('soft')
+                          setSeite('flaggen')
+                        }}
+                      >
+                        <span className="spiel-zeichen">
+                          <span className="marke-flaggen">
+                            {FLAGGEN.map((code) => (
+                              <Flag key={code} code={code} />
+                            ))}
                           </span>
-                          <span className="spiel-text">
-                            <strong>{kategorie.name}</strong>
-                            <em>{kategorie.text}</em>
-                          </span>
-                        </button>
-                        <button
-                          className="kat-reise"
-                          onClick={() => {
-                            haptic('soft')
-                            navigate({ name: 'mode', id: 'flaggen' })
-                          }}
-                        >
-                          Kontinent-Reise
-                        </button>
-                      </div>
+                        </span>
+                        <span className="spiel-text">
+                          <strong>{kategorie.name}</strong>
+                          <em>Kontinent wählen</em>
+                        </span>
+                      </button>
                     ) : (
                       <button
                         key={kategorie.id}
@@ -188,6 +199,45 @@ export function SpieleBlatt() {
                     ),
                   )}
                 </div>
+              ) : (
+                <div className="flaggen-wahl">
+                  <button className="spiel-karte is-breit ton-flaggen" onClick={() => starte(`${WAS_IST_DAS}:flaggen`)}>
+                    <span className="spiel-zeichen">
+                      <span className="marke-flaggen">
+                        {FLAGGEN.map((code) => (
+                          <Flag key={code} code={code} />
+                        ))}
+                      </span>
+                    </span>
+                    <span className="spiel-text">
+                      <strong>Alle Flaggen</strong>
+                      <em>Die ganze Welt, gemischt</em>
+                    </span>
+                  </button>
+                  {CONTINENTS.map((kontinent) => (
+                    <button
+                      key={kontinent.id}
+                      className="flaggen-kontinent"
+                      onClick={() => starte(`${WAS_IST_DAS}:flaggen:${kontinent.id}`)}
+                    >
+                      <FlagStack codes={kontinent.showcase} />
+                      <span className="spiel-text">
+                        <strong>{kontinent.name}</strong>
+                        <em>{kontinent.note ?? 'Nur diese Länder'}</em>
+                      </span>
+                    </button>
+                  ))}
+                  <button
+                    className="flaggen-reise"
+                    onClick={() => {
+                      haptic('soft')
+                      navigate({ name: 'mode', id: 'flaggen' })
+                    }}
+                  >
+                    <strong>Kontinent-Reise</strong>
+                    <em>Übungsrunden und Abschlusstest, Kontinent für Kontinent</em>
+                  </button>
+                </div>
               )}
             </div>
           </section>
@@ -199,6 +249,8 @@ export function SpieleBlatt() {
 }
 
 function KategorieBild({ id }: { id: string }) {
+  const foto = VORSCHAU[id]
+  if (foto) return <img className="spiel-foto" src={foto} alt="" draggable={false} />
   const art: PlakatArt =
     id === 'autos' || id === 'marken' || id === 'orte' || id === 'natur' || id === 'rap' || id === 'personen' || id === 'zufall'
       ? id

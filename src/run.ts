@@ -1,6 +1,6 @@
 // Run-Engine: endlose Runden für Random Mode und für einzelne Modi.
 import { getMode, pickRandomMode } from './modes/registry'
-import { WAS_IST_DAS, wasFrage, wasKategorie, wissensModus } from './modes/wasIstDas'
+import { WAS_IST_DAS, flaggenKontinent, wasFrage, wasKategorie, wissensModus } from './modes/wasIstDas'
 import { checkAchievements, creditXp, grantZeit, modeProgress, overallMastery, PERFEKT_ZEIT, PERFEKTLAUF, rankFor, xpForAnswer } from './progression'
 import type { Judgement, ModeProgress, ModeQuestion, Run, RunResult, SaveData } from './types'
 
@@ -19,7 +19,9 @@ const masteryOf = (data: SaveData, mode: string) =>
   mode === RANDOM ? overallMastery(data) : (getMode(mode)?.mastery(data) ?? 0)
 
 function makeQuestion(data: SaveData, mode: string, recentKeys: string[], recentModes: string[]): ModeQuestion | null {
-  if (mode === WAS_IST_DAS || mode.startsWith(`${WAS_IST_DAS}:`)) return wasFrage(data, recentKeys, wasKategorie(mode))
+  if (mode === WAS_IST_DAS || mode.startsWith(`${WAS_IST_DAS}:`)) {
+    return wasFrage(data, recentKeys, wasKategorie(mode), flaggenKontinent(mode))
+  }
   if (mode !== RANDOM) return getMode(mode)?.nextQuestion(data, recentKeys) ?? null
   // Ein Modus kann gerade nichts liefern (etwa weil Kursinhalte noch laden) – dann ein anderer
   const versucht: string[] = []

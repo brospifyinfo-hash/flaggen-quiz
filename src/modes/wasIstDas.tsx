@@ -1,8 +1,10 @@
-// „Was ist das“: Flaggen, Personen und die gezeichneten Motive in einem Spiel.
+// „Was ist das“: Flaggen, Personen und Fotos in einem Spiel.
 import { accuracyOf, modeProgress } from '../progression'
 import { pickSubject, recordLearn, gradedMastery } from '../learn'
-import { shuffle } from '../quiz'
+import { CONTINENTS, type ContinentId } from '../data/countries'
+import { codesOf, countryName, makeQuestion, pickCountryForRun, shuffle } from '../quiz'
 import type { ModeQuestion, SaveData } from '../types'
+import { bildVon } from '../erkennen/bilder'
 import { antwortVon, KATALOG, motivById, motiveDerGruppe, type MotivGruppe } from '../erkennen/katalog'
 import { Motiv } from '../erkennen/Motiv'
 import { flagsMode } from './flags'
@@ -15,11 +17,11 @@ export const WAS_KATEGORIEN = [
   { id: 'zufall', name: 'Zufall', text: 'Alle Kategorien durcheinander' },
   { id: 'flaggen', name: 'Flaggen', text: 'Länder an der Flagge erkennen' },
   { id: 'personen', name: 'Personen', text: 'Gesichter zuordnen' },
-  { id: 'autos', name: 'Automarken', text: 'Wessen Zeichen ist das?' },
-  { id: 'marken', name: 'Marken', text: 'Zeichen aus dem Alltag' },
+  { id: 'autos', name: 'Automarken', text: 'Welche Marke ist das?' },
+  { id: 'marken', name: 'Marken', text: 'Welche Marke ist das?' },
   { id: 'orte', name: 'Sehenswürdigkeiten', text: 'Bauwerke der Welt' },
   { id: 'natur', name: 'Tiere & Pflanzen', text: 'Wer oder was ist das?' },
-  { id: 'rap', name: 'Deutsche Rapper', text: 'Album-Cover dem Rapper zuordnen' },
+  { id: 'rap', name: 'Deutsche Rapper', text: 'Welcher Rapper ist das?' },
 ] as const
 
 export type WasKategorie = (typeof WAS_KATEGORIEN)[number]['id']
@@ -31,12 +33,24 @@ const istGruppe = (wert: string): wert is WasKategorie => GRUPPEN.some((gruppe) 
 
 export function wasKategorie(mode: string): WasKategorie {
   if (!mode.startsWith(`${WAS_IST_DAS}:`)) return 'zufall'
-  const id = mode.slice(WAS_IST_DAS.length + 1)
+  const id = mode.slice(WAS_IST_DAS.length + 1).split(':')[0]
   return WAS_KATEGORIEN.some((kategorie) => kategorie.id === id) ? (id as WasKategorie) : 'zufall'
+}
+
+/** Kontinent, wenn der Flaggen-Run darauf festgelegt ist, z. B. was-ist-das:flaggen:europa */
+export function flaggenKontinent(mode: string): ContinentId | null {
+  if (!mode.startsWith(`${WAS_IST_DAS}:flaggen:`)) return null
+  const id = mode.slice(`${WAS_IST_DAS}:flaggen:`.length)
+  return CONTINENTS.some((kontinent) => kontinent.id === id) ? (id as ContinentId) : null
 }
 
 /** Anzeigename, wenn ein Run auf eine Kategorie festgelegt ist */
 export function kategorieTitel(mode: string): string | null {
+  const kontinent = flaggenKontinent(mode)
+  if (kontinent) {
+    const name = CONTINENTS.find((eintrag) => eintrag.id === kontinent)?.name
+    return name ? `🔎 Flaggen · ${name}` : '🔎 Flaggen'
+  }
   const kategorie = wasKategorie(mode)
   if (mode === WAS_IST_DAS || kategorie === 'zufall') return null
   const eintrag = WAS_KATEGORIEN.find((kategorieEintrag) => kategorieEintrag.id === kategorie)
@@ -72,12 +86,28 @@ function uebernehmen(frage: ModeQuestion, kategorie: string, prompt: string): Mo
   }
 }
 
-function flaggenFrage(data: SaveData, recentKeys: readonly string[]): ModeQuestion | null {
-  const alt = recentKeys
+function flaggenFrage(data: SaveData, recentKeys: readonly string[], kontinent: ContinentId | null): ModeQuestion | null {
+  const kuerzel = recentKeys
     .filter((key) => key.startsWith(`${WAS_IST_DAS}:flaggen:`))
-    .map((key) => `flaggen:${key.slice(`${WAS_IST_DAS}:flaggen:`.length)}`)
-  const frage = flagsMode.nextQuestion(data, alt)
-  return frage ? uebernehmen(frage, 'flaggen', 'Was ist das?') : null
+    .map((key) => key.slice(`${WAS_IST_DAS}:flaggen:`.length))
+  if (!kontinent) {
+    const frage = flagsMode.nextQuestion(
+      data,
+      kuerzel.map((code) => `flaggen:${code}`),
+    )
+    return frage ? uebernehmen(frage, 'flaggen', 'Was ist das?') : null
+  }
+  const code = pickCountryForRun(data, kuerzel, codesOf(kontinent))
+  if (!code) return null
+  const frage = makeQuestion(code, kontinent)
+  return {
+    modeId: WAS_IST_DAS,
+    key: `${WAS_IST_DAS}:flaggen:${code}`,
+    prompt: 'Was ist das?',
+    data: { code, kategorie: 'flaggen' },
+    options: frage.options.map((option) => ({ id: option, label: countryName(option) })),
+    correctId: code,
+  }
 }
 
 function personenFrage(data: SaveData, recentKeys: readonly string[]): ModeQuestion | null {
@@ -117,9 +147,14 @@ function motivFrage(gruppe: MotivGruppe, data: SaveData, recentKeys: readonly st
   }
 }
 
-export function wasFrage(data: SaveData, recentKeys: readonly string[], kategorie: WasKategorie | string): ModeQuestion | null {
+export function wasFrage(
+  data: SaveData,
+  recentKeys: readonly string[],
+  kategorie: WasKategorie | string,
+  kontinent: ContinentId | null = null,
+): ModeQuestion | null {
   const gruppe = naechsteGruppe(kategorie === 'zufall' || istGruppe(kategorie) ? kategorie : 'zufall', recentKeys)
-  if (gruppe === 'flaggen') return flaggenFrage(data, recentKeys)
+  if (gruppe === 'flaggen') return flaggenFrage(data, recentKeys, kategorie === 'flaggen' ? kontinent : null)
   if (gruppe === 'personen') return personenFrage(data, recentKeys)
   if (MOTIV_GRUPPEN.includes(gruppe as MotivGruppe)) return motivFrage(gruppe as MotivGruppe, data, recentKeys)
   return null
@@ -133,7 +168,7 @@ export const wasIstDasMode: QuizMode = {
   emoji: '🔎',
   tagline: 'Flaggen, Personen, Marken, Orte, Tiere und Rapper',
 
-  nextQuestion: (data, recentKeys) => wasFrage(data, recentKeys, 'zufall'),
+  nextQuestion: (data, recentKeys) => wasFrage(data, recentKeys, 'zufall', null),
 
   recordAnswer(data, question, picked, correct, now) {
     const kategorie = question.data.kategorie
@@ -158,6 +193,7 @@ export const wasIstDasMode: QuizMode = {
 
   renderQuestion(question) {
     const kategorie = question.data.kategorie
+    const foto = bildVon(question.data.motiv)
     const bild =
       kategorie === 'flaggen'
         ? flagsMode.renderQuestion(question, null)
@@ -166,6 +202,7 @@ export const wasIstDasMode: QuizMode = {
           : (
               <div className="was-buehne" role="img" aria-label="Abbildung">
                 <Motiv id={question.data.motiv} />
+                {foto && <p className="credit">Foto: {foto.urheber} · {foto.lizenz}</p>}
               </div>
             )
     return (

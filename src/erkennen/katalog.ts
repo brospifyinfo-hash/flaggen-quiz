@@ -1,4 +1,4 @@
-// Motive für „Was ist das“. Die Bilder dazu sind eigene Zeichnungen, keine Marken- oder Coverdateien.
+// Motive für „Was ist das“. Die Fotos liegen unter public/motive, die Zeichnung ist nur der Ersatz.
 export type MotivGruppe = 'autos' | 'marken' | 'orte' | 'natur' | 'rap'
 
 export interface MotivEintrag {

@@ -12,6 +12,7 @@
     "icons": "node scripts/make-icons.ts",
     "ikonen": "bash ikonen/build.sh",
     "people": "node scripts/fetch-people.ts",
+    "motive": "node --experimental-strip-types scripts/fetch-motive.ts",
     "map": "node scripts/prepare-map.ts"
   },
   "dependencies": {

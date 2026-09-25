@@ -1,8 +1,13 @@
-// Eigene Zeichnungen zu den Motiven. Keine übernommenen Logo- oder Coverdateien.
+// Fotos, wo ein frei lizenziertes Bild vorliegt. Sonst die eigene Zeichnung.
 import { useId, type ReactNode } from 'react'
+import { bildVon } from './bilder'
 import { motivById } from './katalog'
 
 export function Motiv({ id, schnitt = false }: { id: string; schnitt?: boolean }) {
+  const bild = bildVon(id)
+  if (bild) {
+    return <img className="motiv" src={`/motive/${id}.webp`} alt="" draggable={false} />
+  }
   const uid = useId().replace(/:/g, '')
   const eintrag = motivById(id)
   return (

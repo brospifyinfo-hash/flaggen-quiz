@@ -139,9 +139,9 @@ export function makeQuestion(code: string, id: ContinentId): Question {
 /** Kontinent eines Landes */
 export const continentOfCode = (code: string): ContinentId | null => BY_CODE.get(code)?.continent ?? null
 
-/** Wählt für einen endlosen Run eine Flagge aus der ganzen Welt – unsichere kommen häufiger */
-export function pickCountryForRun(data: SaveData, recent: readonly string[]): string | null {
-  const all = COUNTRIES.map((country) => country.code)
+/** Wählt für einen endlosen Run eine Flagge – unsichere kommen häufiger. Mit `nur` nur dieser Kontinent. */
+export function pickCountryForRun(data: SaveData, recent: readonly string[], nur?: readonly string[]): string | null {
+  const all = nur && nur.length > 0 ? [...nur] : COUNTRIES.map((country) => country.code)
   const pool = all.filter((code) => !recent.includes(code))
   return weightedSample(pool.length > 0 ? pool : all, 1, (code) => urgency(data.stats[code]))[0] ?? null
 }
