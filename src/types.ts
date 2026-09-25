@@ -91,8 +91,13 @@ export interface ActivityInput {
   daten: string
 }
 
+/** Freitext, z. B. der schwere Modus von „Was ist das“. Die Lösung steht in data.name. */
+export interface TextInput {
+  kind: 'text'
+}
+
 /** Eingabe statt fester Antworten, z. B. der Zeitstrahl bei Geschichte */
-export type QuestionInput = TimelineInput | MapInput | ActivityInput
+export type QuestionInput = TimelineInput | MapInput | ActivityInput | TextInput
 
 /** Eine Frage aus einem beliebigen Spielmodus – muss als JSON speicherbar sein */
 export interface ModeQuestion {

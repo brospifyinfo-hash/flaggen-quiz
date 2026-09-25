@@ -1,12 +1,15 @@
 // „Was ist das“: Flaggen, Personen und Fotos in einem Spiel.
-import { accuracyOf, modeProgress } from '../progression'
+import { useState } from 'react'
+import { accuracyOf, modeProgress, xpForAnswer } from '../progression'
 import { pickSubject, recordLearn, gradedMastery } from '../learn'
-import { CONTINENTS, type ContinentId } from '../data/countries'
+import { CONTINENTS, COUNTRIES, type ContinentId } from '../data/countries'
+import { PEOPLE } from '../data/people'
 import { codesOf, countryName, makeQuestion, pickCountryForRun, shuffle } from '../quiz'
 import type { ModeQuestion, SaveData } from '../types'
 import { bildVon } from '../erkennen/bilder'
 import { antwortVon, KATALOG, motivById, motiveDerGruppe, type MotivGruppe } from '../erkennen/katalog'
 import { Motiv } from '../erkennen/Motiv'
+import { normTipp, tippPasst } from '../erkennen/tipp'
 import { flagsMode } from './flags'
 import { peopleMode } from './people'
 import type { QuizMode } from './registry'
@@ -31,30 +34,46 @@ const MOTIV_GRUPPEN: MotivGruppe[] = ['autos', 'marken', 'orte', 'natur', 'rap']
 
 const istGruppe = (wert: string): wert is WasKategorie => GRUPPEN.some((gruppe) => gruppe === wert)
 
+export type WasStufe = 'easy' | 'hard'
+
+const ohneStufe = (mode: string) => mode.replace(/:(easy|hard)$/, '')
+
+/** Leicht oder schwer, wenn der Run darauf festgelegt ist */
+export function wasStufe(mode: string): WasStufe | null {
+  if (mode.endsWith(':hard')) return 'hard'
+  if (mode.endsWith(':easy')) return 'easy'
+  return null
+}
+
 export function wasKategorie(mode: string): WasKategorie {
-  if (!mode.startsWith(`${WAS_IST_DAS}:`)) return 'zufall'
-  const id = mode.slice(WAS_IST_DAS.length + 1).split(':')[0]
+  const basis = ohneStufe(mode)
+  if (!basis.startsWith(`${WAS_IST_DAS}:`)) return 'zufall'
+  const id = basis.slice(WAS_IST_DAS.length + 1).split(':')[0]
   return WAS_KATEGORIEN.some((kategorie) => kategorie.id === id) ? (id as WasKategorie) : 'zufall'
 }
 
 /** Kontinent, wenn der Flaggen-Run darauf festgelegt ist, z. B. was-ist-das:flaggen:europa */
 export function flaggenKontinent(mode: string): ContinentId | null {
-  if (!mode.startsWith(`${WAS_IST_DAS}:flaggen:`)) return null
-  const id = mode.slice(`${WAS_IST_DAS}:flaggen:`.length)
+  const basis = ohneStufe(mode)
+  if (!basis.startsWith(`${WAS_IST_DAS}:flaggen:`)) return null
+  const id = basis.slice(`${WAS_IST_DAS}:flaggen:`.length)
   return CONTINENTS.some((kontinent) => kontinent.id === id) ? (id as ContinentId) : null
 }
 
 /** Anzeigename, wenn ein Run auf eine Kategorie festgelegt ist */
 export function kategorieTitel(mode: string): string | null {
+  const stufe = wasStufe(mode)
+  const zusatz = stufe === 'easy' ? ' · Leicht' : stufe === 'hard' ? ' · Schwer' : ''
   const kontinent = flaggenKontinent(mode)
   if (kontinent) {
     const name = CONTINENTS.find((eintrag) => eintrag.id === kontinent)?.name
-    return name ? `🔎 Flaggen · ${name}` : '🔎 Flaggen'
+    return `${name ? `🔎 Flaggen · ${name}` : '🔎 Flaggen'}${zusatz}`
   }
   const kategorie = wasKategorie(mode)
-  if (mode === WAS_IST_DAS || kategorie === 'zufall') return null
+  if ((ohneStufe(mode) === WAS_IST_DAS || kategorie === 'zufall') && !zusatz) return null
+  if (kategorie === 'zufall') return `🔎 Was ist das${zusatz}`
   const eintrag = WAS_KATEGORIEN.find((kategorieEintrag) => kategorieEintrag.id === kategorie)
-  return eintrag ? `🔎 ${eintrag.name}` : null
+  return eintrag ? `🔎 ${eintrag.name}${zusatz}` : null
 }
 
 const nameVon = (id: string) => WAS_KATEGORIEN.find((kategorie) => kategorie.id === id)?.name ?? 'Was ist das'
@@ -148,17 +167,48 @@ function motivFrage(gruppe: MotivGruppe, data: SaveData, recentKeys: readonly st
   }
 }
 
+function loesungVon(frage: ModeQuestion): string {
+  if (frage.data.kategorie === 'flaggen') return countryName(frage.data.code)
+  if (frage.data.kategorie === 'personen') return PEOPLE.find((person) => person.id === frage.data.person)?.name ?? ''
+  return motivById(frage.data.motiv)?.name ?? ''
+}
+
+function andereNamen(frage: ModeQuestion, name: string): string[] {
+  const kategorie = frage.data.kategorie
+  if (kategorie === 'flaggen') return COUNTRIES.map((land) => land.name).filter((land) => land !== name)
+  if (kategorie === 'personen') return PEOPLE.map((person) => person.name).filter((person) => person !== name)
+  if (MOTIV_GRUPPEN.includes(kategorie as MotivGruppe)) {
+    return motiveDerGruppe(kategorie as MotivGruppe)
+      .map((eintrag) => eintrag.name)
+      .filter((eintrag) => eintrag !== name)
+  }
+  return []
+}
+
+function mitStufe(frage: ModeQuestion | null, stufe: WasStufe | null): ModeQuestion | null {
+  if (!frage || !stufe) return frage
+  const name = loesungVon(frage)
+  if (stufe === 'easy') return { ...frage, data: { ...frage.data, stufe, name } }
+  return { ...frage, data: { ...frage.data, stufe, name }, options: [], input: { kind: 'text' } }
+}
+
 export function wasFrage(
   data: SaveData,
   recentKeys: readonly string[],
   kategorie: WasKategorie | string,
   kontinent: ContinentId | null = null,
+  stufe: WasStufe | null = null,
 ): ModeQuestion | null {
   const gruppe = naechsteGruppe(kategorie === 'zufall' || istGruppe(kategorie) ? kategorie : 'zufall', recentKeys)
-  if (gruppe === 'flaggen') return flaggenFrage(data, recentKeys, kategorie === 'flaggen' ? kontinent : null)
-  if (gruppe === 'personen') return personenFrage(data, recentKeys)
-  if (MOTIV_GRUPPEN.includes(gruppe as MotivGruppe)) return motivFrage(gruppe as MotivGruppe, data, recentKeys)
-  return null
+  const frage =
+    gruppe === 'flaggen'
+      ? flaggenFrage(data, recentKeys, kategorie === 'flaggen' ? kontinent : null)
+      : gruppe === 'personen'
+        ? personenFrage(data, recentKeys)
+        : MOTIV_GRUPPEN.includes(gruppe as MotivGruppe)
+          ? motivFrage(gruppe as MotivGruppe, data, recentKeys)
+          : null
+  return mitStufe(frage, stufe)
 }
 
 const katalogIds = KATALOG.map((eintrag) => `${eintrag.gruppe}:${eintrag.id}`)
@@ -169,7 +219,25 @@ export const wasIstDasMode: QuizMode = {
   emoji: '🔎',
   tagline: 'Flaggen, Personen, Marken, Orte, Tiere und Rapper',
 
-  nextQuestion: (data, recentKeys) => wasFrage(data, recentKeys, 'zufall', null),
+  nextQuestion: (data, recentKeys) => wasFrage(data, recentKeys, 'zufall', null, null),
+
+  judge(question, picked, combo) {
+    if (question.input?.kind === 'text') {
+      const name = question.data.name
+      const richtig = tippPasst(picked, name, andereNamen(question, name))
+      const exakt = normTipp(picked) === normTipp(name)
+      return {
+        correct: richtig,
+        xp: richtig ? xpForAnswer(combo) : 0,
+        headline: richtig ? (exakt ? 'Richtig!' : 'Knapp!') : 'Leider falsch',
+      }
+    }
+    const richtig = picked === question.correctId
+    if (question.data.stufe === 'easy') {
+      return { correct: richtig, xp: richtig ? 1 : 0, headline: richtig ? 'Richtig!' : 'Leider falsch' }
+    }
+    return { correct: richtig, xp: richtig ? xpForAnswer(combo) : 0, headline: richtig ? 'Richtig!' : 'Leider falsch' }
+  },
 
   recordAnswer(data, question, picked, correct, now) {
     const kategorie = question.data.kategorie
@@ -208,18 +276,72 @@ export const wasIstDasMode: QuizMode = {
             )
     return (
       <div className="was-frage">
-        <p className="was-kicker">{nameVon(kategorie)}</p>
+        <p className="was-kicker">
+          {nameVon(kategorie)}
+          {question.data.stufe === 'easy' ? ' · Leicht' : question.data.stufe === 'hard' ? ' · Schwer' : ''}
+        </p>
         {bild}
       </div>
     )
   },
 
+  renderInput: (question, picked, submit) =>
+    question.input?.kind === 'text' && picked === null ? <TippFeld onSubmit={submit} /> : null,
+
   renderFeedback(question, picked) {
     const kategorie = question.data.kategorie
-    if (kategorie === 'flaggen') return flagsMode.renderFeedback?.(question, picked) ?? null
-    if (kategorie === 'personen') return peopleMode.renderFeedback?.(question, picked) ?? null
-    const eintrag = motivById(question.data.motiv)
-    if (!eintrag) return null
-    return <p className="sheet-hint">{eintrag.hinweis}</p>
+    const knapp =
+      question.input?.kind === 'text' &&
+      question.data.name &&
+      normTipp(picked) !== normTipp(question.data.name) &&
+      tippPasst(picked, question.data.name, [])
+    const hinweis =
+      kategorie === 'flaggen'
+        ? question.input?.kind === 'text'
+          ? null
+          : (flagsMode.renderFeedback?.(question, picked) ?? null)
+        : kategorie === 'personen'
+          ? (peopleMode.renderFeedback?.(question, picked) ?? null)
+          : motivById(question.data.motiv)?.hinweis
+    return (
+      <>
+        {knapp && (
+          <p className="sheet-text">
+            Gemeint ist <strong>{question.data.name}</strong>
+          </p>
+        )}
+        {typeof hinweis === 'string' ? <p className="sheet-hint">{hinweis}</p> : hinweis}
+      </>
+    )
   },
+}
+
+function TippFeld({ onSubmit }: { onSubmit: (answer: string) => void }) {
+  const [text, setText] = useState('')
+  return (
+    <form
+      className="was-tipp"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const wert = text.trim()
+        if (wert) onSubmit(wert)
+      }}
+    >
+      <input
+        autoFocus
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        enterKeyHint="done"
+        maxLength={80}
+        placeholder="Antwort eintippen"
+        aria-label="Antwort"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+      />
+      <button className="btn btn-primary" type="submit" disabled={!text.trim()}>
+        Prüfen
+      </button>
+    </form>
+  )
 }

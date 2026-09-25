@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-25-c',
+    datum: '25. September 2026',
+    titel: 'Leicht und schwer',
+    text: 'In Was ist das wählst du vor dem Start, wie schwer es wird.',
+    punkte: [
+      'Leicht: die Antworten stehen da. Dafür gibt es nur 1 XP, ohne Combo-Bonus und ohne Perfektlauf.',
+      'Schwer: du tippst die Antwort selbst. Kleine Tippfehler zählen noch, die XP sind voll.',
+      'Das gilt für jede Kategorie, auch für Flaggen, Personen und Zufall.',
+    ],
+  },
+  {
     id: '2026-09-25-b',
     datum: '25. September 2026',
     titel: 'Was ist das',

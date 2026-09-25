@@ -9,12 +9,12 @@ import { SpielZeichen, type PlakatArt } from './SpielPlakat'
 import { CONTINENTS } from '../data/countries'
 import { haptic } from '../haptics'
 import { ladeAlle } from '../lernen/kurse'
-import { WAS_IST_DAS, WAS_KATEGORIEN } from '../modes/wasIstDas'
+import { WAS_IST_DAS, WAS_KATEGORIEN, kategorieTitel } from '../modes/wasIstDas'
 import { navigate } from '../router'
 import { RANDOM, endRun, startRun } from '../run'
 import { setState } from '../store'
 
-type Seite = 'spiele' | 'was' | 'flaggen'
+type Seite = 'spiele' | 'was' | 'flaggen' | 'stufe'
 
 const SPIELE: { art: PlakatArt; kicker: string; name: string; text: string; breit?: boolean; ziel: string }[] = [
   { art: 'was', kicker: 'Erkennen', name: 'Was ist das', text: 'Kategorie oder Zufall', breit: true, ziel: 'was' },
@@ -32,6 +32,8 @@ export function SpieleBlatt() {
   const [auf, setAuf] = useState(false)
   const [offen, setOffen] = useState(false)
   const [seite, setSeite] = useState<Seite>('spiele')
+  const [ziel, setZiel] = useState(WAS_IST_DAS)
+  const [herkunft, setHerkunft] = useState<Seite>('was')
   const zu = useRef<number | undefined>(undefined)
   const lauf = useRef(0)
 
@@ -40,6 +42,7 @@ export function SpieleBlatt() {
     window.clearTimeout(zu.current)
     haptic('soft')
     setSeite('spiele')
+    setHerkunft('was')
     setAuf(true)
     setOffen(false)
     requestAnimationFrame(() => {
@@ -110,7 +113,7 @@ export function SpieleBlatt() {
             className={`spiele-blatt${offen ? ' is-offen' : ''}`}
             role="dialog"
             aria-modal="true"
-            aria-label={seite === 'was' ? 'Was ist das' : seite === 'flaggen' ? 'Flaggen' : 'Spielen'}
+            aria-label={seite === 'was' ? 'Was ist das' : seite === 'flaggen' ? 'Flaggen' : seite === 'stufe' ? 'Schwierigkeit' : 'Spielen'}
           >
             <div className="spiele-griff" />
             <header className="spiele-kopf">
@@ -119,13 +122,13 @@ export function SpieleBlatt() {
               ) : (
                 <button
                   className="icon-btn"
-                  aria-label={seite === 'flaggen' ? 'Zurück zu den Kategorien' : 'Zurück zu den Spielen'}
-                  onClick={() => setSeite(seite === 'flaggen' ? 'was' : 'spiele')}
+                  aria-label={seite === 'flaggen' ? 'Zurück zu den Kategorien' : seite === 'stufe' ? 'Zurück' : 'Zurück zu den Spielen'}
+                  onClick={() => setSeite(seite === 'flaggen' ? 'was' : seite === 'stufe' ? herkunft : 'spiele')}
                 >
                   <IconBack />
                 </button>
               )}
-              <h2>{seite === 'was' ? 'Was ist das' : seite === 'flaggen' ? 'Flaggen' : 'Spielen'}</h2>
+              <h2>{seite === 'was' ? 'Was ist das' : seite === 'flaggen' ? 'Flaggen' : seite === 'stufe' ? 'Wie schwer?' : 'Spielen'}</h2>
               <button className="icon-btn" aria-label="Schließen" onClick={schliessen}>
                 <IconClose />
               </button>
@@ -177,7 +180,12 @@ export function SpieleBlatt() {
                       <button
                         key={kategorie.id}
                         className={`spiel-karte ton-${kategorie.id}${kategorie.id === 'zufall' ? ' is-breit' : ''}`}
-                        onClick={() => starte(kategorie.id === 'zufall' ? WAS_IST_DAS : `${WAS_IST_DAS}:${kategorie.id}`)}
+                        onClick={() => {
+                          haptic('soft')
+                          setZiel(kategorie.id === 'zufall' ? WAS_IST_DAS : `${WAS_IST_DAS}:${kategorie.id}`)
+                          setHerkunft('was')
+                          setSeite('stufe')
+                        }}
                       >
                         <span className="spiel-zeichen">
                           <KategorieBild id={kategorie.id} />
@@ -190,9 +198,17 @@ export function SpieleBlatt() {
                     ),
                   )}
                 </div>
-              ) : (
+              ) : seite === 'flaggen' ? (
                 <div className="flaggen-wahl">
-                  <button className="spiel-karte is-breit ton-flaggen" onClick={() => starte(`${WAS_IST_DAS}:flaggen`)}>
+                  <button
+                    className="spiel-karte is-breit ton-flaggen"
+                    onClick={() => {
+                      haptic('soft')
+                      setZiel(`${WAS_IST_DAS}:flaggen`)
+                      setHerkunft('flaggen')
+                      setSeite('stufe')
+                    }}
+                  >
                     <span className="spiel-zeichen">
                       <span className="marke-flaggen">
                         {FLAGGEN.map((code) => (
@@ -209,7 +225,12 @@ export function SpieleBlatt() {
                     <button
                       key={kontinent.id}
                       className="flaggen-kontinent"
-                      onClick={() => starte(`${WAS_IST_DAS}:flaggen:${kontinent.id}`)}
+                      onClick={() => {
+                        haptic('soft')
+                        setZiel(`${WAS_IST_DAS}:flaggen:${kontinent.id}`)
+                        setHerkunft('flaggen')
+                        setSeite('stufe')
+                      }}
                     >
                       <FlagStack codes={kontinent.showcase} />
                       <span className="spiel-text">
@@ -227,6 +248,18 @@ export function SpieleBlatt() {
                   >
                     <strong>Kontinent-Reise</strong>
                     <em>Übungsrunden und Abschlusstest, Kontinent für Kontinent</em>
+                  </button>
+                </div>
+              ) : (
+                <div className="stufe-wahl">
+                  <p className="stufe-lead">{kategorieTitel(ziel) ?? '🔎 Was ist das'}</p>
+                  <button className="stufe-karte" onClick={() => starte(`${ziel}:easy`)}>
+                    <strong>Leicht</strong>
+                    <em>Die Antworten stehen da. Dafür gibt es nur 1 XP, ohne Combo und ohne Perfektlauf.</em>
+                  </button>
+                  <button className="stufe-karte stufe-schwer" onClick={() => starte(`${ziel}:hard`)}>
+                    <strong>Schwer</strong>
+                    <em>Du tippst die Antwort selbst. Kleine Tippfehler zählen noch, die XP sind voll.</em>
                   </button>
                 </div>
               )}

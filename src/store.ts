@@ -119,6 +119,7 @@ function isOptions(value: unknown): value is QuestionOption[] {
 function isInput(value: unknown): value is QuestionInput {
   if (!isObject(value)) return false
   if (value.kind === 'timeline') return typeof value.min === 'number' && typeof value.max === 'number'
+  if (value.kind === 'text') return true
   // Lernwelten: eine ganze Aktivität als JSON – der Kurs-Modus prüft beim Anzeigen den Inhalt
   if (value.kind === 'aktivitaet') return typeof value.daten === 'string' && value.daten.length < 60_000
   return value.kind === 'map' && typeof value.view === 'string'

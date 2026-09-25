@@ -1,6 +1,6 @@
 // Run-Engine: endlose Runden für Random Mode und für einzelne Modi.
 import { getMode, pickRandomMode } from './modes/registry'
-import { WAS_IST_DAS, flaggenKontinent, wasFrage, wasKategorie, wissensModus } from './modes/wasIstDas'
+import { WAS_IST_DAS, flaggenKontinent, wasFrage, wasKategorie, wasStufe, wissensModus } from './modes/wasIstDas'
 import { checkAchievements, creditXp, grantZeit, modeProgress, overallMastery, PERFEKT_ZEIT, PERFEKTLAUF, rankFor, xpForAnswer } from './progression'
 import type { Judgement, ModeProgress, ModeQuestion, Run, RunResult, SaveData } from './types'
 
@@ -20,7 +20,7 @@ const masteryOf = (data: SaveData, mode: string) =>
 
 function makeQuestion(data: SaveData, mode: string, recentKeys: string[], recentModes: string[]): ModeQuestion | null {
   if (mode === WAS_IST_DAS || mode.startsWith(`${WAS_IST_DAS}:`)) {
-    return wasFrage(data, recentKeys, wasKategorie(mode), flaggenKontinent(mode))
+    return wasFrage(data, recentKeys, wasKategorie(mode), flaggenKontinent(mode), wasStufe(mode))
   }
   if (mode !== RANDOM) return getMode(mode)?.nextQuestion(data, recentKeys) ?? null
   // Ein Modus kann gerade nichts liefern (etwa weil Kursinhalte noch laden) – dann ein anderer
@@ -45,6 +45,10 @@ function isValidAnswer(question: ModeQuestion, answer: string): boolean {
   // Karte: der Code des angetippten Landes
   if (input?.kind === 'map') return /^[a-z]{2}$/.test(answer)
   // Lernwelten: das Ergebnis einer ganzen Aktivität als JSON
+  if (input?.kind === 'text') {
+    const text = answer.trim()
+    return text.length > 0 && text.length <= 80
+  }
   if (input?.kind === 'aktivitaet') {
     try {
       const ergebnis = JSON.parse(answer) as { punkte?: unknown }
@@ -117,7 +121,8 @@ export function answerRun(data: SaveData, answer: string, now = Date.now()): Sav
   }
 
   // Perfektlauf: die ersten Fragen alle richtig – der Jackpot fällt genau einmal je Run
-  const perfektJetzt = !run.perfekt && correct && run.answered + 1 === PERFEKTLAUF && run.correct + 1 === PERFEKTLAUF
+  const leicht = run.mode.endsWith(':easy')
+  const perfektJetzt = !leicht && !run.perfekt && correct && run.answered + 1 === PERFEKTLAUF && run.correct + 1 === PERFEKTLAUF
 
   const updated: Run = {
     ...run,

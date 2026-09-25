@@ -6556,6 +6556,70 @@ svg {
   font-weight: 700;
 }
 
+.stufe-wahl {
+  display: grid;
+  gap: 12px;
+}
+
+.stufe-lead {
+  margin: 4px 2px 0;
+  color: rgb(255 255 255 / 0.72);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.stufe-karte {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid rgb(255 255 255 / 0.13);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgb(18 26 46 / 0.98), rgb(10 16 30 / 0.98));
+  color: #fff;
+  text-align: left;
+}
+
+.stufe-karte strong {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.stufe-karte em {
+  color: rgb(255 255 255 / 0.68);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.stufe-schwer {
+  background: linear-gradient(160deg, #5b54f0, #312e81);
+}
+
+.was-tipp {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.was-tipp input {
+  width: 100%;
+  min-height: 54px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.was-tipp input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .marke-flaggen {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

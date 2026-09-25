@@ -102,7 +102,7 @@ export function RunScreen({ run }: { run: Run }) {
           <span className="hud-item" title="Fragen">
             ❓ {run.answered}
           </span>
-          {!run.perfekt && run.answered === run.correct && run.answered > 0 && (
+          {!run.mode.endsWith(':easy') && !run.perfekt && run.answered === run.correct && run.answered > 0 && (
             <span className="hud-item hud-perfekt" title={`Noch ${PERFEKTLAUF - run.answered} Fragen ohne Fehler bis zum Jackpot`}>
               ✨ {run.answered}/{PERFEKTLAUF}
             </span>
@@ -196,6 +196,11 @@ function RunFeedback({ question, picked, judged, onNext }: FeedbackProps) {
       {!judged.correct && !question.input && answer && (
         <p className="sheet-text">
           Richtig: <strong>{answer.label}</strong>
+        </p>
+      )}
+      {!judged.correct && question.input?.kind === 'text' && question.data.name && (
+        <p className="sheet-text">
+          Richtig: <strong>{question.data.name}</strong>
         </p>
       )}
       {mode?.renderFeedback?.(question, picked)}
