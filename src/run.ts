@@ -160,7 +160,8 @@ export function nextRunQuestion(data: SaveData, now = Date.now()): SaveData {
   const run = data.run
   if (!run || run.current.picked === null) return data
 
-  const recentKeys = [run.current.key, ...run.recentKeys].slice(0, RECENT_KEYS)
+  const merkfenster = run.mode === WAS_IST_DAS || run.mode.startsWith(`${WAS_IST_DAS}:`) ? 80 : RECENT_KEYS
+  const recentKeys = [run.current.key, ...run.recentKeys].slice(0, merkfenster)
   const recentModes = [run.current.modeId, ...run.recentModes].slice(0, RECENT_MODES)
   const question = makeQuestion(data, run.mode, recentKeys, recentModes)
   if (!question) return endRun(data, now)

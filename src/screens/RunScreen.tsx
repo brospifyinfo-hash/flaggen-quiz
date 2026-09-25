@@ -84,7 +84,7 @@ export function RunScreen({ run }: { run: Run }) {
   })
 
   return (
-    <main className="quiz">
+    <main className={question.modeId === 'was-ist-das' ? 'quiz quiz-was' : 'quiz'}>
       <header className="quiz-top">
         <button className="icon-btn" aria-label="Run beenden" onClick={finish}>
           <IconClose />

@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-25-d',
+    datum: '25. September 2026',
+    titel: 'Mehr Bilder, vier Antworten',
+    text: 'Was ist das hat deutlich mehr Fotos, und die Fragen wiederholen sich nicht mehr sofort.',
+    punkte: [
+      'Jede Frage hat genau vier Antworten.',
+      'Im schweren Modus bleibt das Foto stehen, das Feld schiebt die Seite nicht mehr nach unten.',
+      'Filialen und Schilder, auf denen der Markenname steht, sind raus. Dafür gibt es viel mehr Sehenswürdigkeiten, Tiere, Pflanzen, Autos und Rapper.',
+    ],
+  },
+  {
     id: '2026-09-25-c',
     datum: '25. September 2026',
     titel: 'Leicht und schwer',

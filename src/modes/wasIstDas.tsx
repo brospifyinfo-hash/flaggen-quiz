@@ -1,5 +1,5 @@
 // „Was ist das“: Flaggen, Personen und Fotos in einem Spiel.
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { accuracyOf, modeProgress, xpForAnswer } from '../progression'
 import { pickSubject, recordLearn, gradedMastery } from '../learn'
 import { CONTINENTS, COUNTRIES, type ContinentId } from '../data/countries'
@@ -147,7 +147,7 @@ function motivFrage(gruppe: MotivGruppe, data: SaveData, recentKeys: readonly st
   const eintrag = subject ? motivById(subject.slice(gruppe.length + 1)) : null
   if (!eintrag) return null
 
-  const falschZiel = motive.length > 16 ? 5 : 3
+  const falschZiel = 3
   const falsch: typeof motive = []
   for (const other of shuffle(motive)) {
     if (falsch.length >= falschZiel) break
@@ -318,6 +318,10 @@ export const wasIstDasMode: QuizMode = {
 
 function TippFeld({ onSubmit }: { onSubmit: (answer: string) => void }) {
   const [text, setText] = useState('')
+  const feld = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    feld.current?.focus({ preventScroll: true })
+  }, [])
   return (
     <form
       className="was-tipp"
@@ -328,7 +332,7 @@ function TippFeld({ onSubmit }: { onSubmit: (answer: string) => void }) {
       }}
     >
       <input
-        autoFocus
+        ref={feld}
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}

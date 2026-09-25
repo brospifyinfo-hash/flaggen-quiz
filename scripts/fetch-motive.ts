@@ -31,15 +31,9 @@ const ZIELE: [id: string, titel: string[], suche: string][] = [
   ['nike', ['Nike Air Force'], 'Nike Air Force 1 shoe'],
   ['adidas', ['Adidas Samba'], 'Adidas Samba shoe'],
   ['apple', ['IPhone 15', 'IPhone'], 'iPhone front photo'],
-  ['cola', ['Coca-Cola'], 'Coca-Cola bottle'],
-  ['mcdonalds', ['McDonald’s'], 'McDonalds restaurant exterior'],
-  ['ikea', ['IKEA'], 'IKEA store exterior'],
   ['lego', ['Lego'], 'Lego bricks'],
-  ['nutella', ['Nutella'], 'Nutella jar'],
-  ['milka', ['Milka'], 'Milka chocolate'],
-  ['nivea', ['Nivea'], 'Nivea creme tin'],
+  ['milka', ['Milka'], 'Milka purple cow'],
   ['haribo', ['Haribo'], 'Haribo Goldbears'],
-  ['google', ['Google'], 'Google Headquarters in Ireland Building Sign'],
 
   ['brandenburg', ['Brandenburger Tor'], 'Brandenburg Gate'],
   ['eiffel', ['Eiffelturm'], 'Eiffel Tower'],
@@ -82,9 +76,16 @@ const ZIELE: [id: string, titel: string[], suche: string][] = [
 ]
 
 const api = async (url: string) => {
-  const response = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Encoding': 'gzip' } })
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
-  return response.json() as Promise<any>
+  for (let versuch = 0; versuch < 4; versuch++) {
+    const response = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Encoding': 'gzip' } })
+    if (response.status === 429 && versuch < 3) {
+      await new Promise((warten) => setTimeout(warten, 4000 * (versuch + 1)))
+      continue
+    }
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+    return response.json() as Promise<any>
+  }
+  throw new Error('429')
 }
 
 const decode = (text: string) =>
@@ -135,10 +136,17 @@ function ausInfo(image: any): Fund | null {
 }
 
 const FEST: Record<string, string> = {
-  google: 'File:Google Headquarters in Ireland Building Sign.jpg',
   haribo: 'File:Haribo Goldbears (3549536631).jpg',
   hurra: 'File:KIZ 1.jpg',
+  ahorn: 'File:Sycamore maple leaf Acer pseudoplatanus Panewniki Poland 02.jpg',
+  zuckerhut: 'File:Pão de Açúcar 2020.jpg',
+  fuji: 'File:Mount Fuji from Lake Kawaguchi 20170206.jpg',
+  alhambra: 'File:Pavillon Cour des Lions Alhambra Granada Spain.jpg',
+  sheikh: 'File:Abu Dhabi Masque inside.jpg',
 }
+
+/** Dateinamen, die nicht die Sache selbst zeigen: Schriftzug, Karte, Zeichnung, Satellit */
+const SCHILD = /logo|wordmark|logotype|schriftzug|signage|storefront|filiale|headquarters|building sign|wortmarke|\bschild\b|\bmap\b|karte|\bplano\b|illustration|satellite|\baster\b|woodblock|hokusai|ukiyo|playground|pieta|\bcover\b|\balbum\b|locomotive|diagram|coat of arms|wappen|flag of|parking|from Sugarloaf/i
 
 async function vonDatei(titel: string): Promise<Fund | null> {
   const info = await api(
@@ -152,7 +160,7 @@ async function vonWikipedia(titel: string): Promise<Fund | null> {
     `https://de.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&prop=pageimages&pilicense=free&piprop=name&titles=${encodeURIComponent(titel)}`,
   )
   const file = page?.query?.pages?.[0]?.pageimage as string | undefined
-  if (!file || /\.svg$/i.test(file)) return null
+  if (!file || /\.svg$/i.test(file) || SCHILD.test(file)) return null
   const info = await api(
     `https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&prop=imageinfo&iiprop=extmetadata|url|mime&iiurlwidth=960&titles=${encodeURIComponent(`File:${file}`)}`,
   )
@@ -161,10 +169,11 @@ async function vonWikipedia(titel: string): Promise<Fund | null> {
 
 async function vonCommons(suche: string): Promise<Fund | null> {
   const info = await api(
-    `https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&generator=search&gsrsearch=${encodeURIComponent(suche)}&gsrnamespace=6&gsrlimit=12&prop=imageinfo&iiprop=extmetadata|url|mime&iiurlwidth=960`,
+    `https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&generator=search&gsrsearch=${encodeURIComponent(suche)}&gsrnamespace=6&gsrlimit=20&prop=imageinfo&iiprop=extmetadata|url|mime&iiurlwidth=960`,
   )
   const pages = (info?.query?.pages ?? []) as any[]
   for (const page of pages) {
+    if (SCHILD.test(String(page.title ?? ''))) continue
     const fund = ausInfo(page.imageinfo?.[0])
     if (fund) return fund
   }
@@ -206,6 +215,7 @@ for (const [id, titel, suche] of ziele) {
       bilder.push(bekannt)
       continue
     }
+    await new Promise((warten) => setTimeout(warten, 160))
     let fund: Fund | null = FEST[id] ? await vonDatei(FEST[id]) : null
     for (const name of titel) {
       if (fund) break

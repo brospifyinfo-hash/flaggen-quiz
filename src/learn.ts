@@ -36,7 +36,13 @@ export function pickSubject(
   modeId: string,
   recent: readonly string[],
 ): string | null {
-  const pool = ids.filter((id) => !recent.includes(id))
+  const gesehen = new Set(recent)
+  let pool = ids.filter((id) => !gesehen.has(id))
+  if (pool.length === 0 && recent.length > 0) {
+    const halten = new Set(recent.slice(0, Math.max(1, Math.ceil(recent.length / 2))))
+    pool = ids.filter((id) => !halten.has(id))
+  }
+  if (pool.length === 0 && recent[0]) pool = ids.filter((id) => id !== recent[0])
   const list = pool.length > 0 ? pool : ids
   let best: string | null = null
   let bestKey = -1
