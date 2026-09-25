@@ -6647,9 +6647,9 @@ svg {
 }
 
 .was-buehne img.motiv {
-  width: min(100%, 420px);
-  height: min(42dvh, 300px);
-  object-fit: cover;
+  width: min(100%, 440px);
+  height: min(48dvh, 360px);
+  object-fit: contain;
   background: #101828;
 }
 

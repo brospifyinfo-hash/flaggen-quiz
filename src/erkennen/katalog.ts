@@ -1,4 +1,5 @@
 // Motive für „Was ist das“. Die Fotos liegen unter public/motive, die Zeichnung ist nur der Ersatz.
+import { ZUSATZ } from './zusatz'
 export type MotivGruppe = 'autos' | 'marken' | 'orte' | 'natur' | 'rap'
 
 export interface MotivEintrag {
@@ -14,7 +15,7 @@ export interface MotivEintrag {
   titel?: string
 }
 
-export const KATALOG: MotivEintrag[] = [
+const BASIS: MotivEintrag[] = [
   { id: 'vw', name: 'Volkswagen', gruppe: 'autos', hinweis: 'Zwei Buchstaben im Kreis, das Zeichen aus Wolfsburg.' },
   { id: 'mercedes', name: 'Mercedes-Benz', gruppe: 'autos', hinweis: 'Der Stern steht für Motoren auf dem Land, auf dem Wasser und in der Luft.' },
   { id: 'bmw', name: 'BMW', gruppe: 'autos', hinweis: 'Blau und Weiß im Kreis, die Farben aus dem bayerischen Wappen.' },
@@ -80,6 +81,8 @@ export const KATALOG: MotivEintrag[] = [
   { id: 'treppenhaus', name: 'Apache 207', gruppe: 'rap', antwort: 'apache', titel: 'Treppenhaus', hinweis: '„Treppenhaus“ ist das Debütalbum von Apache 207, 2020.' },
   { id: 'erde', name: 'Kontra K', gruppe: 'rap', antwort: 'kontra', titel: 'Erde & Knochen', hinweis: 'Kontra K veröffentlichte „Erde & Knochen“ 2021.' },
 ]
+
+export const KATALOG: MotivEintrag[] = [...BASIS, ...ZUSATZ]
 
 const BY_ID = new Map(KATALOG.map((eintrag) => [eintrag.id, eintrag]))
 

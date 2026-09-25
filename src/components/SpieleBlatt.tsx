@@ -16,15 +16,6 @@ import { setState } from '../store'
 
 type Seite = 'spiele' | 'was' | 'flaggen'
 
-const VORSCHAU: Record<string, string> = {
-  personen: '/people/albert-einstein.webp',
-  autos: '/motive/porsche.webp',
-  marken: '/motive/nutella.webp',
-  orte: '/motive/brandenburg.webp',
-  natur: '/motive/loewe.webp',
-  rap: '/motive/berlin.webp',
-}
-
 const SPIELE: { art: PlakatArt; kicker: string; name: string; text: string; breit?: boolean; ziel: string }[] = [
   { art: 'was', kicker: 'Erkennen', name: 'Was ist das', text: 'Kategorie oder Zufall', breit: true, ziel: 'was' },
   { art: 'online', kicker: 'Zu zweit', name: 'Online', text: 'Lobby mit Code', breit: true, ziel: 'online' },
@@ -249,8 +240,6 @@ export function SpieleBlatt() {
 }
 
 function KategorieBild({ id }: { id: string }) {
-  const foto = VORSCHAU[id]
-  if (foto) return <img className="spiel-foto" src={foto} alt="" draggable={false} />
   const art: PlakatArt =
     id === 'autos' || id === 'marken' || id === 'orte' || id === 'natur' || id === 'rap' || id === 'personen' || id === 'zufall'
       ? id

@@ -1,10 +1,11 @@
 // Holt Fotos für „Was ist das“ von Wikimedia.
 // Nur freie Lizenzen (gemeinfrei, CC0, CC BY, CC BY-SA). Logos und Cover werden nicht kopiert.
 // Aufruf: node scripts/fetch-motive.ts
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
+import { NEU } from './motive-neu.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const imageDir = join(root, 'public', 'motive')
@@ -180,9 +181,31 @@ interface Bild {
 mkdirSync(imageDir, { recursive: true })
 const bilder: Bild[] = []
 const skipped: string[] = []
+const neuGeschafft: { id: string }[] = []
 
-for (const [id, titel, suche] of ZIELE) {
+let alt: Bild[] = []
+try {
+  const quelle = readFileSync(join(root, 'src/erkennen/bilder.ts'), 'utf8')
+  const treffer = quelle.match(/BILDER: MotivBild\[\] = (\[[\s\S]*?\n\])/)
+  if (treffer) alt = JSON.parse(treffer[1]) as Bild[]
+} catch {
+  alt = []
+}
+const altNachId = new Map(alt.map((bild) => [bild.id, bild]))
+
+const ziele: [string, string[], string][] = [
+  ...ZIELE,
+  ...NEU.map((eintrag) => [eintrag.id, eintrag.titel, eintrag.suche] as [string, string[], string]),
+]
+
+for (const [id, titel, suche] of ziele) {
   try {
+    const datei = join(imageDir, `${id}.webp`)
+    const bekannt = altNachId.get(id)
+    if (bekannt && existsSync(datei)) {
+      bilder.push(bekannt)
+      continue
+    }
     let fund: Fund | null = FEST[id] ? await vonDatei(FEST[id]) : null
     for (const name of titel) {
       if (fund) break
@@ -204,6 +227,7 @@ for (const [id, titel, suche] of ZIELE) {
       .webp({ quality: 76 })
       .toFile(join(imageDir, `${id}.webp`))
     bilder.push({ id, urheber: fund.author, lizenz: fund.license, quelle: fund.source })
+    if (NEU.some((eintrag) => eintrag.id === id)) neuGeschafft.push({ id })
     process.stdout.write('.')
   } catch (error) {
     skipped.push(`${id}: ${String(error).split('\n')[0]}`)
@@ -228,5 +252,23 @@ export const bildVon = (id: string): MotivBild | null => NACH_ID.get(id) ?? null
 `
 
 writeFileSync(join(root, 'src/erkennen/bilder.ts'), file)
-console.log(`\n\n${bilder.length} Fotos übernommen, ${skipped.length} ohne Foto`)
+
+const geschafft = new Set(neuGeschafft.map((eintrag) => eintrag.id).concat(
+  NEU.filter((eintrag) => existsSync(join(imageDir, `${eintrag.id}.webp`))).map((eintrag) => eintrag.id),
+))
+const zusatz = NEU.filter((eintrag) => geschafft.has(eintrag.id)).map((eintrag) => ({
+  id: eintrag.id,
+  name: eintrag.name,
+  gruppe: eintrag.gruppe,
+  hinweis: eintrag.hinweis,
+  ...(eintrag.antwort ? { antwort: eintrag.antwort } : {}),
+}))
+writeFileSync(
+  join(root, 'src/erkennen/zusatz.ts'),
+  `import type { MotivEintrag } from './katalog'
+
+export const ZUSATZ: MotivEintrag[] = ${JSON.stringify(zusatz, null, 2)}
+`,
+)
+console.log(`\n\n${bilder.length} Fotos übernommen, ${zusatz.length} neue Motive, ${skipped.length} ohne Foto`)
 if (skipped.length > 0) console.log(skipped.map((entry) => `  – ${entry}`).join('\n'))

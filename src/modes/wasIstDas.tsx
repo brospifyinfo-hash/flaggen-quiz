@@ -128,9 +128,10 @@ function motivFrage(gruppe: MotivGruppe, data: SaveData, recentKeys: readonly st
   const eintrag = subject ? motivById(subject.slice(gruppe.length + 1)) : null
   if (!eintrag) return null
 
+  const falschZiel = motive.length > 16 ? 5 : 3
   const falsch: typeof motive = []
   for (const other of shuffle(motive)) {
-    if (falsch.length >= 3) break
+    if (falsch.length >= falschZiel) break
     if (other.id === eintrag.id) continue
     if (antwortVon(other) === antwortVon(eintrag)) continue
     if (falsch.some((haben) => antwortVon(haben) === antwortVon(other))) continue
