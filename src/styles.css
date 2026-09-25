@@ -6295,37 +6295,28 @@ svg {
 .spiele-ecke {
   position: fixed;
   z-index: 40;
-  right: max(0px, calc(50vw - 240px));
-  bottom: 0;
+  right: max(14px, calc(50vw - 240px + 14px));
+  bottom: calc(var(--safe-bottom) + 14px);
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 52px;
-  margin-bottom: var(--safe-bottom);
+  height: 48px;
   padding: 0 18px 0 14px;
-  border-radius: 18px 0 0 0;
-  background: linear-gradient(145deg, #8d8fff 0%, #5a5cf0 46%, #3436b8 100%);
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7d7fff, #4f51e4);
   color: #fff;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 900;
+  letter-spacing: 0.01em;
   box-shadow:
-    -12px -14px 30px -18px rgb(40 42 150 / 0.9),
-    inset 0 1px 0 rgb(255 255 255 / 0.4);
+    0 12px 28px -10px rgb(79 81 228 / 0.95),
+    inset 0 1px 0 rgb(255 255 255 / 0.32);
 }
 
 .spiele-ecke svg {
-  width: 18px;
-  height: 18px;
-}
-
-.spiele-ecke::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
   width: 16px;
   height: 16px;
-  background: linear-gradient(225deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0) 58%);
 }
 
 .spiele-schleier {
@@ -6352,8 +6343,9 @@ svg {
   height: min(92dvh, 860px);
   padding: 8px 16px calc(var(--safe-bottom) + 18px);
   border-radius: 28px 28px 0 0;
-  background: linear-gradient(180deg, #f6f3ec 0%, #eef1f6 180px);
-  color: var(--text);
+  background: #0b1120;
+  color: #fff;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
   box-shadow: 0 -28px 70px -30px rgb(0 0 0 / 0.55);
   transform: translateX(-50%) translateY(105%);
   transition: transform 0.46s cubic-bezier(0.22, 1, 0.36, 1);
@@ -6368,7 +6360,15 @@ svg {
   height: 5px;
   margin: 2px auto 8px;
   border-radius: 999px;
-  background: #d4cfc4;
+  background: rgb(255 255 255 / 0.28);
+}
+
+.spiele-blatt .icon-btn {
+  color: #fff;
+}
+
+.spiele-blatt .icon-btn:active {
+  background: rgb(255 255 255 / 0.08);
 }
 
 .spiele-kopf {
@@ -6406,155 +6406,149 @@ svg {
 }
 
 .spiel-karte {
-  --ton: #161a28;
+  --marke: linear-gradient(160deg, #5b54f0, #312e81);
   position: relative;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
   overflow: hidden;
-  border-radius: 22px;
-  background: var(--ton);
+  border: 1px solid rgb(255 255 255 / 0.13);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgb(18 26 46 / 0.98), rgb(10 16 30 / 0.98));
   color: #fff;
-  box-shadow:
-    0 16px 28px -18px rgb(16 24 40 / 0.55),
-    inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  text-align: left;
+  box-shadow: 0 14px 28px -18px rgb(0 0 0 / 0.85);
 }
 
 .spiel-karte.is-breit {
-  display: grid;
-  grid-template-columns: 1.55fr 0.95fr;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
   grid-column: 1 / -1;
-  min-height: 0;
+  padding: 12px 14px;
 }
 
 .spiel-karte:active {
   transform: scale(0.985);
 }
 
-.ton-was { --ton: #161a33; }
-.ton-online { --ton: #12182e; }
-.ton-higher { --ton: #0c2428; }
-.ton-geschichte { --ton: #3a2416; }
-.ton-karte { --ton: #0c2834; }
-.ton-gemischt { --ton: #221838; }
-.ton-mathe { --ton: #10241c; }
-.ton-zufall { --ton: #2a1438; }
-.ton-flaggen { --ton: #102033; }
-.ton-personen { --ton: #2a1824; }
-.ton-autos { --ton: #1a1c22; }
-.ton-marken { --ton: #1c140e; }
-.ton-orte { --ton: #2a160e; }
-.ton-natur { --ton: #14301c; }
-.ton-rap { --ton: #1a1014; }
+.ton-was { --marke: linear-gradient(160deg, #5b54f0, #312e81); }
+.ton-online { --marke: linear-gradient(160deg, #3b82f6, #1e3a8a); }
+.ton-higher { --marke: linear-gradient(160deg, #10b981, #064e3b); }
+.ton-geschichte { --marke: linear-gradient(160deg, #d97706, #7c2d12); }
+.ton-karte { --marke: linear-gradient(160deg, #0ea5e9, #0c4a6e); }
+.ton-gemischt { --marke: linear-gradient(160deg, #8b5cf6, #4c1d95); }
+.ton-mathe { --marke: linear-gradient(160deg, #14b8a6, #134e4a); }
+.ton-zufall { --marke: linear-gradient(160deg, #a855f7, #581c87); }
+.ton-flaggen { --marke: linear-gradient(160deg, #2563eb, #1e3a8a); }
+.ton-personen { --marke: linear-gradient(160deg, #ec4899, #831843); }
+.ton-autos { --marke: linear-gradient(160deg, #64748b, #1e293b); }
+.ton-marken { --marke: linear-gradient(160deg, #f59e0b, #9a3412); }
+.ton-orte { --marke: linear-gradient(160deg, #f97316, #9a3412); }
+.ton-natur { --marke: linear-gradient(160deg, #22c55e, #14532d); }
+.ton-rap { --marke: linear-gradient(160deg, #f43f5e, #881337); }
 
 .spiel-haupt {
-  position: relative;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   width: 100%;
   color: inherit;
+  text-align: left;
 }
 
-.spiel-bild {
-  position: relative;
+.spiel-zeichen {
+  display: grid;
   flex: none;
-  width: 100%;
-  aspect-ratio: 360 / 200;
-}
-
-.spiel-bild > svg,
-.spiel-bild > .flaggen-faecher {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.flaggen-faecher {
-  background:
-    radial-gradient(circle at 50% 0%, #4e7eb4 0%, #1b4064 46%, #0d2238 100%);
-}
-
-.flaggen-faecher span {
-  position: absolute;
-  top: 22%;
-  left: 33%;
-  width: 34%;
-  border-radius: 4px;
-  overflow: hidden;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: var(--marke);
+  color: #fff;
   box-shadow:
-    0 14px 18px -10px rgb(0 0 0 / 0.65),
-    0 0 0 1px rgb(255 255 255 / 0.28);
+    inset 0 1px 0 rgb(255 255 255 / 0.32),
+    0 10px 16px -12px rgb(0 0 0 / 0.8);
 }
 
-.flaggen-faecher .flag {
+.spiel-karte.is-breit .spiel-zeichen {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+}
+
+.spiel-zeichen svg {
+  width: 32px;
+  height: 32px;
+}
+
+.spiel-karte.is-breit .spiel-zeichen svg {
+  width: 36px;
+  height: 36px;
+}
+
+.ton-flaggen .spiel-zeichen {
   width: 100%;
-  border-radius: 0;
+  height: auto;
+  padding: 8px;
+  border-radius: 14px;
 }
 
-.flaggen-faecher span:nth-child(1) { transform: translate(-46px, 10px) rotate(-13deg); }
-.flaggen-faecher span:nth-child(2) { z-index: 1; transform: translate(-16px, 2px) rotate(-4deg); }
-.flaggen-faecher span:nth-child(3) { z-index: 2; transform: translate(16px, 2px) rotate(5deg); }
-.flaggen-faecher span:nth-child(4) { z-index: 3; transform: translate(46px, 12px) rotate(14deg); }
+.marke-flaggen {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.marke-flaggen .flag {
+  width: 100%;
+  border-radius: 4px;
+  box-shadow: 0 6px 12px -6px rgb(0 0 0 / 0.55);
+}
 
 .spiel-text {
-  position: relative;
-  z-index: 1;
   display: grid;
-  gap: 1px;
-  flex: none;
-  padding: 10px 12px 12px;
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.06), transparent 40%),
-    var(--ton);
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  background: none;
   text-align: left;
   pointer-events: none;
 }
 
-.spiel-karte.is-breit .spiel-text {
-  align-content: center;
-  padding: 16px 16px 16px 14px;
-}
-
-.spiel-text small {
-  color: rgb(255 255 255 / 0.62);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .spiel-text strong {
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1.15;
 }
 
 .spiel-karte.is-breit .spiel-text strong {
-  font-size: 22px;
+  font-size: 18px;
 }
 
 .spiel-text em {
-  margin-top: 2px;
-  color: rgb(255 255 255 / 0.78);
-  font-size: 12px;
+  color: rgb(255 255 255 / 0.62);
+  font-size: 12.5px;
   font-style: normal;
   font-weight: 700;
   line-height: 1.25;
 }
 
 .kat-reise {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-  padding: 5px 9px;
+  align-self: flex-start;
+  margin-top: -4px;
+  padding: 6px 10px;
+  border: 1px solid rgb(255 255 255 / 0.22);
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.94);
-  color: #1c2434;
-  font-size: 11px;
+  background: rgb(0 0 0 / 0.18);
+  color: #fff;
+  font-size: 12px;
   font-weight: 800;
-  box-shadow: 0 8px 16px -10px rgb(0 0 0 / 0.7);
 }
 
 /* Fragebild in Was ist das */

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Flag } from './Flag'
 import { IconBack, IconClose, IconPlay } from './Icons'
-import { SpielPlakat, type PlakatArt } from './SpielPlakat'
+import { SpielZeichen, type PlakatArt } from './SpielPlakat'
 import { haptic } from '../haptics'
 import { ladeAlle } from '../lernen/kurse'
 import { WAS_IST_DAS, WAS_KATEGORIEN } from '../modes/wasIstDas'
@@ -24,7 +24,7 @@ const SPIELE: { art: PlakatArt; kicker: string; name: string; text: string; brei
   { art: 'mathe', kicker: 'Tempo', name: 'Mathe-Lauf', text: 'Kopfrechnen im Rennen', ziel: 'math' },
 ]
 
-const FLAGGEN = ['de', 'jp', 'br', 'gb']
+const FLAGGEN = ['de', 'jp', 'br']
 
 export function SpieleBlatt() {
   const [auf, setAuf] = useState(false)
@@ -133,11 +133,10 @@ export function SpieleBlatt() {
                       className={`spiel-karte ton-${spiel.art}${spiel.breit ? ' is-breit' : ''}`}
                       onClick={() => waehle(spiel.ziel)}
                     >
-                      <span className="spiel-bild">
-                        <SpielPlakat art={spiel.art} />
+                      <span className="spiel-zeichen">
+                        <SpielZeichen art={spiel.art} />
                       </span>
                       <span className="spiel-text">
-                        <small>{spiel.kicker}</small>
                         <strong>{spiel.name}</strong>
                         <em>{spiel.text}</em>
                       </span>
@@ -150,17 +149,14 @@ export function SpieleBlatt() {
                     kategorie.id === 'flaggen' ? (
                       <div key={kategorie.id} className="spiel-karte ton-flaggen">
                         <button className="spiel-haupt" onClick={() => starte(`${WAS_IST_DAS}:flaggen`)}>
-                          <span className="spiel-bild">
-                            <span className="flaggen-faecher">
+                          <span className="spiel-zeichen">
+                            <span className="marke-flaggen">
                               {FLAGGEN.map((code) => (
-                                <span key={code}>
-                                  <Flag code={code} />
-                                </span>
+                                <Flag key={code} code={code} />
                               ))}
                             </span>
                           </span>
                           <span className="spiel-text">
-                            <small>Kategorie</small>
                             <strong>{kategorie.name}</strong>
                             <em>{kategorie.text}</em>
                           </span>
@@ -181,11 +177,10 @@ export function SpieleBlatt() {
                         className={`spiel-karte ton-${kategorie.id}${kategorie.id === 'zufall' ? ' is-breit' : ''}`}
                         onClick={() => starte(kategorie.id === 'zufall' ? WAS_IST_DAS : `${WAS_IST_DAS}:${kategorie.id}`)}
                       >
-                        <span className="spiel-bild">
+                        <span className="spiel-zeichen">
                           <KategorieBild id={kategorie.id} />
                         </span>
                         <span className="spiel-text">
-                          <small>{kategorie.id === 'zufall' ? 'Alles' : 'Kategorie'}</small>
                           <strong>{kategorie.name}</strong>
                           <em>{kategorie.text}</em>
                         </span>
@@ -208,5 +203,5 @@ function KategorieBild({ id }: { id: string }) {
     id === 'autos' || id === 'marken' || id === 'orte' || id === 'natur' || id === 'rap' || id === 'personen' || id === 'zufall'
       ? id
       : 'was'
-  return <SpielPlakat art={art} />
+  return <SpielZeichen art={art} />
 }
