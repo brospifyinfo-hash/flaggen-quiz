@@ -6406,117 +6406,155 @@ svg {
 }
 
 .spiel-karte {
+  --ton: #161a28;
   position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  min-height: 158px;
   border-radius: 22px;
+  background: var(--ton);
   color: #fff;
-  box-shadow: 0 14px 28px -18px rgb(16 24 40 / 0.55);
+  box-shadow:
+    0 16px 28px -18px rgb(16 24 40 / 0.55),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08);
 }
 
 .spiel-karte.is-breit {
+  display: grid;
+  grid-template-columns: 1.55fr 0.95fr;
   grid-column: 1 / -1;
-  min-height: 176px;
+  min-height: 0;
 }
 
 .spiel-karte:active {
   transform: scale(0.985);
 }
 
+.ton-was { --ton: #161a33; }
+.ton-online { --ton: #12182e; }
+.ton-higher { --ton: #0c2428; }
+.ton-geschichte { --ton: #3a2416; }
+.ton-karte { --ton: #0c2834; }
+.ton-gemischt { --ton: #221838; }
+.ton-mathe { --ton: #10241c; }
+.ton-zufall { --ton: #2a1438; }
+.ton-flaggen { --ton: #102033; }
+.ton-personen { --ton: #2a1824; }
+.ton-autos { --ton: #1a1c22; }
+.ton-marken { --ton: #1c140e; }
+.ton-orte { --ton: #2a160e; }
+.ton-natur { --ton: #14301c; }
+.ton-rap { --ton: #1a1014; }
+
 .spiel-haupt {
-  position: absolute;
-  inset: 0;
-  display: block;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  height: 100%;
   color: inherit;
 }
 
 .spiel-bild {
-  position: absolute;
-  inset: 0;
-  display: block;
+  position: relative;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 360 / 200;
 }
 
-.spiel-bild svg,
-.kat-kollage,
-.kat-kollage .motiv {
+.spiel-bild > svg,
+.spiel-bild > .flaggen-faecher {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.kat-kollage {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+.flaggen-faecher {
+  background:
+    radial-gradient(circle at 50% 0%, #4e7eb4 0%, #1b4064 46%, #0d2238 100%);
 }
 
-.spiel-flaggen {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 18px 14px 64px;
-  background: #16324a;
+.flaggen-faecher span {
+  position: absolute;
+  top: 22%;
+  left: 33%;
+  width: 34%;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow:
+    0 14px 18px -10px rgb(0 0 0 / 0.65),
+    0 0 0 1px rgb(255 255 255 / 0.28);
 }
 
-.spiel-flaggen .flag {
+.flaggen-faecher .flag {
   width: 100%;
-  border-radius: 6px;
+  border-radius: 0;
 }
+
+.flaggen-faecher span:nth-child(1) { transform: translate(-46px, 10px) rotate(-13deg); }
+.flaggen-faecher span:nth-child(2) { z-index: 1; transform: translate(-16px, 2px) rotate(-4deg); }
+.flaggen-faecher span:nth-child(3) { z-index: 2; transform: translate(16px, 2px) rotate(5deg); }
+.flaggen-faecher span:nth-child(4) { z-index: 3; transform: translate(46px, 12px) rotate(14deg); }
 
 .spiel-text {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  position: relative;
   z-index: 1;
   display: grid;
   gap: 1px;
-  padding: 36px 14px 12px;
-  background: linear-gradient(180deg, transparent, rgb(8 12 20 / 0.84));
+  flex: none;
+  padding: 10px 12px 12px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.06), transparent 40%),
+    var(--ton);
   text-align: left;
   pointer-events: none;
 }
 
+.spiel-karte.is-breit .spiel-text {
+  align-content: center;
+  padding: 16px 16px 16px 14px;
+}
+
 .spiel-text small {
-  font-size: 11px;
+  color: rgb(255 255 255 / 0.62);
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  opacity: 0.82;
 }
 
 .spiel-text strong {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 900;
   line-height: 1.15;
 }
 
 .spiel-karte.is-breit .spiel-text strong {
-  font-size: 24px;
+  font-size: 22px;
 }
 
 .spiel-text em {
-  font-size: 12.5px;
+  margin-top: 2px;
+  color: rgb(255 255 255 / 0.78);
+  font-size: 12px;
   font-style: normal;
   font-weight: 700;
-  opacity: 0.9;
+  line-height: 1.25;
 }
 
 .kat-reise {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
   z-index: 2;
-  padding: 6px 10px;
+  padding: 5px 9px;
   border-radius: 999px;
   background: rgb(255 255 255 / 0.94);
   color: #1c2434;
   font-size: 11px;
   font-weight: 800;
-  box-shadow: 0 6px 16px -10px rgb(0 0 0 / 0.6);
+  box-shadow: 0 8px 16px -10px rgb(0 0 0 / 0.7);
 }
 
 /* Fragebild in Was ist das */

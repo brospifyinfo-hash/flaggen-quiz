@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom'
 import { Flag } from './Flag'
 import { IconBack, IconClose, IconPlay } from './Icons'
 import { SpielPlakat, type PlakatArt } from './SpielPlakat'
-import { Motiv } from '../erkennen/Motiv'
 import { haptic } from '../haptics'
 import { ladeAlle } from '../lernen/kurse'
 import { WAS_IST_DAS, WAS_KATEGORIEN } from '../modes/wasIstDas'
@@ -16,8 +15,8 @@ import { setState } from '../store'
 type Seite = 'spiele' | 'was'
 
 const SPIELE: { art: PlakatArt; kicker: string; name: string; text: string; breit?: boolean; ziel: string }[] = [
-  { art: 'was', kicker: 'Erkennen', name: 'Was ist das', text: 'Kategorie wählen oder Zufall', breit: true, ziel: 'was' },
-  { art: 'online', kicker: 'Zu zweit', name: 'Online', text: 'Lobby mit vierstelligem Code', breit: true, ziel: 'online' },
+  { art: 'was', kicker: 'Erkennen', name: 'Was ist das', text: 'Kategorie oder Zufall', breit: true, ziel: 'was' },
+  { art: 'online', kicker: 'Zu zweit', name: 'Online', text: 'Lobby mit Code', breit: true, ziel: 'online' },
   { art: 'higher', kicker: 'Zahlen', name: 'Higher or Lower', text: 'Welches Land ist größer?', ziel: 'higher-lower' },
   { art: 'geschichte', kicker: 'Zeit', name: 'Geschichte', text: 'Jahre und Reihenfolgen', ziel: 'geschichte' },
   { art: 'karte', kicker: 'Orte', name: 'Weltkarte', text: 'Länder auf der Karte', ziel: 'weltkarte' },
@@ -25,13 +24,7 @@ const SPIELE: { art: PlakatArt; kicker: string; name: string; text: string; brei
   { art: 'mathe', kicker: 'Tempo', name: 'Mathe-Lauf', text: 'Kopfrechnen im Rennen', ziel: 'math' },
 ]
 
-const VORSCHAU: Record<string, string[]> = {
-  autos: ['vw', 'mercedes', 'ferrari', 'toyota'],
-  marken: ['nike', 'apple', 'ikea', 'haribo'],
-  orte: ['eiffel', 'freiheit', 'taj', 'dom'],
-  natur: ['loewe', 'panda', 'rose', 'sonnenblume'],
-  rap: ['berlin', 'anthrazit', 'raop', 'treppenhaus'],
-}
+const FLAGGEN = ['de', 'jp', 'br', 'gb']
 
 export function SpieleBlatt() {
   const [auf, setAuf] = useState(false)
@@ -137,7 +130,7 @@ export function SpieleBlatt() {
                   {SPIELE.map((spiel) => (
                     <button
                       key={spiel.name}
-                      className={`spiel-karte${spiel.breit ? ' is-breit' : ''}`}
+                      className={`spiel-karte ton-${spiel.art}${spiel.breit ? ' is-breit' : ''}`}
                       onClick={() => waehle(spiel.ziel)}
                     >
                       <span className="spiel-bild">
@@ -155,13 +148,16 @@ export function SpieleBlatt() {
                 <div className="spiel-gitter">
                   {WAS_KATEGORIEN.map((kategorie) =>
                     kategorie.id === 'flaggen' ? (
-                      <div key={kategorie.id} className="spiel-karte">
+                      <div key={kategorie.id} className="spiel-karte ton-flaggen">
                         <button className="spiel-haupt" onClick={() => starte(`${WAS_IST_DAS}:flaggen`)}>
-                          <span className="spiel-bild spiel-flaggen">
-                            <Flag code="de" />
-                            <Flag code="jp" />
-                            <Flag code="br" />
-                            <Flag code="za" />
+                          <span className="spiel-bild">
+                            <span className="flaggen-faecher">
+                              {FLAGGEN.map((code) => (
+                                <span key={code}>
+                                  <Flag code={code} />
+                                </span>
+                              ))}
+                            </span>
                           </span>
                           <span className="spiel-text">
                             <small>Kategorie</small>
@@ -182,7 +178,7 @@ export function SpieleBlatt() {
                     ) : (
                       <button
                         key={kategorie.id}
-                        className={`spiel-karte${kategorie.id === 'zufall' ? ' is-breit' : ''}`}
+                        className={`spiel-karte ton-${kategorie.id}${kategorie.id === 'zufall' ? ' is-breit' : ''}`}
                         onClick={() => starte(kategorie.id === 'zufall' ? WAS_IST_DAS : `${WAS_IST_DAS}:${kategorie.id}`)}
                       >
                         <span className="spiel-bild">
@@ -208,15 +204,9 @@ export function SpieleBlatt() {
 }
 
 function KategorieBild({ id }: { id: string }) {
-  if (id === 'zufall') return <SpielPlakat art="zufall" />
-  if (id === 'personen') return <SpielPlakat art="personen" />
-  const ids = VORSCHAU[id]
-  if (!ids) return <SpielPlakat art="was" />
-  return (
-    <span className="kat-kollage">
-      {ids.map((motiv) => (
-        <Motiv key={motiv} id={motiv} schnitt />
-      ))}
-    </span>
-  )
+  const art: PlakatArt =
+    id === 'autos' || id === 'marken' || id === 'orte' || id === 'natur' || id === 'rap' || id === 'personen' || id === 'zufall'
+      ? id
+      : 'was'
+  return <SpielPlakat art={art} />
 }
