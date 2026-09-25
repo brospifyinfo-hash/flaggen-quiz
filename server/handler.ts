@@ -5,9 +5,26 @@
  * in vite.config.ts, das dieselbe Funktion aufruft.
  */
 import { Abgelehnt, anmelden, laden, passwortAendern, registrieren, speichern, zustand } from './konto'
+import { lobbyAntwort, lobbyBeitreten, lobbyErstellen, lobbySpiel, lobbyStand, lobbyStart, lobbyVerlassen } from './lobby'
 import { gutschrift, rangliste, verwaltung } from './rangliste'
 
-const AKTIONEN = { registrieren, anmelden, laden, speichern, passwortAendern, rangliste, verwaltung, gutschrift } as const
+const AKTIONEN = {
+  registrieren,
+  anmelden,
+  laden,
+  speichern,
+  passwortAendern,
+  rangliste,
+  verwaltung,
+  gutschrift,
+  lobbyErstellen,
+  lobbyBeitreten,
+  lobbyStand,
+  lobbySpiel,
+  lobbyStart,
+  lobbyAntwort,
+  lobbyVerlassen,
+} as const
 type Aktion = keyof typeof AKTIONEN
 
 /** Einfache Bremse gegen Passwort-Raten: je Adresse höchstens 30 Anmeldeversuche in 10 Minuten */

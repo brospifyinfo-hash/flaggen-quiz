@@ -50,6 +50,8 @@ export function routeToHash(route: Route): string {
       return '#/rangliste'
     case 'verwaltung':
       return '#/verwaltung'
+    case 'online':
+      return '#/online'
   }
 }
 
@@ -66,6 +68,7 @@ export function hashToRoute(hash: string): Route | null {
   if (first === 'konto') return { name: 'konto' }
   if (first === 'rangliste') return { name: 'rangliste' }
   if (first === 'verwaltung') return { name: 'verwaltung' }
+  if (first === 'online') return { name: 'online' }
   if (first === 'math') return { name: 'mathRunner' }
   if (first === 'stadt') return second === 'bitte' ? { name: 'bitte' } : { name: 'city' }
   if (first === 'lernen') {
@@ -113,6 +116,7 @@ export function isRoute(value: unknown): value is Route {
     case 'konto':
     case 'rangliste':
     case 'verwaltung':
+    case 'online':
       return true
     case 'kurs':
       return typeof route.id === 'string' && !!kursById(route.id)
@@ -144,6 +148,7 @@ export function parentsOf(route: Route): Route[] {
     case 'konto':
     case 'rangliste':
     case 'verwaltung':
+    case 'online':
       return [{ name: 'home' }]
     case 'kurs':
     case 'kursSitzung':

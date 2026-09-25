@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-25-a',
+    datum: '25. September 2026',
+    titel: 'Online gegeneinander',
+    text: 'Erstell eine Lobby, gib den vierstelligen Code weiter und spiel acht Fragen gegen eine andere Person.',
+    punkte: [
+      'Auf der Startseite liegt der Weg unter Online spielen.',
+      'Der Host wählt das Spiel und startet, sobald beide in der Lobby sind.',
+      'Punkte gibt es für richtige Antworten, schnelle noch ein paar mehr. Nach 20 Sekunden geht die Frage weiter.',
+    ],
+  },
+  {
     id: '2026-09-23-l',
     datum: '23. September 2026',
     titel: 'Reichweite nur auf Knopfdruck',

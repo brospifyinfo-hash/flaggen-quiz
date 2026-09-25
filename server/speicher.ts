@@ -8,7 +8,7 @@
  * Jede Ablage speichert Text unter einem Pfad. Eine „Marke“ (bei GitHub der Blob-SHA)
  * schützt davor, einen zwischenzeitlich geänderten Stand blind zu überschreiben.
  */
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join, normalize } from 'node:path'
 
 export interface Gelesen {
@@ -23,6 +23,8 @@ export interface Speicher {
   schreiben(pfad: string, inhalt: string, marke?: string): Promise<string | undefined>
   /** Dateinamen in einem Ordner, ohne den Ordner selbst zu verlassen */
   liste(ordner: string): Promise<string[]>
+  /** Entfernt eine Datei. Fehlt sie schon, ist das in Ordnung. */
+  loeschen(pfad: string, marke?: string): Promise<void>
 }
 
 export class KonfliktFehler extends Error {
@@ -90,6 +92,23 @@ function githubSpeicher(token: string, repo: string): Speicher {
       if (!Array.isArray(json)) return []
       return json.filter((eintrag) => eintrag.type === 'file' && typeof eintrag.name === 'string').map((eintrag) => eintrag.name as string)
     },
+    async loeschen(pfad, marke) {
+      const sauber = pruefePfad(pfad)
+      let sha = marke
+      if (!sha) {
+        const da = await this.lesen(sauber)
+        if (!da?.marke) return
+        sha = da.marke
+      }
+      const antwort = await fetch(basis + sauber, {
+        method: 'DELETE',
+        headers: { ...kopf, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `Schließen ${sauber}`, sha }),
+      })
+      if (antwort.status === 404) return
+      if (antwort.status === 409 || antwort.status === 422) throw new KonfliktFehler()
+      if (!antwort.ok) throw new Error(`GitHub löschen: ${antwort.status}`)
+    },
   }
 }
 
@@ -120,6 +139,13 @@ function dateiSpeicher(ordner: string): Speicher {
       } catch (fehler) {
         if ((fehler as NodeJS.ErrnoException).code === 'ENOENT') return []
         throw fehler
+      }
+    },
+    async loeschen(pfad) {
+      try {
+        await unlink(join(ordner, pruefePfad(pfad)))
+      } catch (fehler) {
+        if ((fehler as NodeJS.ErrnoException).code !== 'ENOENT') throw fehler
       }
     },
   }

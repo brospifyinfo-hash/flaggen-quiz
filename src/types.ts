@@ -229,6 +229,7 @@ export type Route =
   | { name: 'konto' }
   | { name: 'rangliste' }
   | { name: 'verwaltung' }
+  | { name: 'online' }
 
 export interface SaveData {
   version: 2

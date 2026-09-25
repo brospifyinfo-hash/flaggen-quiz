@@ -252,6 +252,16 @@ export function HomeScreen({ data }: { data: SaveData }) {
             </span>
           </button>
 
+          <button className="glas home-weiter home-online" onClick={() => gehe({ name: 'online' })}>
+            <span className="home-weiter-icon" aria-hidden="true">
+              ⚔️
+            </span>
+            <span className="home-weiter-text">
+              <small>Zu zweit</small>
+              <strong>Online spielen</strong>
+            </span>
+          </button>
+
           <div className="home-paar">
             <button className="glas home-weg is-spiel" onClick={() => gehe({ name: 'specific' })}>
               <span className="home-weg-emoji" aria-hidden="true">
