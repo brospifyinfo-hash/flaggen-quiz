@@ -34,6 +34,7 @@ export const peopleMode: QuizMode = {
   name: 'Berühmte Personen',
   emoji: '👤',
   tagline: 'Erkenne berühmte Persönlichkeiten',
+  versteckt: true,
 
   nextQuestion(data, recentKeys) {
     const recent = recentKeys

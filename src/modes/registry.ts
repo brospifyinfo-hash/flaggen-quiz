@@ -38,6 +38,8 @@ export interface QuizMode {
   lernwelt?: string
   /** zählt nur mit, wenn diese Prüfung stimmt – z. B. erst, wenn ein Kurs begonnen wurde */
   zaehlt?: (data: SaveData) => boolean
+  /** bleibt registriert (alte Runs, Kontinent-Reise), erscheint aber nicht in den Auswahllisten */
+  versteckt?: boolean
 }
 
 const MODES: QuizMode[] = []
@@ -47,9 +49,10 @@ export function registerMode(mode: QuizMode) {
 }
 
 export const allModes = (): readonly QuizMode[] => MODES
-export const getMode = (id: string) => MODES.find((mode) => mode.id === id)
-/** Die klassischen Quiz-Modi – ohne die Kurse der Lernwelten */
-export const quizModes = (): readonly QuizMode[] => MODES.filter((mode) => !mode.lernwelt)
+export const getMode = (id: string) =>
+  MODES.find((mode) => mode.id === id) ?? MODES.find((mode) => id.startsWith(`${mode.id}:`))
+/** Die klassischen Quiz-Modi – ohne Kurse und ohne versteckte Einzelspiele */
+export const quizModes = (): readonly QuizMode[] => MODES.filter((mode) => !mode.lernwelt && !mode.versteckt)
 
 /**
  * Gewichtete Auswahl für den Random Mode: abwechslungsreich, aber nicht vorhersehbar.
@@ -60,7 +63,7 @@ export function pickRandomMode(
   recentModes: readonly string[],
   ausser: readonly string[] = [],
 ): QuizMode | null {
-  const erlaubt = MODES.filter((mode) => !ausser.includes(mode.id))
+  const erlaubt = MODES.filter((mode) => !mode.versteckt && !ausser.includes(mode.id))
   if (erlaubt.length === 0) return null
   if (erlaubt.length === 1) return erlaubt[0]
 

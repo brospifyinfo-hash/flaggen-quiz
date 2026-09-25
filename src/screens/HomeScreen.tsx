@@ -1,6 +1,5 @@
 // Die Startseite ist der Blick über die eigene Stadt: Sie läuft als Kulisse im Hintergrund,
-// davor steht, wie weit man ist – und die drei Wege weiter: in die Stadt, ins schnelle Spiel,
-// in die Lernkurse.
+// davor steht, wie weit man ist. Die Spiele fahren aus der Ecke unten rechts nach oben.
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { StadtKulisse } from '../city/StadtKulisse'
 import { cityTitle, createCity, statsOf } from '../city/state'
@@ -13,7 +12,9 @@ import { haptic } from '../haptics'
 import { bilanz } from '../herausforderungen'
 import { RankCrest } from '../components/RankCrest'
 import { kursById } from '../lernen/kurse'
-import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, PERFEKT_ZEIT, PERFEKT_ZEIT_KURS, rankFor, totalAnswered } from '../progression'
+import { ACHIEVEMENTS, bestComboOverall, levelFor, overallMastery, PERFEKT_ZEIT_KURS, rankFor, totalAnswered } from '../progression'
+import { kategorieTitel } from '../modes/wasIstDas'
+import { SpieleBlatt } from '../components/SpieleBlatt'
 import { Tagesuhr, useTageszeit } from '../components/Tagesuhr'
 import { phaseInfo, zeitText } from '../city/zeit'
 import { navigate } from '../router'
@@ -210,7 +211,7 @@ export function HomeScreen({ data }: { data: SaveData }) {
               </span>
               <span className="home-weiter-text">
                 <small>Run läuft</small>
-                <strong>{runMode ? `${runMode.emoji} ${runMode.name}` : '🎲 Random Mode'}</strong>
+                <strong>{kategorieTitel(run.mode) ?? (runMode ? `${runMode.emoji} ${runMode.name}` : '🎲 Random Mode')}</strong>
               </span>
               <span className="home-weiter-zahl">{run.answered}</span>
             </button>
@@ -252,36 +253,18 @@ export function HomeScreen({ data }: { data: SaveData }) {
             </span>
           </button>
 
-          <button className="glas home-weiter home-online" onClick={() => gehe({ name: 'online' })}>
+          <button className="glas home-weiter home-lernen" onClick={() => gehe({ name: 'kurse' })}>
             <span className="home-weiter-icon" aria-hidden="true">
-              ⚔️
+              🧠
             </span>
             <span className="home-weiter-text">
-              <small>Zu zweit</small>
-              <strong>Online spielen</strong>
+              <small>Kurse · ⏩ {zeitText(PERFEKT_ZEIT_KURS)} bei 100 %</small>
+              <strong>Lernen</strong>
             </span>
           </button>
-
-          <div className="home-paar">
-            <button className="glas home-weg is-spiel" onClick={() => gehe({ name: 'specific' })}>
-              <span className="home-weg-emoji" aria-hidden="true">
-                ⚡
-              </span>
-              <strong>Schnelles Spiel</strong>
-              <small>⏩ {zeitText(PERFEKT_ZEIT)} Vorsprung</small>
-              <em>bei 100 %</em>
-            </button>
-            <button className="glas home-weg is-lernen" onClick={() => gehe({ name: 'kurse' })}>
-              <span className="home-weg-emoji" aria-hidden="true">
-                🧠
-              </span>
-              <strong>Lernen</strong>
-              <small>⏩ {zeitText(PERFEKT_ZEIT_KURS)} Vorsprung</small>
-              <em>bei 100 %</em>
-            </button>
-          </div>
         </div>
       </div>
+      <SpieleBlatt />
     </main>
   )
 }

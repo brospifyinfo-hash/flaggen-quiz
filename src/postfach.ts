@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-25-b',
+    datum: '25. September 2026',
+    titel: 'Was ist das',
+    text: 'Flaggen und Personen stecken jetzt in einem Spiel. Unten rechts steht Spielen, daraus fährt die Auswahl nach oben.',
+    punkte: [
+      'Was ist das: eine Kategorie oder Zufall. Neu dabei sind Automarken, Marken, Sehenswürdigkeiten, Tiere und Pflanzen.',
+      'Bei den Album-Covern deutscher Rapper ordnest du den Rapper zu. Der Titel steht auf dem Cover.',
+      'Online, Higher or Lower, Geschichte, Weltkarte, Gemischt und der Mathe-Lauf liegen auf derselben Tafel.',
+    ],
+  },
+  {
     id: '2026-09-25-a',
     datum: '25. September 2026',
     titel: 'Online gegeneinander',

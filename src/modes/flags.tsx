@@ -29,6 +29,7 @@ export const flagsMode: QuizMode = {
   name: 'Flaggen',
   emoji: '🌍',
   tagline: 'Erkenne Länder anhand ihrer Flaggen',
+  versteckt: true,
 
   nextQuestion(data, recentKeys) {
     const recentCodes = recentKeys

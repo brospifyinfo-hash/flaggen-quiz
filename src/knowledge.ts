@@ -15,6 +15,7 @@ export const DOMAINS: Domain[] = [
   { id: 'geografie', name: 'Geografie', emoji: '🌍', modes: ['flaggen', 'weltkarte'], color: '#2f9e5c' },
   { id: 'geschichte', name: 'Geschichte', emoji: '🏛️', modes: ['geschichte'], color: '#b9773f' },
   { id: 'menschen', name: 'Menschen', emoji: '👤', modes: ['personen'], color: '#a763c4' },
+  { id: 'kultur', name: 'Kultur', emoji: '🎨', modes: ['was-kultur'], color: '#e07a3d' },
   { id: 'mathe', name: 'Zahlen', emoji: '🧮', modes: ['mathRunner', 'higher-lower'], color: '#3f8fd0' },
   // Lernwelten: jeder Kurs zahlt auf sein eigenes Fach ein
   { id: 'deutsch', name: 'Deutsch', emoji: '🇩🇪', modes: ['kurs:deutsch'], color: '#c9a227' },

@@ -6,7 +6,8 @@ import { herausforderungById, lohnVon } from '../herausforderungen'
 import { achievementById, modeProgress, PERFEKT_ZEIT, rankById } from '../progression'
 import { zeitText } from '../city/zeit'
 import { navigate } from '../router'
-import { RANDOM, startRun } from '../run'
+import { RANDOM, fortschrittId, startRun } from '../run'
+import { kategorieTitel } from '../modes/wasIstDas'
 import { haptic } from '../haptics'
 import { setState } from '../store'
 import type { RunResult, SaveData } from '../types'
@@ -21,7 +22,7 @@ const RECORD_LABEL: Record<string, string> = {
 export function RunResultScreen({ data, result }: { data: SaveData; result: RunResult }) {
   const mode = result.mode === RANDOM ? null : getMode(result.mode)
   const accuracy = result.answered > 0 ? result.correct / result.answered : 0
-  const best = modeProgress(data, result.mode)
+  const best = modeProgress(data, fortschrittId(result.mode))
   const records = result.records.map((record) => RECORD_LABEL[record] ?? record)
   const achievements = result.achievements.map(achievementById).filter((entry) => entry !== undefined)
   const newRank = result.rankUp ? rankById(result.rankUp) : null
@@ -47,7 +48,7 @@ export function RunResultScreen({ data, result }: { data: SaveData; result: RunR
           {newRank ? '🎖️' : records.length > 0 ? '🏆' : accuracy >= 0.8 ? '🎉' : '💪'}
         </div>
         <h1>Run beendet</h1>
-        <p>{mode ? `${mode.emoji} ${mode.name}` : '🎲 Random Mode'}</p>
+        <p>{mode ? (kategorieTitel(result.mode) ?? `${mode.emoji} ${mode.name}`) : '🎲 Random Mode'}</p>
       </section>
 
       {result.perfekt && (

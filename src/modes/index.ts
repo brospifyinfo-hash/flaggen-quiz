@@ -9,7 +9,9 @@ import { historyMode } from './history'
 import { mapMode } from './map'
 import { peopleMode } from './people'
 import { registerMode } from './registry'
+import { wasIstDasMode } from './wasIstDas'
 
+registerMode(wasIstDasMode)
 registerMode(flagsMode)
 registerMode(higherLowerMode)
 registerMode(historyMode)

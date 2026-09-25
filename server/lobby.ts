@@ -15,10 +15,9 @@ const ZEIGEN_MS = 4_500
 const MAX_SPIELER = 2
 
 const MODI: Record<string, { name: string; emoji: string }> = {
-  flaggen: { name: 'Flaggen', emoji: '🌍' },
+  'was-ist-das': { name: 'Was ist das', emoji: '🔎' },
   'higher-lower': { name: 'Higher or Lower', emoji: '📈' },
   geschichte: { name: 'Geschichte', emoji: '⏳' },
-  personen: { name: 'Berühmte Personen', emoji: '👤' },
   weltkarte: { name: 'Weltkarte', emoji: '🗺️' },
 }
 

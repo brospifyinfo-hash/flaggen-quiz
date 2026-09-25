@@ -206,9 +206,11 @@ export const herausforderungById = (id: string) => alleHerausforderungen().find(
 
 /** Gruppen in Anzeige-Reihenfolge */
 export function gruppen(): Gruppe[] {
+  const modi = quizModes().map((mode) => ({ id: mode.id, name: mode.name, emoji: mode.emoji }))
   return [
     { id: 'alle', name: 'Allgemein', emoji: '🌟' },
-    ...quizModes().map((mode) => ({ id: mode.id, name: mode.name, emoji: mode.emoji })),
+    ...modi,
+    ...(modi.some((mode) => mode.id === 'flaggen') ? [] : [{ id: 'flaggen', name: 'Flaggen', emoji: '🌍' }]),
     { id: 'math', name: 'Math Runner', emoji: '🧮' },
     ...KURSE.map((kurs) => ({ id: `kurs:${kurs.id}`, name: kurs.titel, emoji: kurs.emoji })),
   ]

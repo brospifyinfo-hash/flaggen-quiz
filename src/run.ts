@@ -1,5 +1,6 @@
 // Run-Engine: endlose Runden für Random Mode und für einzelne Modi.
 import { getMode, pickRandomMode } from './modes/registry'
+import { WAS_IST_DAS, wasFrage, wasKategorie, wissensModus } from './modes/wasIstDas'
 import { checkAchievements, creditXp, grantZeit, modeProgress, overallMastery, PERFEKT_ZEIT, PERFEKTLAUF, rankFor, xpForAnswer } from './progression'
 import type { Judgement, ModeProgress, ModeQuestion, Run, RunResult, SaveData } from './types'
 
@@ -9,10 +10,16 @@ export const RANDOM = 'random'
 const RECENT_KEYS = 14
 const RECENT_MODES = 4
 
+/** Kategorien von „Was ist das“ teilen sich einen Statistik-Topf, der Run merkt sich die Kategorie */
+export function fortschrittId(mode: string): string {
+  return mode === WAS_IST_DAS || mode.startsWith(`${WAS_IST_DAS}:`) ? WAS_IST_DAS : mode
+}
+
 const masteryOf = (data: SaveData, mode: string) =>
   mode === RANDOM ? overallMastery(data) : (getMode(mode)?.mastery(data) ?? 0)
 
 function makeQuestion(data: SaveData, mode: string, recentKeys: string[], recentModes: string[]): ModeQuestion | null {
+  if (mode === WAS_IST_DAS || mode.startsWith(`${WAS_IST_DAS}:`)) return wasFrage(data, recentKeys, wasKategorie(mode))
   if (mode !== RANDOM) return getMode(mode)?.nextQuestion(data, recentKeys) ?? null
   // Ein Modus kann gerade nichts liefern (etwa weil Kursinhalte noch laden) – dann ein anderer
   const versucht: string[] = []
@@ -50,7 +57,7 @@ function isValidAnswer(question: ModeQuestion, answer: string): boolean {
 export function startRun(data: SaveData, mode: string, now = Date.now()): SaveData {
   const question = makeQuestion(data, mode, [], [])
   if (!question) return data
-  const best = modeProgress(data, mode)
+  const best = modeProgress(data, fortschrittId(mode))
   const run: Run = {
     mode,
     // Bestwerte beim Start festhalten: währenddessen wachsen sie mit, Rekorde misst man am Startwert
@@ -124,7 +131,7 @@ export function answerRun(data: SaveData, answer: string, now = Date.now()): Sav
   }
 
   next = {
-    ...creditXp(next, gained, question.modeId),
+    ...creditXp(next, gained, wissensModus(question)),
     modes: { ...next.modes, [question.modeId]: progress },
     run: updated,
   }
@@ -171,7 +178,8 @@ export function endRun(data: SaveData, now = Date.now()): SaveData {
   if (run.answered > start.questions) records.push('questions')
   if (run.answered >= 10 && accuracy > start.accuracy) records.push('accuracy')
 
-  const before = modeProgress(data, run.mode)
+  const statistik = fortschrittId(run.mode)
+  const before = modeProgress(data, statistik)
   const progress: ModeProgress = {
     ...before,
     // Bei Random zählen die Fragen zusätzlich auf das Random-Konto,
@@ -206,7 +214,7 @@ export function endRun(data: SaveData, now = Date.now()): SaveData {
 
   const next: SaveData = {
     ...data,
-    modes: { ...data.modes, [run.mode]: progress },
+    modes: { ...data.modes, [statistik]: progress },
     run: null,
     lastRun: result,
   }
