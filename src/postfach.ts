@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-29-a',
+    datum: '29. September 2026',
+    titel: 'Neue Häuser, Gewerbe und Deko',
+    text: 'Im Baumenü liegen über hundert neue Stücke. Jedes hat einen Zweck, manche sehen trotzdem aus, als hätten sie sich verlaufen.',
+    punkte: [
+      'Wohnen: von der Jurte und dem Hausboot bis zur Marmorvilla und dem UFO-Haus.',
+      'Gewerbe: Höfe, Werkstätten, Farmen, Klärwerk, Riesenrad und ein Haus, das auf dem Kopf steht.',
+      'Deko: Bäume, Beete, Skulpturen, Strandkorb, Litfaßsäule und ein Walskelett.',
+    ],
+  },
+  {
     id: '2026-09-25-d',
     datum: '25. September 2026',
     titel: 'Mehr Bilder, vier Antworten',
