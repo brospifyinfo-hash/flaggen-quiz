@@ -1,6 +1,6 @@
 // Neue Bauten: Wohnen, Gewerbe und Deko. Jedes Stück hat einen Zweck in der Stadt,
 // auch wenn es schief, rund oder auf dem Kopf steht.
-import type { BuildingDef, Dachform, Effects, Extra, Fassade, Fensterart, Unten } from '../catalog'
+import type { BuildingDef, Dachform, Effects, Extra, Fassade, Fensterart, Figur, Unten } from '../catalog'
 
 interface Bau {
   id: string
@@ -1710,4 +1710,65 @@ const DEKO_NEU: BuildingDef[] = [
   }),
 ]
 
-export const NEUBAU: BuildingDef[] = [...WOHNEN_NEU, ...GEWERBE_NEU, ...DEKO_NEU]
+/** Diese Stücke bekommen eine eigene Silhouette, keinen Kasten und keine Einheitsstatue. */
+const FORM: Record<string, Figur> = {
+  jurte: 'jurte',
+  iglu: 'iglu',
+  hausboot: 'hausboot',
+  pilzhaus: 'pilz',
+  raketenwohnung: 'rakete',
+  ufohaus: 'ufo',
+  leuchtturmwache: 'leuchtturm',
+  riesenrad: 'riesenrad',
+  windrad: 'windrad',
+  geisterbahn: 'geist',
+  hausaufkopf: 'kopf',
+  ufoimbiss: 'ufo',
+  palme: 'palme',
+  kaktusgross: 'kaktus',
+  gartenzwerg: 'zwerg',
+  flamingofigur: 'flamingo',
+  moaistatue: 'moai',
+  einhornstatue: 'einhorn',
+  astronaut: 'astronaut',
+  walgerippe: 'wal',
+  riesenapfel: 'apfel',
+  drachenskulptur: 'drache',
+  roboterdenkmal: 'roboter',
+  obelisk: 'obelisk',
+  ufoskulptur: 'ufo',
+  riesenstuhl: 'stuhl',
+}
+
+const SCHLOSS: BuildingDef = {
+  id: 'schloss',
+  name: 'Schloss',
+  category: 'wohnen',
+  emoji: '🏰',
+  size: [3, 3],
+  coins: 1_000_000,
+  materials: 80,
+  needsLevel: 1,
+  effects: { capacity: 36, happiness: 18 },
+  note: 'Vier Türme, ein Bergfried und ein Tor. Kostet eine Million und wird nicht von allein gebaut.',
+  look: {
+    kind: 'bau',
+    height: 3.4,
+    wall: '#d9d3c7',
+    roof: '#8e2f2f',
+    accent: '#f4d35e',
+    floors: 0,
+    figur: 'schloss',
+    stil: { dach: 'zelt', farben: ['#d9d3c7'], dachfarben: ['#8e2f2f'] },
+  },
+}
+
+function mitForm(liste: BuildingDef[]): BuildingDef[] {
+  return liste.map((eintrag) => {
+    const figur = FORM[eintrag.id]
+    if (!figur) return eintrag
+    return { ...eintrag, look: { ...eintrag.look, figur, height: Math.max(eintrag.look.height, figur === 'riesenrad' || figur === 'windrad' || figur === 'leuchtturm' ? 2.4 : eintrag.look.height) } }
+  })
+}
+
+export const NEUBAU: BuildingDef[] = [SCHLOSS, ...mitForm(WOHNEN_NEU), ...mitForm(GEWERBE_NEU), ...mitForm(DEKO_NEU)]

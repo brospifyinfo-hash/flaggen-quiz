@@ -162,6 +162,37 @@ export interface Stil {
   koerper?: { tiefe: number; breite: number }
 }
 
+/**
+ * Eigene Silhouette statt Kasten oder Einheitsstatue. Der Zeichner in figuren.ts
+ * kennt jeden Namen; ein neues Motiv braucht dort eine Form.
+ */
+export type Figur =
+  | 'riesenrad'
+  | 'apfel'
+  | 'schloss'
+  | 'wal'
+  | 'einhorn'
+  | 'zwerg'
+  | 'ufo'
+  | 'pilz'
+  | 'iglu'
+  | 'jurte'
+  | 'hausboot'
+  | 'kopf'
+  | 'rakete'
+  | 'leuchtturm'
+  | 'windrad'
+  | 'flamingo'
+  | 'moai'
+  | 'drache'
+  | 'roboter'
+  | 'stuhl'
+  | 'geist'
+  | 'palme'
+  | 'kaktus'
+  | 'astronaut'
+  | 'obelisk'
+
 /** Zeichenrezept: Der Renderer baut daraus den Körper des Gebäudes. */
 export interface Look {
   /** Grundform */
@@ -193,6 +224,8 @@ export interface Look {
   floors?: number
   /** Nur bei kind 'bau': woraus das Gebäude zusammengesetzt ist */
   stil?: Stil
+  /** Wenn gesetzt, ersetzt diese Form den normalen Kasten oder die Einheitsstatue */
+  figur?: Figur
   /** Wie viel das Gebäude je Ausbaustufe an Höhe zulegt, in Kachelhöhen (Standard 0.45) */
   stufenHoehe?: number
 }

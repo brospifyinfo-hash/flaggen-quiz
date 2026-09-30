@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-30-a',
+    datum: '30. September 2026',
+    titel: 'Schloss, Rad und echte Figuren',
+    text: 'Ein Teil der neuen Bauten hat jetzt eine eigene Form. Das Riesenrad ist ein Rad, der Apfel ist ein Apfel, und das Schloss kostet eine Million.',
+    punkte: [
+      'Schloss, 3×3, eine Million Münzen, mit Türmen, Tor und Fahnen.',
+      'Riesenrad, Windrad, Geisterbahn, Pilzhaus, Iglu, Jurte, Rakete und das Haus auf dem Kopf sind keine Kästen mehr.',
+      'Statuen: Apfel, Wal, Einhorn, Zwerg, Moai, Drache, Roboter, Stuhl, Astronaut.',
+    ],
+  },
+  {
     id: '2026-09-29-a',
     datum: '29. September 2026',
     titel: 'Neue Häuser, Gewerbe und Deko',

@@ -5,6 +5,7 @@
 // es wird höher, füllt mehr von seinem Grundstück und bekommt Aufbauten dazu.
 // Zweitens hängt alles Zufällige am Namen des Hauses, damit es sein Aussehen behält.
 import { drawBau, umrissBau } from './bau'
+import { figurUmriss, zeichneFigur } from './figuren'
 import { buildingDef, footprint, type Look } from './catalog'
 import { fade, hashOf, lift, mix, quad, quadPath, roundedPath, shade, wobble, ziegelReihen, type Point } from './draw'
 import { kartenLaenge, nachRechts, TILE_H, TILE_W, tileNoise, toScreen, zeigtNachVorn } from './iso'
@@ -904,6 +905,11 @@ function zeichneBauwerk(
   const seed = hashOf(placed.id + placed.type)
   const stufe = Math.max(1, placed.level)
 
+  if (look.figur) {
+    zeichneFigur(ctx, placed, look, time, fein)
+    return
+  }
+
   // Der Baukörper rückt mit jeder Stufe weiter an den Rand seines Grundstücks
   const ein = einzug(look, stufe)
   const grund: Grund = { x: placed.x + ein, y: placed.y + ein, w: w - ein * 2, h: h - ein * 2 }
@@ -1370,6 +1376,10 @@ export function umrissPunkte(placed: Placed, vorn: Seite = 'o'): Point[] {
   const [w, h] = footprint(def, placed.rot)
   const look = def.look
   const stufe = Math.max(1, placed.level)
+
+  if (look.figur) {
+    return figurUmriss(placed, look) ?? []
+  }
 
   if (look.kind === 'bau' && look.stil) {
     return umrissBau({
