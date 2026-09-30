@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-09-30-c',
+    datum: '30. September 2026',
+    titel: 'Dieselbe Grafik wie die übrigen Häuser',
+    text: 'Die besonderen Bauten sind noch einmal gezeichnet. Sie haben jetzt Wände, Fensterrahmen und Ziegeldächer, so wie der Rest der Stadt.',
+    punkte: [
+      'Schloss, Palas und Kapelle mit Ziegeln auf den Dächern, Mauern und Zinnen.',
+      'Riesenrad, Rakete, Leuchtturm, UFO, Iglu, Pilzhaus und das Haus auf dem Kopf stehen im selben Raster.',
+      'Statuen stehen auf Steinsockeln: Apfel, Wal, Einhorn, Moai, Roboter, Obelisk.',
+    ],
+  },
+  {
     id: '2026-09-30-b',
     datum: '30. September 2026',
     titel: 'Das Schloss ist eine Burg',
