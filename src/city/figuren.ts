@@ -1,8 +1,8 @@
 // Eigene Silhouetten. Ein Riesenrad ist ein Rad, ein Apfel ist ein Apfel, ein Schloss
 // hat Türme. Alles andere bleibt beim normalen Baukasten.
 import { buildingDef, footprint, type Figur, type Look } from './catalog'
-import { fade, lift, quad, shade, type Point } from './draw'
-import { SEITEN, schwerpunkt, umlauf, waende, type Grund, type Seite } from './geo'
+import { fade, lift, mix, quad, shade, type Point } from './draw'
+import { SEITEN, schwerpunkt, umlauf, waende, type Grund } from './geo'
 import { TILE_H, TILE_W, toScreen } from './iso'
 import type { Placed } from './types'
 
@@ -16,7 +16,7 @@ interface Buehne {
 const HOCH: Record<Figur, number> = {
   riesenrad: 2.5,
   apfel: 1.35,
-  schloss: 3.1,
+  schloss: 1.72,
   wal: 1.15,
   einhorn: 1.25,
   zwerg: 1.45,
@@ -75,7 +75,7 @@ export function zeichneFigur(
   if (!def) return false
   const [w, h] = footprint(def, placed.rot)
   const m = toScreen(placed.x + w / 2, placed.y + h / 2)
-  const b: Buehne = { cx: m.sx, cy: m.sy, s: Math.max(w, h) * 15.5, time }
+  const b: Buehne = { cx: m.sx, cy: m.sy, s: Math.max(w, h) * 20, time }
   if (look.figur === 'schloss') schloss(ctx, placed, w, h, time)
   else MALER[look.figur](ctx, b)
   return true
@@ -136,9 +136,12 @@ function apfel(ctx: CanvasRenderingContext2D, b: Buehne): void {
   ctx.fillStyle = '#9a948a'
   ctx.fillRect(cx - s * 0.42, cy - s * 0.16, s * 0.84, s * 0.04)
   const my = cy - s * 0.78
-  oval(ctx, cx, my + s * 0.08, s * 0.62, s * 0.5, '#a93226')
-  oval(ctx, cx, my, s * 0.58, s * 0.52, '#e74c3c')
-  oval(ctx, cx - s * 0.16, my - s * 0.12, s * 0.22, s * 0.16, '#f5b7b1')
+  oval(ctx, cx + s * 0.08, my + s * 0.16, s * 0.58, s * 0.42, '#7b241c')
+  oval(ctx, cx, my + s * 0.06, s * 0.64, s * 0.52, '#c0392b')
+  oval(ctx, cx - s * 0.06, my - s * 0.04, s * 0.56, s * 0.46, '#e74c3c')
+  oval(ctx, cx - s * 0.2, my - s * 0.16, s * 0.18, s * 0.12, '#f5b7b1')
+  oval(ctx, cx + s * 0.22, my + s * 0.18, s * 0.08, s * 0.05, '#f5cba7')
+  oval(ctx, cx, my + s * 0.42, s * 0.06, s * 0.035, '#641e16')
   // Kerbe oben, Stiel, Blatt – ohne die drei ist es nur ein roter Kreis
   ctx.fillStyle = '#922b21'
   ctx.beginPath()
@@ -180,10 +183,20 @@ function riesenrad(ctx: CanvasRenderingContext2D, b: Buehne): void {
   ctx.lineTo(cx, nabeY)
   ctx.lineTo(cx + s * 0.85, cy)
   ctx.stroke()
-  ctx.strokeStyle = '#f4d35e'
-  ctx.lineWidth = Math.max(3, s * 0.1)
+  ctx.strokeStyle = '#b7950b'
+  ctx.lineWidth = Math.max(7, s * 0.18)
   ctx.beginPath()
   ctx.arc(cx, nabeY, r, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.strokeStyle = '#f7dc6f'
+  ctx.lineWidth = Math.max(3, s * 0.08)
+  ctx.beginPath()
+  ctx.arc(cx, nabeY, r, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.strokeStyle = '#7d6608'
+  ctx.lineWidth = Math.max(1.5, s * 0.04)
+  ctx.beginPath()
+  ctx.arc(cx, nabeY, r * 0.72, 0, Math.PI * 2)
   ctx.stroke()
   ctx.strokeStyle = '#d4ac0d'
   ctx.lineWidth = Math.max(1.5, s * 0.045)
@@ -201,10 +214,18 @@ function riesenrad(ctx: CanvasRenderingContext2D, b: Buehne): void {
     const winkel = dreh + (i / 8) * Math.PI * 2
     const gx = cx + Math.cos(winkel) * r
     const gy = nabeY + Math.sin(winkel) * r
+    ctx.fillStyle = '#2c3e50'
+    ctx.beginPath()
+    ctx.moveTo(gx - s * 0.18, gy)
+    ctx.lineTo(gx + s * 0.18, gy)
+    ctx.lineTo(gx + s * 0.1, gy - s * 0.14)
+    ctx.lineTo(gx - s * 0.1, gy - s * 0.14)
+    ctx.closePath()
+    ctx.fill()
     ctx.fillStyle = farben[i]
-    ctx.fillRect(gx - s * 0.16, gy - s * 0.02, s * 0.32, s * 0.26)
-    ctx.fillStyle = fade('#ffffff', 0.55)
-    ctx.fillRect(gx - s * 0.1, gy + s * 0.04, s * 0.2, s * 0.1)
+    ctx.fillRect(gx - s * 0.16, gy, s * 0.32, s * 0.28)
+    ctx.fillStyle = fade('#ffffff', 0.65)
+    ctx.fillRect(gx - s * 0.1, gy + s * 0.06, s * 0.2, s * 0.12)
   }
 }
 
@@ -332,8 +353,13 @@ function pilz(ctx: CanvasRenderingContext2D, b: Buehne): void {
   ctx.fillStyle = '#6b4423'
   ctx.fillRect(cx - s * 0.1, cy - s * 0.28, s * 0.2, s * 0.28)
   oval(ctx, cx, cy - s * 0.48, s * 0.08, s * 0.08, '#5dade2')
-  oval(ctx, cx, cy - s * 0.95, s * 0.78, s * 0.42, '#c0392b')
-  oval(ctx, cx, cy - s * 1.02, s * 0.7, s * 0.28, '#e74c3c')
+  oval(ctx, cx, cy - s * 0.78, s * 0.7, s * 0.16, '#f5d7a1')
+  for (let i = -3; i <= 3; i++) {
+    strich(ctx, cx + i * s * 0.12, cy - s * 0.78, cx + i * s * 0.16, cy - s * 0.68, '#e6c79a', 1)
+  }
+  oval(ctx, cx, cy - s * 0.95, s * 0.82, s * 0.46, '#922b21')
+  oval(ctx, cx - s * 0.06, cy - s * 1.05, s * 0.7, s * 0.32, '#e74c3c')
+  oval(ctx, cx - s * 0.22, cy - s * 1.12, s * 0.2, s * 0.1, '#f5b7b1')
   for (const [dx, dy] of [
     [-0.35, -0.95],
     [0.2, -1.15],
@@ -802,106 +828,261 @@ const MALER: Record<Exclude<Figur, 'schloss'>, (ctx: CanvasRenderingContext2D, b
   obelisk,
 }
 
-function kasten(
+const STEIN = '#cfc6b6'
+const DACHROT = '#8c2e2a'
+const HOLZTOR = '#6b4423'
+
+/** Sichtbare Wände, hinten zuerst. basis hebt den Fuß über den Boden, für Kränze auf Türmen. */
+function sichtbareWaende(g: Grund, basis = 0) {
+  const seiten = waende(g, basis)
+  return SEITEN.filter((seite) => seiten[seite].sichtbar)
+    .sort((a, b) => seiten[a].tiefe - seiten[b].tiefe)
+    .map((seite) => seiten[seite])
+}
+
+/** Mauer mit Sockel, Lagerfugen und Schießscharten, die in der Wandebene liegen */
+function mauerwerk(
   ctx: CanvasRenderingContext2D,
   g: Grund,
   hoehe: number,
-  wand: string,
-  dach: string,
-  art: 'spitz' | 'zinnen' | 'flach',
+  farbe: string,
+  scharten: number,
+  basis = 0,
 ): void {
-  const seiten = waende(g)
-  const sichtbar = SEITEN.filter((seite) => seiten[seite].sichtbar).sort((a, b) => seiten[a].tiefe - seiten[b].tiefe)
-  for (const seite of sichtbar) {
-    const kante = seiten[seite]
-    const ton = kante.ton > 0 ? 16 : -22
-    quad(ctx, kante.a, kante.b, lift(kante.b, hoehe), lift(kante.a, hoehe), shade(wand, ton))
-    const n = Math.max(1, Math.round((Math.abs(kante.b.sx - kante.a.sx) + 20) / 28))
+  for (const wand of sichtbareWaende(g, basis)) {
+    const ton = wand.ton > 0 ? 14 : -24
+    quad(ctx, wand.a, wand.b, lift(wand.b, hoehe), lift(wand.a, hoehe), shade(farbe, ton))
+    const sockel = Math.min(8, hoehe * 0.16)
+    quad(ctx, wand.a, wand.b, lift(wand.b, sockel), lift(wand.a, sockel), shade(farbe, -40))
+    const reihen = Math.max(2, Math.floor(hoehe / 12))
+    ctx.beginPath()
+    ctx.strokeStyle = fade('#2a241c', 0.35)
+    ctx.lineWidth = 0.7
+    for (let i = 1; i < reihen; i++) {
+      const h = (hoehe * i) / reihen
+      const p = lift(wand.a, h)
+      const q = lift(wand.b, h)
+      ctx.moveTo(p.sx, p.sy)
+      ctx.lineTo(q.sx, q.sy)
+    }
+    ctx.stroke()
+    if (scharten <= 0 || hoehe < 22) continue
+    const spalten = Math.max(1, scharten)
+    const zeilen = hoehe > TILE_H * 2 ? [0.42, 0.68] : [0.58]
+    for (const anteil of zeilen) {
+      for (let i = 0; i < spalten; i++) {
+        const t = (i + 0.5) / spalten
+        const fuss = hoehe * anteil
+        const links = lift(mix(wand.a, wand.b, t - 0.018), fuss)
+        const rechts = lift(mix(wand.a, wand.b, t + 0.018), fuss)
+        quad(ctx, links, rechts, lift(rechts, 10), lift(links, 10), '#1b2330')
+        const scheitel = lift(mix(wand.a, wand.b, t), fuss + 10)
+        ctx.beginPath()
+        ctx.arc(scheitel.sx, scheitel.sy, 2.1, Math.PI, 0)
+        ctx.fillStyle = '#1b2330'
+        ctx.fill()
+        ctx.fillStyle = fade('#f6e7a8', 0.8)
+        ctx.fillRect(scheitel.sx - 0.8, scheitel.sy + 3, 1.6, 4)
+      }
+    }
+  }
+  const top = umlauf(g, basis + hoehe)
+  quad(ctx, top[0], top[1], top[2], top[3], shade(farbe, 20))
+}
+
+/** Zinnen als eigene Zähne auf der Mauerkrone, nicht als vier Punkte in der Mitte */
+function zinnen(ctx: CanvasRenderingContext2D, g: Grund, hoehe: number, farbe: string): void {
+  for (const wand of sichtbareWaende(g)) {
+    const laenge = Math.hypot(wand.b.sx - wand.a.sx, wand.b.sy - wand.a.sy)
+    const n = Math.max(3, Math.round(laenge / 9))
     for (let i = 0; i < n; i++) {
-      const p = lift(
-        { sx: kante.a.sx + ((kante.b.sx - kante.a.sx) * (i + 0.5)) / n, sy: kante.a.sy + ((kante.b.sy - kante.a.sy) * (i + 0.5)) / n },
-        hoehe * 0.62,
-      )
-      ctx.fillStyle = '#243044'
-      ctx.fillRect(p.sx - 2.2, p.sy - 3.2, 4.4, 5.2)
-    }
-  }
-  const top = umlauf(g, hoehe)
-  if (art === 'spitz') {
-    const spitze = lift(schwerpunkt(top), hoehe * 0.42)
-    for (const seite of sichtbar) {
-      const kante = seiten[seite]
-      ctx.beginPath()
-      ctx.moveTo(lift(kante.a, hoehe).sx, lift(kante.a, hoehe).sy)
-      ctx.lineTo(lift(kante.b, hoehe).sx, lift(kante.b, hoehe).sy)
-      ctx.lineTo(spitze.sx, spitze.sy)
-      ctx.closePath()
-      ctx.fillStyle = shade(dach, kante.ton > 0 ? 12 : -18)
-      ctx.fill()
-    }
-    return
-  }
-  quad(ctx, top[0], top[1], top[2], top[3], shade(dach, 8))
-  if (art === 'zinnen') {
-    const m = schwerpunkt(top)
-    for (let i = 0; i < 4; i++) {
-      const ecke = top[i]
-      ctx.fillStyle = shade(wand, 8)
-      ctx.fillRect((ecke.sx + m.sx) / 2 - 3, (ecke.sy + m.sy) / 2 - 8, 6, 8)
+      if (i % 2 === 1) continue
+      const t0 = i / n
+      const t1 = (i + 0.62) / n
+      const a = lift(mix(wand.a, wand.b, t0), hoehe)
+      const b = lift(mix(wand.a, wand.b, t1), hoehe)
+      const obenA = lift(a, 7)
+      const obenB = lift(b, 7)
+      const raus = wand.raus
+      const aussenA = { sx: obenA.sx + raus.sx * 4, sy: obenA.sy + raus.sy * 4 }
+      const aussenB = { sx: obenB.sx + raus.sx * 4, sy: obenB.sy + raus.sy * 4 }
+      quad(ctx, a, b, obenB, obenA, shade(farbe, wand.ton > 0 ? 18 : -12))
+      quad(ctx, obenA, obenB, aussenB, aussenA, shade(farbe, 28))
     }
   }
 }
 
-function fahne(ctx: CanvasRenderingContext2D, g: Grund, hoehe: number, time: number, farbe: string): void {
-  const m = lift(schwerpunkt(umlauf(g, hoehe)), 8)
-  strich(ctx, m.sx, m.sy, m.sx, m.sy - 16, '#f7f4ee', 1.4)
-  const weht = Math.sin(time * 3) * 3
+/** Kegeldach mit Graten, damit es kein glatter Klecks bleibt */
+function kegel(ctx: CanvasRenderingContext2D, g: Grund, basis: number, hoehe: number, farbe: string): Point {
+  const top = umlauf(g, basis)
+  const spitze = lift(schwerpunkt(top), hoehe)
+  for (const wand of sichtbareWaende(g)) {
+    const a = lift(wand.a, basis)
+    const b = lift(wand.b, basis)
+    ctx.beginPath()
+    ctx.moveTo(a.sx, a.sy)
+    ctx.lineTo(b.sx, b.sy)
+    ctx.lineTo(spitze.sx, spitze.sy)
+    ctx.closePath()
+    ctx.fillStyle = shade(farbe, wand.ton > 0 ? 16 : -20)
+    ctx.fill()
+    ctx.strokeStyle = fade('#2a120f', 0.35)
+    ctx.lineWidth = 0.8
+    ctx.beginPath()
+    for (const t of [0.33, 0.66]) {
+      const p = mix(a, b, t)
+      ctx.moveTo(p.sx, p.sy)
+      ctx.lineTo(spitze.sx, spitze.sy)
+    }
+    ctx.stroke()
+  }
+  ctx.fillStyle = '#e6c15a'
+  ctx.beginPath()
+  ctx.arc(spitze.sx, spitze.sy, 2.4, 0, Math.PI * 2)
+  ctx.fill()
+  return spitze
+}
+
+function banner(ctx: CanvasRenderingContext2D, anker: Point, time: number, farbe: string, salz: number): void {
+  const weht = Math.sin(time * 2.4 + salz) * 4
+  strich(ctx, anker.sx, anker.sy, anker.sx, anker.sy - 22, '#efe6d4', 1.6)
+  ctx.fillStyle = '#e6c15a'
+  ctx.beginPath()
+  ctx.arc(anker.sx, anker.sy - 22, 2.2, 0, Math.PI * 2)
+  ctx.fill()
   ctx.fillStyle = farbe
   ctx.beginPath()
-  ctx.moveTo(m.sx, m.sy - 16)
-  ctx.quadraticCurveTo(m.sx + 8, m.sy - 14 + weht, m.sx + 14, m.sy - 12 + weht)
-  ctx.lineTo(m.sx + 14, m.sy - 7 + weht)
-  ctx.quadraticCurveTo(m.sx + 8, m.sy - 8 - weht, m.sx, m.sy - 6)
+  ctx.moveTo(anker.sx, anker.sy - 20)
+  ctx.quadraticCurveTo(anker.sx + 10, anker.sy - 16 + weht, anker.sx + 16, anker.sy - 18 + weht)
+  ctx.lineTo(anker.sx + 12, anker.sy - 12 + weht * 0.4)
+  ctx.lineTo(anker.sx + 16, anker.sy - 8 + weht)
+  ctx.quadraticCurveTo(anker.sx + 8, anker.sy - 10 - weht * 0.3, anker.sx, anker.sy - 8)
   ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = fade('#ffffff', 0.35)
+  ctx.fillRect(anker.sx + 2, anker.sy - 16, 6, 1.4)
+}
+
+function bogenInWand(ctx: CanvasRenderingContext2D, a: Point, b: Point, basis: number, breite: number, hoehe: number, farbe: string): void {
+  const links = lift(mix(a, b, 0.5 - breite), basis)
+  const rechts = lift(mix(a, b, 0.5 + breite), basis)
+  const scheitel = lift(mix(a, b, 0.5), basis + hoehe)
+  const knickL = lift(mix(a, b, 0.5 - breite), basis + hoehe * 0.62)
+  const knickR = lift(mix(a, b, 0.5 + breite), basis + hoehe * 0.62)
+  ctx.beginPath()
+  ctx.moveTo(links.sx, links.sy)
+  ctx.lineTo(knickL.sx, knickL.sy)
+  ctx.quadraticCurveTo(scheitel.sx, scheitel.sy, knickR.sx, knickR.sy)
+  ctx.lineTo(rechts.sx, rechts.sy)
+  ctx.closePath()
+  ctx.fillStyle = farbe
   ctx.fill()
 }
 
 function schloss(ctx: CanvasRenderingContext2D, placed: Placed, w: number, h: number, time: number): void {
   const x = placed.x
   const y = placed.y
-  const graben: Grund = { x: x + 0.08, y: y + 0.08, w: w - 0.16, h: h - 0.16 }
-  quad(ctx, ...umlauf(graben), '#1a5276')
-  const insel: Grund = { x: x + 0.28, y: y + 0.28, w: w - 0.56, h: h - 0.56 }
-  quad(ctx, ...umlauf(insel), '#7dcea0')
+  quad(ctx, ...umlauf({ x: x + 0.04, y: y + 0.04, w: w - 0.08, h: h - 0.08 }), '#14375c')
+  quad(ctx, ...umlauf({ x: x + 0.16, y: y + 0.16, w: w - 0.32, h: h - 0.32 }), '#8d8272')
+  quad(ctx, ...umlauf({ x: x + 0.28, y: y + 0.28, w: w - 0.56, h: h - 0.56 }), '#4f8f55')
+  // Weg vom Tor zum Bergfried
+  quad(ctx, ...umlauf({ x: x + w * 0.42, y: y + h * 0.55, w: w * 0.16, h: h * 0.38 }), '#cbb892')
 
-  const t = 0.62
-  const teile: { g: Grund; hoehe: number; art: 'spitz' | 'zinnen' | 'flach'; fahne?: string }[] = [
-    { g: { x: x + 0.35, y: y + 0.35, w: t, h: t }, hoehe: TILE_H * 2.15, art: 'spitz', fahne: '#1a5276' },
-    { g: { x: x + w - 0.35 - t, y: y + 0.35, w: t, h: t }, hoehe: TILE_H * 2.15, art: 'spitz', fahne: '#f4d35e' },
-    { g: { x: x + 0.35, y: y + h - 0.35 - t, w: t, h: t }, hoehe: TILE_H * 1.9, art: 'spitz' },
-    { g: { x: x + w - 0.35 - t, y: y + h - 0.35 - t, w: t, h: t }, hoehe: TILE_H * 1.9, art: 'spitz', fahne: '#c0392b' },
-    { g: { x: x + w * 0.34, y: y + h * 0.3, w: w * 0.32, h: h * 0.4 }, hoehe: TILE_H * 2.7, art: 'zinnen', fahne: '#1a5276' },
-    { g: { x: x + w * 0.38, y: y + h * 0.62, w: w * 0.24, h: h * 0.22 }, hoehe: TILE_H * 1.15, art: 'zinnen' },
+  const tw = 0.52
+  const wandDicke = 0.16
+  const ecken = [
+    { x: x + 0.32, y: y + 0.32 },
+    { x: x + w - 0.32 - tw, y: y + 0.32 },
+    { x: x + 0.32, y: y + h - 0.32 - tw },
+    { x: x + w - 0.32 - tw, y: y + h - 0.32 - tw },
   ]
-  teile.sort((a, b) => a.g.x + a.g.y - (b.g.x + b.g.y))
-  for (const teil of teile) {
-    kasten(ctx, teil.g, teil.hoehe, '#d9d3c7', '#8e2f2f', teil.art)
-    if (teil.fahne) fahne(ctx, teil.g, teil.hoehe + (teil.art === 'spitz' ? teil.hoehe * 0.32 : 10), time, teil.fahne)
-  }
-  // Tor in der vorderen Mauer
-  const tor = teile[teile.length - 1]
-  const seiten = waende(tor.g)
-  const vorn = (['s', 'o', 'n', 'w'] as Seite[]).filter((seite) => seiten[seite].sichtbar).sort((a, b) => seiten[b].tiefe - seiten[a].tiefe)[0]
-  if (vorn) {
-    const kante = seiten[vorn]
-    const fuss = { sx: (kante.a.sx + kante.b.sx) / 2, sy: (kante.a.sy + kante.b.sy) / 2 }
-    ctx.fillStyle = '#1c2833'
-    ctx.beginPath()
-    ctx.moveTo(fuss.sx - 7, fuss.sy)
-    ctx.lineTo(fuss.sx + 7, fuss.sy)
-    ctx.lineTo(fuss.sx + 7, fuss.sy - 12)
-    ctx.quadraticCurveTo(fuss.sx, fuss.sy - 20, fuss.sx - 7, fuss.sy - 12)
-    ctx.closePath()
-    ctx.fill()
+  const mauern: Grund[] = [
+    { x: x + 0.32 + tw * 0.55, y: y + 0.34, w: w - 0.64 - tw, h: wandDicke },
+    { x: x + w - 0.34 - wandDicke, y: y + 0.32 + tw * 0.55, w: wandDicke, h: h - 0.64 - tw },
+    { x: x + 0.34, y: y + 0.32 + tw * 0.55, w: wandDicke, h: h - 0.64 - tw },
+    // Südmauer in zwei Stücken, dazwischen das Tor
+    { x: x + 0.32 + tw * 0.4, y: y + h - 0.34 - wandDicke, w: w * 0.28, h: wandDicke },
+    { x: x + w * 0.58, y: y + h - 0.34 - wandDicke, w: w * 0.28, h: wandDicke },
+  ]
+  const bergfried: Grund = { x: x + w * 0.33, y: y + h * 0.3, w: w * 0.34, h: h * 0.36 }
+  const torhaus: Grund = { x: x + w * 0.36, y: y + h - 0.62, w: w * 0.28, h: 0.42 }
+  const bruecke: Grund = { x: x + w * 0.43, y: y + h - 0.28, w: w * 0.14, h: 0.32 }
+
+  const stuecke: { g: Grund; art: 'mauer' | 'turm' | 'fried' | 'tor' | 'bruecke' }[] = [
+    ...mauern.map((g) => ({ g, art: 'mauer' as const })),
+    ...ecken.map((e) => ({ g: { x: e.x, y: e.y, w: tw, h: tw }, art: 'turm' as const })),
+    { g: bergfried, art: 'fried' },
+    { g: torhaus, art: 'tor' },
+    { g: bruecke, art: 'bruecke' },
+  ]
+  stuecke.sort((a, b) => a.g.x + a.g.y + a.g.w * 0.2 - (b.g.x + b.g.y))
+
+  for (const teil of stuecke) {
+    if (teil.art === 'bruecke') {
+      const deck = umlauf(teil.g, 4)
+      quad(ctx, deck[0], deck[1], deck[2], deck[3], '#8a5a32')
+      ctx.strokeStyle = fade('#3d2914', 0.55)
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      for (let i = 1; i < 4; i++) {
+        const p = mix(deck[0], deck[3], i / 4)
+        const q = mix(deck[1], deck[2], i / 4)
+        ctx.moveTo(p.sx, p.sy)
+        ctx.lineTo(q.sx, q.sy)
+      }
+      ctx.stroke()
+      continue
+    }
+    if (teil.art === 'mauer') {
+      const hoch = TILE_H * 0.95
+      mauerwerk(ctx, teil.g, hoch, STEIN, 0)
+      zinnen(ctx, teil.g, hoch, STEIN)
+      continue
+    }
+    if (teil.art === 'turm') {
+      const hoch = TILE_H * 2.05
+      mauerwerk(ctx, teil.g, hoch, STEIN, 2)
+      const kranz: Grund = {
+        x: teil.g.x - 0.05,
+        y: teil.g.y - 0.05,
+        w: teil.g.w + 0.1,
+        h: teil.g.h + 0.1,
+      }
+      mauerwerk(ctx, kranz, 8, shade(STEIN, -6), 0, hoch)
+      zinnen(ctx, kranz, hoch + 8, STEIN)
+      const spitze = kegel(ctx, teil.g, hoch + 8, TILE_H * 0.9, DACHROT)
+      banner(ctx, spitze, time, teil.g.x < x + w / 2 ? '#1a5276' : '#f4d35e', teil.g.y)
+      continue
+    }
+    if (teil.art === 'fried') {
+      const hoch = TILE_H * 2.85
+      mauerwerk(ctx, teil.g, hoch, '#ddd4c4', 3)
+      zinnen(ctx, teil.g, hoch, '#ddd4c4')
+      const spitze = kegel(ctx, teil.g, hoch + 4, TILE_H * 1.05, DACHROT)
+      banner(ctx, spitze, time, '#8c2e2a', 1.2)
+      continue
+    }
+    const hoch = TILE_H * 1.35
+    mauerwerk(ctx, teil.g, hoch, STEIN, 0)
+    zinnen(ctx, teil.g, hoch, STEIN)
+    const front = sichtbareWaende(teil.g).at(-1)
+    if (front) {
+      bogenInWand(ctx, front.a, front.b, 2, 0.22, 18, '#141820')
+      // Fallgatter
+      ctx.strokeStyle = '#8d6a32'
+      ctx.lineWidth = 1.1
+      ctx.beginPath()
+      for (let i = 0; i < 4; i++) {
+        const p = lift(mix(front.a, front.b, 0.38 + i * 0.08), 4)
+        const q = lift(mix(front.a, front.b, 0.38 + i * 0.08), 16)
+        ctx.moveTo(p.sx, p.sy)
+        ctx.lineTo(q.sx, q.sy)
+      }
+      ctx.stroke()
+      ctx.fillStyle = HOLZTOR
+      const tuerL = lift(mix(front.a, front.b, 0.4), 2)
+      const tuerR = lift(mix(front.a, front.b, 0.52), 2)
+      quad(ctx, tuerL, tuerR, lift(tuerR, 12), lift(tuerL, 12), HOLZTOR)
+    }
   }
 }
