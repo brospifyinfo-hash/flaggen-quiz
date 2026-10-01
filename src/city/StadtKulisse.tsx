@@ -3,6 +3,7 @@
 // laufen weiter. Bei „weniger Bewegung“ und im Hintergrundtab bleibt das Bild stehen.
 import { useEffect, useRef } from 'react'
 import { setBlick } from './iso'
+import { masse } from './landschaft'
 import { anpassen, createLife, signatureOf, stepLife, type Life } from './life'
 import { cityFrame, drawCity, type Camera } from './render'
 import type { CityState } from './types'
@@ -39,7 +40,8 @@ export function StadtKulisse({ city }: { city: CityState }) {
       element.width = Math.round(size.w * dpr)
       element.height = Math.round(size.h * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      setBlick(0, stadt.current.land)
+      const flaeche = masse(stadt.current)
+      setBlick(0, flaeche.w, flaeche.h)
       const passend = cityFrame(stadt.current, size)
       camera = { ...passend, zoom: Math.min(2.6, passend.zoom * NAEHE) }
     }
@@ -54,7 +56,8 @@ export function StadtKulisse({ city }: { city: CityState }) {
 
     const zeichne = (now: number) => {
       if (size.w < 1) return
-      setBlick(0, stadt.current.land)
+      const flaeche = masse(stadt.current)
+      setBlick(0, flaeche.w, flaeche.h)
       drawCity(ctx, stadt.current, camera, size, {
         blick: 0,
         life,

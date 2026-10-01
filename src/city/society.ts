@@ -6,6 +6,7 @@
 // Geschäften. Sie wird für jede Kachel gerechnet: Ein Viertel mit Schule und Wache ist
 // sicherer als eines mit Spielhalle und ohne Polizei.
 import { buildingDef, effectsOf, footprint, type BuildingDef, type Klasse } from './catalog'
+import { masse } from './landschaft'
 import type { CityState, Placed } from './types'
 
 export const KLASSEN: Klasse[] = ['arm', 'mittel', 'reich', 'superreich']
@@ -54,7 +55,7 @@ type Stempel = { population: number; tax: number; land: number; buildings: unkno
 const stempelVon = (city: CityState): Stempel => ({
   population: city.population,
   tax: city.tax,
-  land: city.land,
+  land: masse(city).w * 1000 + masse(city).h,
   buildings: city.buildings,
   roads: city.roads,
 })
@@ -173,8 +174,8 @@ export function kriminalitaetsfeld(city: CityState): Float32Array {
   const stempel = stempelVon(city)
   const fertig = felder.get(city)
   if (fertig && gleich(fertig.stempel, stempel)) return fertig.wert
-  const n = city.land
-  const feld = new Float32Array(n * n)
+  const { w, h } = masse(city)
+  const feld = new Float32Array(w * h)
   const g = basis(city)
   const pegel = grundpegel(city, g)
 
@@ -198,15 +199,15 @@ export function kriminalitaetsfeld(city: CityState): Float32Array {
     if (def.id === 'laterne') quellen.push({ ...m, staerke: -3, reichweite: 2 })
   }
 
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
       let wert = pegel
       for (const q of quellen) {
         const d = Math.hypot(q.x - (x + 0.5), q.y - (y + 0.5))
         const f = abklingen(d, q.reichweite)
         if (f > 0) wert += q.staerke * f
       }
-      feld[y * n + x] = Math.max(0, Math.min(100, wert))
+      feld[y * w + x] = Math.max(0, Math.min(100, wert))
     }
   }
   felder.set(city, { stempel, wert: feld })
@@ -215,10 +216,10 @@ export function kriminalitaetsfeld(city: CityState): Float32Array {
 
 /** Kriminalität an einer Kachel */
 export function kriminalitaetBei(city: CityState, x: number, y: number): number {
-  const n = city.land
-  const tx = Math.max(0, Math.min(n - 1, Math.floor(x)))
-  const ty = Math.max(0, Math.min(n - 1, Math.floor(y)))
-  return kriminalitaetsfeld(city)[ty * n + tx]
+  const { w, h } = masse(city)
+  const tx = Math.max(0, Math.min(w - 1, Math.floor(x)))
+  const ty = Math.max(0, Math.min(h - 1, Math.floor(y)))
+  return kriminalitaetsfeld(city)[ty * w + tx]
 }
 
 /** Der Teil, der ohne das Kriminalitätsfeld auskommt – sonst liefe die Rechnung im Kreis */
@@ -311,7 +312,7 @@ export function gesellschaft(city: CityState): Gesellschaft {
   if (fertig && gleich(fertig.stempel, stempel)) return fertig.wert
   const g = basis(city)
   const feld = kriminalitaetsfeld(city)
-  const n = city.land
+  const { w } = masse(city)
 
   // Kriminalität dort messen, wo die Menschen wohnen
   let summe = 0
@@ -322,7 +323,7 @@ export function gesellschaft(city: CityState): Gesellschaft {
     if (!def || placed.verlassen) continue
     const e = effectsOf(def, placed.level)
     const m = mitte(placed)
-    const wert = feld[Math.min(n - 1, Math.floor(m.y)) * n + Math.min(n - 1, Math.floor(m.x))]
+    const wert = feld[Math.min(w - 1, Math.floor(m.y)) * w + Math.min(w - 1, Math.floor(m.x))]
     if (def.category === 'wohnen' && e.capacity) {
       summe += wert * e.capacity
       gewicht += e.capacity

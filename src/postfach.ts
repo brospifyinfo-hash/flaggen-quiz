@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-10-01-b',
+    datum: '1. Oktober 2026',
+    titel: 'Flüsse, Seen und Berge',
+    text: 'Die Stadt steht in einer Landschaft. Über den Zaun hinaus siehst du, wie es weitergeht, und kaufst dort eine Seite dazu.',
+    punkte: [
+      'Jede neue Stadt bekommt Fluss, See und Berge. Auf Wasser und Gipfeln kann man nicht bauen.',
+      'Land kauft man an einer Seite, nicht mehr rundherum auf einmal.',
+      'In neue Stadt umziehen nimmt alle Gebäude ins Inventar mit. Die Bewohner kommen auch mit.',
+    ],
+  },
+  {
     id: '2026-10-01-a',
     datum: '1. Oktober 2026',
     titel: 'Häuser von jeder Seite',

@@ -5,9 +5,10 @@
 import { buildingDef, footprint, roadDef, type BuildingDef, RATHAUS } from './catalog'
 import { fade, shade, wobble } from './draw'
 import { BAUARTEN } from './figures'
-import { blickJetzt, OBEN_KACHEL, setBlick, setProjektion, toScreen, toTile } from './iso'
+import { blickJetzt, feldHoeheJetzt, feldJetzt, OBEN_KACHEL, setBlick, setProjektion, toScreen, toTile } from './iso'
 import { lichtFuer } from './licht'
 import type { Agent } from './life'
+import { AUSBLICK, bodenVon, masse, streifenKacheln, type Boden } from './landschaft'
 import { krimFarbe, type Camera, type DrawOptions } from './render'
 import { kriminalitaetsfeld } from './society'
 import { tilesOf } from './state'
@@ -39,34 +40,57 @@ function rundPfad(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
   ctx.closePath()
 }
 
-function boden(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean): void {
+const KARTEN_FARBE: Record<Boden, (hell: boolean, wiese: [string, string]) => string> = {
+  wiese: (hell, wiese) => (hell ? wiese[0] : wiese[1]),
+  hang: (hell) => (hell ? '#93a64a' : '#748438'),
+  fluss: (hell) => (hell ? '#49a4e2' : '#2c74b4'),
+  see: (hell) => (hell ? '#1c6aab' : '#134e82'),
+  berg: (hell) => (hell ? '#d4cdc4' : '#7a7268'),
+}
+
+function boden(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean, kauf: DrawOptions['kauf']): void {
   const theme = themeById(city.theme)
-  const n = city.land
-  // Umland: gedämpfte Erde, damit das Gebiet klar begrenzt ist
-  rechteck(ctx, -40, -40, n + 80, n + 80, shade(theme.soil[1], -10))
-  rechteck(ctx, 0, 0, n, n, theme.ground[0])
-  // Wiese leicht gefleckt
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      const t = wobble(x * 7 + 3, y * 13 + 5)
-      if (t > 0.55) rechteck(ctx, x, y, 1, 1, fade(theme.ground[1], 0.18 + (t - 0.55) * 0.5))
+  const { w, h } = masse(city)
+  const rand = AUSBLICK
+  rechteck(ctx, -rand - 4, -rand - 4, w + (rand + 4) * 2, h + (rand + 4) * 2, shade(theme.soil[1], -18))
+  for (let y = -rand; y < h + rand; y++) {
+    for (let x = -rand; x < w + rand; x++) {
+      const art = bodenVon(city, x, y)
+      const aussen = x < 0 || y < 0 || x >= w || y >= h
+      const hell = wobble(x * 7 + 3, y * 13 + 5) > 0.82
+      ctx.globalAlpha = aussen ? 0.62 : 1
+      rechteck(ctx, x, y, 1, 1, KARTEN_FARBE[art](hell, theme.ground))
     }
   }
+  ctx.globalAlpha = 1
   if (buildMode) {
     ctx.strokeStyle = 'rgba(255,255,255,0.22)'
     ctx.lineWidth = 1 / K
     ctx.beginPath()
-    for (let i = 0; i <= n; i++) {
+    for (let i = 0; i <= w; i++) {
       ctx.moveTo(i, 0)
-      ctx.lineTo(i, n)
+      ctx.lineTo(i, h)
+    }
+    for (let i = 0; i <= h; i++) {
       ctx.moveTo(0, i)
-      ctx.lineTo(n, i)
+      ctx.lineTo(w, i)
     }
     ctx.stroke()
   }
   ctx.strokeStyle = theme.edge
   ctx.lineWidth = 3 / K
-  ctx.strokeRect(0, 0, n, n)
+  ctx.strokeRect(0, 0, w, h)
+  const streifen = kauf ? streifenKacheln(city, kauf) : null
+  if (streifen) {
+    ctx.fillStyle = 'rgba(255, 210, 70, 0.28)'
+    ctx.fillRect(streifen.x, streifen.y, streifen.w, streifen.h)
+    ctx.save()
+    ctx.setLineDash([0.35, 0.25])
+    ctx.strokeStyle = 'rgba(255, 236, 170, 0.95)'
+    ctx.lineWidth = 2.5 / K
+    ctx.strokeRect(streifen.x, streifen.y, streifen.w, streifen.h)
+    ctx.restore()
+  }
 }
 
 function strassen(ctx: CanvasRenderingContext2D, city: CityState, nacht: number): void {
@@ -451,7 +475,8 @@ export function drawKarte(
   options: DrawOptions = {},
 ): void {
   setProjektion('oben')
-  setBlick(options.blick ?? 0, city.land)
+  const gebiet = masse(city)
+  setBlick(options.blick ?? 0, gebiet.w, gebiet.h)
   const licht = lichtFuer(options.stunde ?? 9)
   const zeit = options.time ?? 0
   const nacht = licht.nacht
@@ -467,9 +492,9 @@ export function drawKarte(
     // Ab hier in Kacheln: Drehung um die Feldmitte, dann eine Kachel = K Bildpunkte
     ctx.rotate(blickJetzt())
     ctx.scale(K, K)
-    ctx.translate(-city.land / 2, -city.land / 2)
+    ctx.translate(-feldJetzt() / 2, -feldHoeheJetzt() / 2)
 
-    boden(ctx, city, options.buildMode === true)
+    boden(ctx, city, options.buildMode === true, options.kauf)
     strassen(ctx, city, nacht)
 
     const paint = options.paint
@@ -484,10 +509,9 @@ export function drawKarte(
 
     if (options.kriminalitaet) {
       const feld = kriminalitaetsfeld(city)
-      const n = city.land
-      for (let y = 0; y < n; y++) {
-        for (let x = 0; x < n; x++) {
-          const wert = feld[y * n + x]
+      for (let y = 0; y < gebiet.h; y++) {
+        for (let x = 0; x < gebiet.w; x++) {
+          const wert = feld[y * gebiet.w + x]
           if (wert < 5) continue
           rechteck(ctx, x, y, 1, 1, krimFarbe(wert, 0.45))
         }
@@ -555,7 +579,7 @@ export function drawKarte(
       ctx.translate(-camera.x, -camera.y)
       ctx.rotate(blickJetzt())
       ctx.scale(K, K)
-      ctx.translate(-city.land / 2, -city.land / 2)
+      ctx.translate(-feldJetzt() / 2, -feldHoeheJetzt() / 2)
       reichweiteOben(ctx, options.reichweite, city, camera.zoom)
       ctx.restore()
     }
@@ -626,9 +650,12 @@ export function hitTestOben(city: CityState, wx: number, wy: number): Placed | n
 }
 
 /** Kamera so setzen, dass das ganze Gebiet von oben ins Bild passt */
-export function karteFrame(city: CityState, view: { w: number; h: number }): Camera {
+export function karteFrame(city: CityState, view: { w: number; h: number }, weit = false): Camera {
   setProjektion('oben')
-  const ecken = [toScreen(0, 0), toScreen(city.land, 0), toScreen(city.land, city.land), toScreen(0, city.land)]
+  const gebiet = masse(city)
+  setBlick(blickJetzt(), gebiet.w, gebiet.h)
+  const rand = weit ? AUSBLICK : 1
+  const ecken = [toScreen(-rand, -rand), toScreen(gebiet.w + rand, -rand), toScreen(gebiet.w + rand, gebiet.h + rand), toScreen(-rand, gebiet.h + rand)]
   const xs = ecken.map((c) => c.sx)
   const ys = ecken.map((c) => c.sy)
   const links = Math.min(...xs)
@@ -636,5 +663,5 @@ export function karteFrame(city: CityState, view: { w: number; h: number }): Cam
   const oben = Math.min(...ys)
   const unten = Math.max(...ys)
   const fit = Math.min(view.w / (rechts - links + 30), view.h / (unten - oben + 30))
-  return { x: (links + rechts) / 2, y: (oben + unten) / 2, zoom: Math.max(0.45, Math.min(2.4, fit)) }
+  return { x: (links + rechts) / 2, y: (oben + unten) / 2, zoom: Math.max(weit ? 0.28 : 0.55, Math.min(2.4, fit)) }
 }

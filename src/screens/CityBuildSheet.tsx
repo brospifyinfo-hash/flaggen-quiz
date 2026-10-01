@@ -5,8 +5,8 @@
 import { useEffect, useRef } from 'react'
 import { IconClose } from '../components/Icons'
 import { drawBuilding, umrissPunkte } from '../city/buildings'
-import { CATEGORIES, type BuildingDef, type Category, type Klasse } from '../city/catalog'
-import { blickJetzt, feldJetzt, projektionJetzt, setBlick, setProjektion, toScreen } from '../city/iso'
+import { buildingDef, CATEGORIES, type BuildingDef, type Category, type Klasse } from '../city/catalog'
+import { blickJetzt, feldHoeheJetzt, feldJetzt, projektionJetzt, setBlick, setProjektion, toScreen } from '../city/iso'
 import { catalogFor } from '../city/state'
 import { themeById } from '../city/themes'
 import type { CityState } from '../city/types'
@@ -64,6 +64,7 @@ export function Vorschau({ def, theme, stufe = 1 }: { def: BuildingDef; theme: s
     // vorn, danach wieder genau so, wie es war
     const altWinkel = blickJetzt()
     const altFeld = feldJetzt()
+    const altHoehe = feldHoeheJetzt()
     const altProjektion = projektionJetzt()
     try {
       setProjektion('iso')
@@ -93,7 +94,7 @@ export function Vorschau({ def, theme, stufe = 1 }: { def: BuildingDef; theme: s
       ctx.fill()
       drawBuilding(ctx, placed, 0, t, true, 'o')
     } finally {
-      setBlick(altWinkel, altFeld)
+      setBlick(altWinkel, altFeld, altHoehe)
       setProjektion(altProjektion)
     }
   }, [def.id, theme, stufe])
@@ -106,11 +107,13 @@ export interface BauBlattProps {
   category: Category
   onCategory: (category: Category) => void
   onPick: (type: string) => void
+  /** Ein mitgebrachtes Gebäude wieder auf die Karte stellen */
+  onInventar?: (type: string, level: number) => void
   onClose: () => void
   say: (text: string) => void
 }
 
-export function BauBlatt({ city, levels, category, onCategory, onPick, onClose, say }: BauBlattProps) {
+export function BauBlatt({ city, levels, category, onCategory, onPick, onInventar, onClose, say }: BauBlattProps) {
   const raster = useRef<HTMLDivElement>(null)
   const reiter = useRef<HTMLDivElement>(null)
   const liste = catalogFor(city, levels, category)
@@ -160,6 +163,35 @@ export function BauBlatt({ city, levels, category, onCategory, onPick, onClose, 
           )
         })}
       </div>
+
+      {(city.inventar ?? []).length > 0 && (
+        <div className="bau-vorrat">
+          <p className="city-label-line">Mitgebracht</p>
+          <div className="bau-raster bau-raster-vorrat">
+            {(city.inventar ?? []).map((eintrag) => {
+              const def = buildingDef(eintrag.type)
+              if (!def) return null
+              return (
+                <button
+                  key={`${eintrag.type}:${eintrag.level}`}
+                  className="bau-karte"
+                  onClick={() => onInventar?.(eintrag.type, eintrag.level)}
+                >
+                  <Vorschau def={def} theme={city.theme} stufe={eintrag.level} />
+                  <span className="bau-name">{def.name}</span>
+                  <span className="bau-preis">
+                    <span>× {eintrag.anzahl}</span>
+                    {eintrag.level > 1 && <span>Stufe {eintrag.level}</span>}
+                  </span>
+                  <span className="bau-wirkung">
+                    <span>Schon bezahlt</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bau-raster" ref={raster}>
         {liste.map(({ def, lock }) => {

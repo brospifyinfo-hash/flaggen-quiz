@@ -27,15 +27,17 @@ export type Blick = number
 let winkel: Blick = 0
 let cos = 1
 let sin = 0
-/** Drehpunkt: die Mitte des Feldes */
-let mitte = 6
+/** Drehpunkt: die Mitte des Feldes. Bei einem Rechteck sind die beiden Achsen verschieden. */
+let mitteX = 6
+let mitteY = 6
 
-/** Blickwinkel und Feldgröße setzen. Wird vor jedem Bild aufgerufen. */
-export function setBlick(neu: Blick, land: number): void {
+/** Blickwinkel und Feldgröße setzen. `hoch` ist die zweite Kante, sonst ist das Feld quadratisch. */
+export function setBlick(neu: Blick, land: number, hoch?: number): void {
   winkel = Number.isFinite(neu) ? neu : 0
   cos = Math.cos(winkel)
   sin = Math.sin(winkel)
-  mitte = land / 2
+  mitteX = land / 2
+  mitteY = (hoch ?? land) / 2
 }
 
 export const blickJetzt = (): Blick => winkel
@@ -59,16 +61,16 @@ export const projektionJetzt = (): Projektion => projektion
 
 /** Eine Kachel in die Blickrichtung drehen */
 export function dreh(x: number, y: number): { x: number; y: number } {
-  const dx = x - mitte
-  const dy = y - mitte
-  return { x: mitte + dx * cos - dy * sin, y: mitte + dx * sin + dy * cos }
+  const dx = x - mitteX
+  const dy = y - mitteY
+  return { x: mitteX + dx * cos - dy * sin, y: mitteY + dx * sin + dy * cos }
 }
 
 /** Die Umkehrung: aus der gedrehten Kachel wieder die echte machen */
 export function entdreh(x: number, y: number): { x: number; y: number } {
-  const dx = x - mitte
-  const dy = y - mitte
-  return { x: mitte + dx * cos + dy * sin, y: mitte - dx * sin + dy * cos }
+  const dx = x - mitteX
+  const dy = y - mitteY
+  return { x: mitteX + dx * cos + dy * sin, y: mitteY - dx * sin + dy * cos }
 }
 
 /**
@@ -83,7 +85,7 @@ export function drehRichtung(dx: number, dy: number): { x: number; y: number } {
 /** Mitte einer Kachel im Weltkoordinatensystem (vor Kamera und Zoom) */
 export function toScreen(x: number, y: number): { sx: number; sy: number } {
   const d = dreh(x, y)
-  if (projektion === 'oben') return { sx: (d.x - mitte) * OBEN_KACHEL, sy: (d.y - mitte) * OBEN_KACHEL }
+  if (projektion === 'oben') return { sx: (d.x - mitteX) * OBEN_KACHEL, sy: (d.y - mitteY) * OBEN_KACHEL }
   return { sx: (d.x - d.y) * (TILE_W / 2), sy: (d.x + d.y) * (TILE_H / 2) }
 }
 
@@ -96,7 +98,7 @@ export function dirToScreen(dx: number, dy: number): { sx: number; sy: number } 
 
 /** Umkehrung: Welche Kachel liegt unter diesem Punkt? */
 export function toTile(sx: number, sy: number): { x: number; y: number } {
-  if (projektion === 'oben') return entdreh(sx / OBEN_KACHEL + mitte, sy / OBEN_KACHEL + mitte)
+  if (projektion === 'oben') return entdreh(sx / OBEN_KACHEL + mitteX, sy / OBEN_KACHEL + mitteY)
   const a = sx / (TILE_W / 2)
   const b = sy / (TILE_H / 2)
   return entdreh((b + a) / 2, (b - a) / 2)
@@ -152,4 +154,5 @@ export function tiefenRichtung(): { x: number; y: number } {
 }
 
 /** Kantenlänge des Feldes, um dessen Mitte gerade gedreht wird – zum Zurücksetzen nach Vorschauen */
-export const feldJetzt = (): number => mitte * 2
+export const feldJetzt = (): number => mitteX * 2
+export const feldHoeheJetzt = (): number => mitteY * 2

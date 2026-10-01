@@ -11,7 +11,8 @@
 // Version 9: Leerstand entschärft – nur noch wegen konkreter Nachbarn, nie mehr als ein Fünftel.
 // Version 10: Der Tag der Stadt – ein Zyklus dauert 24 Stunden, bringt Münzen und Ziegel,
 //             Quiz und Kurse spulen die Uhr vor statt Geld zu bringen.
-export const CITY_VERSION = 10
+// Version 11: Landschaft mit Saat, gekauftes Rechteck, Inventar beim Umzug.
+export const CITY_VERSION = 11
 
 /** Eine laufende Beschwerde der Bewohner eines Hauses */
 export interface Beschwerde {
@@ -42,6 +43,8 @@ export interface Placed {
   at: number
   /** von zugezogenen Bürgern selbst gebaut, nicht von dir */
   auto?: boolean
+  /** Aus dem Inventar gestellt – Abreißen legt es zurück, statt Münzen zu geben */
+  mitgebracht?: boolean
   /** Die Bewohner sind unzufrieden und sagen es – Vorstufe zum Auszug */
   beschwerde?: Beschwerde
   /** Seit wann das Haus leer steht. Ein verlassenes Haus verfällt, bringt nichts und stört die Nachbarn. */
@@ -55,8 +58,22 @@ export interface CityState {
   emblem: string
   /** Aussehen der Stadt, siehe src/city/themes.ts */
   theme: string
-  /** Kantenlänge des freigeschalteten Gebiets in Kacheln */
+  /** Kantenlänge des freigeschalteten Gebiets in Kacheln. Bei einem Rechteck die längere Seite. */
   land: number
+  /** Gekauftes Rechteck. Fehlt es, gilt das Quadrat `land`. */
+  breite?: number
+  hoehe?: number
+  /** Zufall der Landschaft. Dieselbe Saat ergibt immer dieselben Flüsse und Berge. */
+  saat?: number
+  /** Weltkoordinate der Kachel 0,0. Das Gebiet wandert, die Landschaft bleibt. */
+  weltX?: number
+  weltY?: number
+  /** Weltkacheln, die Wiese bleiben – die erste Siedlung steht nicht im Fluss */
+  lichtung?: string[]
+  /** Gebäude, die mit in die neue Stadt gekommen sind und noch keinen Platz haben */
+  inventar?: Vorrat[]
+  /** Bewohner warten auf Wohnraum, nach einem Umzug zieht niemand weg */
+  umzugSchutz?: boolean
   level: number
   coins: number
   materials: number
@@ -81,6 +98,13 @@ export interface CityState {
   foundedAt: number
   /** Die Schattenkasse wurde geöffnet – diese Stadt zählt nicht für die Rangliste */
   schummel?: boolean
+}
+
+/** Ein Stapel mitgebrachter Gebäude, gleiche Art und gleiche Stufe */
+export interface Vorrat {
+  type: string
+  level: number
+  anzahl: number
 }
 
 /** Ein Posten in der Aufschlüsselung von Stimmung oder Einnahmen */

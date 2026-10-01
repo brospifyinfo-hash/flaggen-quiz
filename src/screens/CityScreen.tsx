@@ -17,19 +17,20 @@ import { nimmVorgemerkt } from '../city/vormerkung'
 import { istKursBitte } from '../lernen/bitten'
 import { ladeAlle } from '../lernen/kurse'
 import { blickJetzt, setBlick, setProjektion, toScreen, toTile, type Blick, type Projektion } from '../city/iso'
+import { masse, RAND_NAME, STREIFEN, streifenPreis, type Rand } from '../city/landschaft'
 import { cityFrame, drawCity, hitTest, type Camera } from '../city/render'
 import { drawKarte, hitTestOben, karteFrame } from '../city/karte'
 import {
+  ausVorrat,
   canPlace,
   cityTitle,
   createCity,
-  expand,
-  expansionCheck,
   happinessBreakdown,
   incomeBreakdown,
+  kaufen,
+  kaufCheck,
   levelProgress,
   moveTo,
-  nextExpansion,
   pave,
   paveCost,
   place,
@@ -42,6 +43,7 @@ import {
   sanierungsKosten,
   setTheme,
   statsOf,
+  umziehen,
   unpave,
   upgrade,
 } from '../city/state'
@@ -91,6 +93,12 @@ import { getState, setState } from '../store'
 import type { SaveData } from '../types'
 
 const EMBLEMS = ['🏙️', '🌆', '🏛️', '🌳', '⚓', '⛰️', '🔭', '🎓', '🚀', '🦉']
+const SEITEN: Rand[] = ['n', 'o', 's', 'w']
+
+function blickAuf(winkel: Blick, stadt: { land: number; breite?: number; hoehe?: number }): void {
+  const { w, h } = masse(stadt)
+  setBlick(winkel, w, h)
+}
 
 type Mode = 'view' | 'build' | 'place' | 'select' | 'road' | 'roadPick' | 'land' | 'report' | 'uhr'
 
@@ -202,7 +210,7 @@ function CityWorld({ data }: { data: SaveData }) {
   const city = data.city!
   const stats = statsOf(city)
   const progress = levelProgress(city)
-  const step = nextExpansion(city)
+  const gebiet = masse(city)
   const levels = knowledgeLevels(data)
 
   const [mode, setMode] = useState<Mode>('view')
@@ -225,6 +233,11 @@ function CityWorld({ data }: { data: SaveData }) {
   const [newMotto, setNewMotto] = useState(city.motto)
   /** Kurzes Willkommen beim Betreten – wer es eilig hat, tippt es weg */
   const [eintritt, setEintritt] = useState(true)
+  /** Welche Seite der Landschaft gerade zum Kauf markiert ist */
+  const [seite, setSeite] = useState<Rand>('o')
+  /** Gebäude aus dem Inventar, das gerade neu gestellt wird */
+  const [vorrat, setVorrat] = useState<{ type: string; level: number } | null>(null)
+  const [umzugAn, setUmzugAn] = useState(false)
   const request = city.request as CityRequest | null
   /** Meldungen aus der Stadt: Brände, Razzien, neue Häuser – sie verschwinden von selbst */
   const [meldungen, setMeldungen] = useState<{ id: number; text: string }[]>([])
@@ -248,8 +261,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const framed = useRef(false)
   const stroke = useRef<string[]>([])
   const life = useRef<Life | null>(null)
-  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht, umrissAn })
-  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht, umrissAn }
+  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht, umrissAn, seite, vorrat })
+  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht, umrissAn, seite, vorrat }
 
   useEffect(() => {
     setUmrissAn(false)
@@ -451,7 +464,7 @@ function CityWorld({ data }: { data: SaveData }) {
       element.style.height = `${size.current.h}px`
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       if (!framed.current) {
-        setBlick(winkel.current, live.current.city.land)
+        blickAuf(winkel.current, live.current.city)
         camera.current = cityFrame(live.current.city, size.current)
         framed.current = true
       }
@@ -475,7 +488,7 @@ function CityWorld({ data }: { data: SaveData }) {
         const weich = 1 - (1 - t) ** 3
         const mitte = toTile(camera.current.x, camera.current.y)
         winkel.current = heimweg.current.von * (1 - weich)
-        setBlick(winkel.current, state.city.land)
+        blickAuf(winkel.current, state.city)
         const ziel = toScreen(mitte.x, mitte.y)
         camera.current = { ...camera.current, x: ziel.sx, y: ziel.sy }
         if (t >= 1) {
@@ -508,7 +521,7 @@ function CityWorld({ data }: { data: SaveData }) {
               rot: state.ghost.rot,
               ok: canPlace(state.city, state.pick, state.ghost.x, state.ghost.y, state.ghost.rot, {
                 ignore: state.movingId ?? undefined,
-                free: state.movingId !== null,
+                free: state.movingId !== null || state.vorrat !== null,
                 levels: state.levels,
               }).ok,
             }
@@ -527,6 +540,7 @@ function CityWorld({ data }: { data: SaveData }) {
         bubble: bitte ? { buildingId: bitte.buildingId, emoji: bitte.citizen.emoji } : null,
         time: now / 1000,
         stunde: tageszeit(state.city).stunde,
+        kauf: state.mode === 'land' ? state.seite : null,
       })
     }
     raf = requestAnimationFrame(frame)
@@ -577,7 +591,8 @@ function CityWorld({ data }: { data: SaveData }) {
     const addToStroke = (clientX: number, clientY: number) => {
       const tile = tileAt(clientX, clientY)
       const state = live.current
-      if (tile.x < 0 || tile.y < 0 || tile.x >= state.city.land || tile.y >= state.city.land) return
+      const flaeche = masse(state.city)
+      if (tile.x < 0 || tile.y < 0 || tile.x >= flaeche.w || tile.y >= flaeche.h) return
       const key = roadKey(tile.x, tile.y)
       if (stroke.current.includes(key)) return
       stroke.current = [...stroke.current, key]
@@ -663,7 +678,7 @@ function CityWorld({ data }: { data: SaveData }) {
         fingerWinkel = jetzt
         winkel.current += schritt
         setProjektion(live.current.ansicht)
-        setBlick(winkel.current, live.current.city.land)
+        blickAuf(winkel.current, live.current.city)
 
         // Der Bodenpunkt, der beim Aufsetzen unter den Fingern lag, bleibt dort
         const rect = box.getBoundingClientRect()
@@ -687,10 +702,11 @@ function CityWorld({ data }: { data: SaveData }) {
       if (far < PAN) return
       camera.current.x -= dx / camera.current.zoom
       camera.current.y -= dy / camera.current.zoom
-      const limit = live.current.city.land * 64
+      const flaeche = masse(live.current.city)
+      const limit = (Math.max(flaeche.w, flaeche.h) + 10) * 64
       camera.current.x = Math.max(-limit, Math.min(limit, camera.current.x))
       if (live.current.ansicht === 'oben') camera.current.y = Math.max(-limit, Math.min(limit, camera.current.y))
-      else camera.current.y = Math.max(-140, Math.min(live.current.city.land * 32 + 240, camera.current.y))
+      else camera.current.y = Math.max(-220, Math.min(flaeche.h * 32 + 320, camera.current.y))
     }
 
     const up = (event: PointerEvent) => {
@@ -713,8 +729,9 @@ function CityWorld({ data }: { data: SaveData }) {
       if (state.mode === 'place' && state.pick) {
         const def = buildingDef(state.pick)
         if (!def) return
-        const [w, h] = footprint(def, state.ghost.rot)
-        if (tile.x < 0 || tile.y < 0 || tile.x + w > state.city.land || tile.y + h > state.city.land) {
+        const [bw, bh] = footprint(def, state.ghost.rot)
+        const flaeche = masse(state.city)
+        if (tile.x < 0 || tile.y < 0 || tile.x + bw > flaeche.w || tile.y + bh > flaeche.h) {
           setNotice('Das liegt außerhalb deines Gebiets.')
           haptic('error')
           return
@@ -761,10 +778,13 @@ function CityWorld({ data }: { data: SaveData }) {
       say(check.reason)
       return
     }
-    const middle = Math.floor(city.land / 2) - 1
+    const flaeche = masse(city)
+    const middleX = Math.floor(flaeche.w / 2) - 1
+    const middleY = Math.floor(flaeche.h / 2) - 1
     setPick(type)
+    setVorrat(null)
     setMovingId(null)
-    setGhost({ x: middle, y: middle, rot: 0 })
+    setGhost({ x: middleX, y: middleY, rot: 0 })
     setMode('place')
     setNotice(null)
     haptic('soft')
@@ -775,11 +795,23 @@ function CityWorld({ data }: { data: SaveData }) {
     haptic('tick')
   }
 
+  const startInventar = (type: string, level: number) => {
+    const flaeche = masse(city)
+    setVorrat({ type, level })
+    setPick(type)
+    setMovingId(null)
+    setGhost({ x: Math.floor(flaeche.w / 2) - 1, y: Math.floor(flaeche.h / 2) - 1, rot: 0 })
+    setMode('place')
+    setNotice(null)
+    haptic('soft')
+  }
+
   const confirm = () => {
     if (!pick) return
+    const ausInventar = vorrat !== null && vorrat.type === pick
     const check = canPlace(city, pick, ghost.x, ghost.y, ghost.rot, {
       ignore: movingId ?? undefined,
-      free: movingId !== null,
+      free: movingId !== null || ausInventar,
       levels,
     })
     if (!check.ok) {
@@ -792,6 +824,13 @@ function CityWorld({ data }: { data: SaveData }) {
       setState((current) =>
         current.city ? { ...current, city: moveTo(current.city, id, ghost.x, ghost.y, ghost.rot) } : current,
       )
+    } else if (ausInventar && vorrat) {
+      const { type, level } = vorrat
+      setState((current) =>
+        current.city
+          ? { ...current, city: ausVorrat(current.city, type, level, ghost.x, ghost.y, ghost.rot) }
+          : current,
+      )
     } else {
       const type = pick
       setState((current) =>
@@ -801,6 +840,7 @@ function CityWorld({ data }: { data: SaveData }) {
       )
     }
     setPick(null)
+    setVorrat(null)
     setMovingId(null)
     setMode('view')
     setNotice(null)
@@ -808,6 +848,7 @@ function CityWorld({ data }: { data: SaveData }) {
 
   const cancel = () => {
     setPick(null)
+    setVorrat(null)
     setMovingId(null)
     setMode('view')
     setNotice(null)
@@ -884,7 +925,7 @@ function CityWorld({ data }: { data: SaveData }) {
     const def = buildingDef(haus.type)
     const [w, h] = def ? footprint(def, haus.rot) : [1, 1]
     setProjektion(ansicht)
-    setBlick(winkel.current, city.land)
+    blickAuf(winkel.current, city)
     const ziel = toScreen(haus.x + w / 2, haus.y + h / 2)
     camera.current = { x: ziel.sx, y: ziel.sy - (ansicht === 'oben' ? 0 : 20), zoom: Math.max(camera.current.zoom, 1.4) }
     setSelected(haus.id)
@@ -895,10 +936,12 @@ function CityWorld({ data }: { data: SaveData }) {
   const doRemove = () => {
     if (!chosen || chosen.type === RATHAUS) return
     const id = chosen.id
+    const zurueck = chosen.mitgebracht === true
     haptic('strong')
     setState((current) => (current.city ? { ...current, city: remove(current.city, id) } : current))
     setSelected(null)
     setMode('view')
+    if (zurueck) melde('Das Gebäude liegt wieder im Inventar.')
   }
 
   const doSanieren = () => {
@@ -926,38 +969,64 @@ function CityWorld({ data }: { data: SaveData }) {
   }
 
   /** Kamera, die das ganze Gebiet zeigt – je nach Ansicht anders gerechnet */
-  const rahmenFuer = (welche: Projektion, stadt = city): Camera => {
-    setBlick(winkel.current, stadt.land)
-    return welche === 'oben' ? karteFrame(stadt, size.current) : cityFrame(stadt, size.current)
+  const rahmenFuer = (welche: Projektion, stadt = city, weit = false): Camera => {
+    blickAuf(winkel.current, stadt)
+    return welche === 'oben' ? karteFrame(stadt, size.current, weit) : cityFrame(stadt, size.current, weit)
   }
 
-  const doExpand = () => {
-    const check = expansionCheck(city)
+  /** Hält den Punkt unter der Kamera fest, wenn Westen oder Norden das Feld verschiebt */
+  const kameraHalten = (dx: number, dy: number) => {
+    blickAuf(winkel.current, city)
+    const anker = toTile(camera.current.x, camera.current.y)
+    window.setTimeout(() => {
+      const gewachsen = live.current.city
+      blickAuf(winkel.current, gewachsen)
+      const ziel = toScreen(anker.x + dx, anker.y + dy)
+      camera.current = { ...camera.current, x: ziel.sx, y: ziel.sy }
+    }, 40)
+  }
+
+  const doKaufen = () => {
+    const check = kaufCheck(city, seite)
     if (!check.ok) {
       say(check.reason ?? 'Das geht noch nicht.')
       return
     }
     haptic('celebrate')
-    setState((current) => (current.city ? { ...current, city: expand(current.city) } : current))
+    const schieben = seite === 'w' ? STREIFEN : 0
+    const senken = seite === 'n' ? STREIFEN : 0
+    setState((current) => (current.city ? { ...current, city: kaufen(current.city, seite) } : current))
+    kameraHalten(schieben, senken)
+    melde(`Im ${RAND_NAME[seite]} gehört dir jetzt ein Stück Landschaft mehr.`)
+  }
+
+  const doUmzug = () => {
+    const stueck = city.buildings.filter((placed) => placed.type !== RATHAUS).length + (city.inventar ?? []).reduce((summe, eintrag) => summe + eintrag.anzahl, 0)
+    const einwohner = city.population
+    haptic('celebrate')
+    setState((current) => (current.city ? { ...current, city: umziehen(current.city) } : current))
+    setUmzugAn(false)
     setMode('view')
-    setNotice(null)
-    // Kamera zeigt das neue, größere Gebiet
+    setSelected(null)
+    setPick(null)
+    setVorrat(null)
     window.setTimeout(() => {
-      const grown = live.current.city
-      const rahmen = rahmenFuer(live.current.ansicht, grown)
-      camera.current = { ...rahmen, zoom: rahmen.zoom * 0.7 }
+      camera.current = rahmenFuer(live.current.ansicht, live.current.city)
     }, 60)
+    melde(
+      `Neue Landschaft. ${stueck} Gebäude liegen unter Bauen im Inventar, ${einwohner.toLocaleString('de-DE')} Bewohner sind mitgekommen.`,
+    )
   }
 
   const look = () => {
-    camera.current = rahmenFuer(ansicht)
+    camera.current = rahmenFuer(ansicht, city, true)
     haptic('tick')
   }
 
   /** Zwischen schräger Ansicht und Ansicht von oben wechseln – die Bildmitte bleibt dieselbe Stelle */
   const wechselAnsicht = () => {
     const neu: Projektion = ansicht === 'oben' ? 'iso' : 'oben'
-    setBlick(winkel.current, city.land)
+    blickAuf(winkel.current, city)
     setProjektion(ansicht)
     const mitte = toTile(camera.current.x, camera.current.y)
     setProjektion(neu)
@@ -1041,7 +1110,8 @@ function CityWorld({ data }: { data: SaveData }) {
     haptic('tick')
   }
 
-  const expandOk = step ? expansionCheck(city) : null
+  const preis = streifenPreis(city, seite)
+  const kaufOk = kaufCheck(city, seite)
 
   return (
     <main className="city">
@@ -1238,11 +1308,19 @@ function CityWorld({ data }: { data: SaveData }) {
             >
               🛣️ Straßen
             </button>
-            {step && (
-              <button className="city-btn" onClick={() => setMode('land')}>
-                🗺️ Land
-              </button>
-            )}
+            <button
+              className="city-btn"
+              onClick={() => {
+                setUmzugAn(false)
+                setMode('land')
+                window.setTimeout(() => {
+                  camera.current = rahmenFuer(live.current.ansicht, live.current.city, true)
+                }, 40)
+                haptic('soft')
+              }}
+            >
+              🗺️ Land
+            </button>
             <button className="city-btn" onClick={look}>
               🔭
             </button>
@@ -1256,6 +1334,7 @@ function CityWorld({ data }: { data: SaveData }) {
             category={category}
             onCategory={setCategory}
             onPick={startPlacing}
+            onInventar={startInventar}
             onClose={() => setMode('view')}
             say={say}
           />
@@ -1341,40 +1420,64 @@ function CityWorld({ data }: { data: SaveData }) {
           </div>
         )}
 
-        {mode === 'land' && step && (
-          <div className="city-detail">
-            <div className="city-detail-head">
-              <span className="city-card-emoji">🗺️</span>
-              <span className="city-card-body">
-                <strong>Gebiet erweitern</strong>
-                <span>
-                  {city.land} × {city.land} → {step.land} × {step.land} Kacheln
-                </span>
-              </span>
+        {mode === 'land' && (
+          <div className="city-sheet">
+            <div className="city-sheet-head">
+              <strong>Landschaft</strong>
               <button className="city-close" aria-label="Schließen" onClick={() => setMode('view')}>
                 <IconClose />
               </button>
             </div>
+            <p className="city-hint">
+              Dein Gebiet ist {gebiet.w} × {gebiet.h} Kacheln. Darüber hinaus geht die Landschaft weiter. Du kaufst immer eine Seite dazu, {STREIFEN} Kacheln tief.
+            </p>
+            <div className="city-seiten">
+              {SEITEN.map((eintrag) => (
+                <button
+                  key={eintrag}
+                  className={`city-btn${seite === eintrag ? ' is-on' : ''}`}
+                  onClick={() => {
+                    setSeite(eintrag)
+                    haptic('tick')
+                  }}
+                >
+                  {RAND_NAME[eintrag]}
+                </button>
+              ))}
+            </div>
             <ul className="city-effects">
               <li>
-                🏙️ Stadt-Stufe <strong>{step.level}</strong>
+                🪙 <strong>{preis.coins.toLocaleString('de-DE')}</strong>
               </li>
               <li>
-                🪙 <strong>{step.coins.toLocaleString('de-DE')}</strong>
-              </li>
-              <li>
-                🧱 <strong>{step.materials}</strong>
+                🧱 <strong>{preis.materials}</strong>
               </li>
             </ul>
-            {expandOk && !expandOk.ok && <p className="city-hint">{expandOk.reason}</p>}
+            {!kaufOk.ok && <p className="city-hint">{kaufOk.reason}</p>}
             <div className="city-place-row">
-              <button className="city-btn" onClick={() => setMode('view')}>
-                Später
-              </button>
-              <button className="city-btn city-btn-main" onClick={doExpand}>
-                <IconCheck /> Erweitern
+              <button className="city-btn city-btn-main" onClick={doKaufen}>
+                <IconCheck /> {RAND_NAME[seite]} kaufen
               </button>
             </div>
+            {umzugAn ? (
+              <div className="city-umzug">
+                <p>
+                  Alle Gebäude außer dem Rathaus kommen ins Inventar. Die Bewohner ziehen mit, die Kasse auch. Die Landschaft ist neu, und du stellst die Häuser selbst wieder hin.
+                </p>
+                <div className="city-place-row">
+                  <button className="city-btn" onClick={() => setUmzugAn(false)}>
+                    Lieber bleiben
+                  </button>
+                  <button className="city-btn city-btn-main" onClick={doUmzug}>
+                    Wirklich umziehen
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="city-btn city-umzug-start" onClick={() => setUmzugAn(true)}>
+                In neue Stadt umziehen
+              </button>
+            )}
           </div>
         )}
 
@@ -1860,7 +1963,11 @@ function CityWorld({ data }: { data: SaveData }) {
         {mode === 'place' && pick && (
           <div className="city-place">
             <p className="city-place-text">
-              {movingId ? 'Tippe auf den neuen Platz.' : `Tippe auf die Karte, wo ${buildingDef(pick)?.name} stehen soll.`}
+              {movingId
+                ? 'Tippe auf den neuen Platz.'
+                : vorrat
+                  ? `Tippe auf die Karte, wo ${buildingDef(pick)?.name} wieder stehen soll. Es kostet nichts.`
+                  : `Tippe auf die Karte, wo ${buildingDef(pick)?.name} stehen soll.`}
             </p>
             <div className="city-place-row">
               <button className="city-btn" onClick={cancel}>
@@ -1870,7 +1977,7 @@ function CityWorld({ data }: { data: SaveData }) {
                 ↻ Drehen
               </button>
               <button className="city-btn city-btn-main" onClick={confirm}>
-                <IconCheck /> {movingId ? 'Hierhin' : 'Bauen'}
+                <IconCheck /> {movingId ? 'Hierhin' : vorrat ? 'Stellen' : 'Bauen'}
               </button>
             </div>
           </div>

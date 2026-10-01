@@ -15,6 +15,17 @@ import type { Seite } from './geo'
 import { leerstandVon, leerstandZuruecksetzen } from './leerstand'
 import { REQUEST_ZEIT, sanitizeRequest } from './requests'
 import { gesellschaft, KLASSEN, kriminalitaetBei, STEUER_MAX, STEUER_MIN, STEUER_START, steuerVon } from './society'
+import {
+  bebauen,
+  bodenVon,
+  masse,
+  seiteOffen,
+  streifenPreis,
+  sucheUrsprung,
+  STREIFEN,
+  MAX_SEITE,
+  type Rand,
+} from './landschaft'
 import { DEFAULT_THEME, themeById } from './themes'
 import { MAX_TAGE, TAG_MS, vorspulen } from './zeit'
 import {
@@ -24,6 +35,7 @@ import {
   type CycleReport,
   type Part,
   type Placed,
+  type Vorrat,
 } from './types'
 
 /** Ein Wirtschaftszyklus ist ein Tag der Stadt – siehe src/city/zeit.ts */
@@ -42,25 +54,32 @@ export const START_LAND = 12
 export const START_COINS = 2500
 export const START_MATERIALS = 40
 
-/** Ausbaustufen des Stadtgebiets. Die Stadt wächst dabei nach allen Seiten. */
-export interface Expansion {
-  land: number
-  level: number
-  coins: number
-  materials: number
+/** Weltkacheln, auf denen die erste Siedlung steht – die bleiben Wiese */
+function lichtungSammeln(city: CityState): string[] {
+  const keys = new Set<string>()
+  const wx = city.weltX ?? 0
+  const wy = city.weltY ?? 0
+  const merk = (x: number, y: number) => {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) keys.add(`${wx + x + dx}:${wy + y + dy}`)
+    }
+  }
+  for (const key of Object.keys(city.roads)) {
+    const [x, y] = key.split(':').map(Number)
+    merk(x, y)
+  }
+  for (const placed of city.buildings) {
+    for (const t of tilesOf(placed)) merk(t.x, t.y)
+  }
+  return [...keys]
 }
-
-export const EXPANSIONS: Expansion[] = [
-  { land: 18, level: 4, coins: 1800, materials: 30 },
-  { land: 26, level: 9, coins: 6000, materials: 90 },
-  { land: 36, level: 16, coins: 18000, materials: 240 },
-  { land: 48, level: 26, coins: 45000, materials: 600 },
-]
 
 export const roadKey = (x: number, y: number) => `${x}:${y}`
 export const roadAt = (city: CityState, x: number, y: number): string | undefined => city.roads[roadKey(x, y)]
 
-export function createCity(name: string, motto: string, emblem: string, now = Date.now()): CityState {
+export function createCity(name: string, motto: string, emblem: string, now = Date.now(), saatFest?: number): CityState {
+  const saat = saatFest ?? (now === 0 ? 184729 : (Math.imul(now | 0, 997) ^ Math.imul(name.length + 3, 1315423911)) >>> 0)
+  const ursprung = sucheUrsprung(saat || 1, START_LAND)
   const city: CityState = {
     version: CITY_VERSION,
     name: name.trim().slice(0, 24) || 'Neustadt',
@@ -68,6 +87,12 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
     emblem: emblem || '🏙️',
     theme: DEFAULT_THEME,
     land: START_LAND,
+    breite: START_LAND,
+    hoehe: START_LAND,
+    saat: saat || 1,
+    weltX: ursprung.x,
+    weltY: ursprung.y,
+    inventar: [],
     level: 1,
     coins: START_COINS,
     materials: START_MATERIALS,
@@ -111,6 +136,7 @@ export function createCity(name: string, motto: string, emblem: string, now = Da
     city.buildings.push({ id: `b${city.nextId++}`, type, x, y, rot: 0, level: 1, at: now })
   }
   // In der Startsiedlung wohnt von Anfang an jemand
+  city.lichtung = lichtungSammeln(city)
   city.population = statsOf(city).capacity
   city.level = levelOf(statsOf(city))
   return city
@@ -152,7 +178,8 @@ export function canPlace(
   }
 
   const [w, h] = footprint(def, rot)
-  if (x < 0 || y < 0 || x + w > city.land || y + h > city.land) {
+  const gebiet = masse(city)
+  if (x < 0 || y < 0 || x + w > gebiet.w || y + h > gebiet.h) {
     return { ok: false, reason: 'Das liegt außerhalb deines Gebiets.' }
   }
 
@@ -166,6 +193,8 @@ export function canPlace(
       const key = roadKey(x + dx, y + dy)
       if (taken.has(key)) return { ok: false, reason: 'Hier steht schon etwas.' }
       if (city.roads[key]) return { ok: false, reason: 'Hier verläuft eine Straße.' }
+      const boden = bodenVon(city, x + dx, y + dy)
+      if (!bebauen(boden)) return { ok: false, reason: boden === 'berg' ? 'Da steht ein Berg.' : 'Da ist Wasser.' }
     }
   }
 
@@ -203,10 +232,7 @@ export function place(
   // mit der Zeit – und nur, wenn die Stimmung stimmt
   const platz = effectsOf(def, 1).capacity ?? 0
   const willkommen = platz > 0 && happinessBreakdown(gebaut).total >= MOVE_IN_MOOD ? Math.ceil(platz * 0.15) : 0
-  return withLevel({
-    ...gebaut,
-    population: Math.min(statsOf(gebaut).capacity, gebaut.population + willkommen),
-  })
+  return withLevel(nachWohnraum(gebaut, willkommen))
 }
 
 /** Versetzen und Drehen kosten nichts – Ausprobieren soll sich lohnen */
@@ -220,11 +246,19 @@ export function moveTo(city: CityState, id: string, x: number, y: number, rot: 0
   }
 }
 
-/** Abreißen gibt die Hälfte zurück – bei Ruinen nichts, die sind nichts mehr wert */
+/** Abreißen gibt die Hälfte zurück – bei Ruinen nichts, die sind nichts mehr wert.
+ * Mitgebrachtes legt sich zurück ins Inventar. */
 export function remove(city: CityState, id: string): CityState {
   const placed = city.buildings.find((entry) => entry.id === id)
   const def = placed ? buildingDef(placed.type) : undefined
   if (!placed || !def || def.id === RATHAUS) return city
+  if (placed.mitgebracht) {
+    return withLevel({
+      ...city,
+      inventar: vorratDazu(city.inventar ?? [], placed.type, placed.level),
+      buildings: city.buildings.filter((entry) => entry.id !== id),
+    })
+  }
   // Was Zugezogene selbst gebaut haben, hast du nicht bezahlt – dafür gibt es nichts zurück
   const zurueck = placed.auto || placed.verlassen ? 0 : 1
   return withLevel({
@@ -291,7 +325,9 @@ export function rathausStufe(cityLevel: number): number {
 
 /** Liegt die Kachel frei für eine Straße? */
 export function canPave(city: CityState, x: number, y: number): boolean {
-  if (x < 0 || y < 0 || x >= city.land || y >= city.land) return false
+  const gebiet = masse(city)
+  if (x < 0 || y < 0 || x >= gebiet.w || y >= gebiet.h) return false
+  if (!bebauen(bodenVon(city, x, y))) return false
   const key = roadKey(x, y)
   for (const placed of city.buildings) {
     for (const tile of tilesOf(placed)) {
@@ -366,45 +402,127 @@ export function roadNeighbours(city: CityState, x: number, y: number): [boolean,
   ]
 }
 
-// ---------- Landerweiterung ----------
+function vorratDazu(liste: Vorrat[], type: string, level: number, n = 1): Vorrat[] {
+  const da = liste.find((eintrag) => eintrag.type === type && eintrag.level === level)
+  if (!da) return [...liste, { type, level, anzahl: n }]
+  return liste.map((eintrag) => (eintrag === da ? { ...eintrag, anzahl: eintrag.anzahl + n } : eintrag))
+}
 
-export const nextExpansion = (city: CityState): Expansion | null =>
-  EXPANSIONS.find((entry) => entry.land > city.land) ?? null
-
-export function expansionCheck(city: CityState): PlaceCheck {
-  const step = nextExpansion(city)
-  if (!step) return { ok: false, reason: 'Dein Gebiet ist schon so groß wie möglich.' }
-  if (city.level < step.level) return { ok: false, reason: `Erst ab Stadt-Stufe ${step.level}.` }
-  if (city.coins < step.coins) return { ok: false, reason: `Dir fehlen ${step.coins - city.coins} Münzen.` }
-  if (city.materials < step.materials) {
-    return { ok: false, reason: `Dir fehlen ${step.materials - city.materials} Materialien.` }
+/** Nach einem Umzug bleibt die Einwohnerzahl, bis wieder genug Wohnraum da ist */
+function nachWohnraum(city: CityState, zuzug = 0): CityState {
+  const cap = statsOf(city).capacity
+  if (city.umzugSchutz) {
+    return { ...city, umzugSchutz: cap >= city.population ? undefined : true }
   }
+  return { ...city, population: Math.min(cap, city.population + zuzug) }
+}
+
+// ---------- Land an einer Seite dazukaufen ----------
+
+export function kaufCheck(city: CityState, seite: Rand): PlaceCheck {
+  if (!seiteOffen(city, seite)) return { ok: false, reason: 'Auf dieser Seite ist die Landschaft zu Ende.' }
+  const preis = streifenPreis(city, seite)
+  if (city.coins < preis.coins) return { ok: false, reason: `Dir fehlen ${preis.coins - city.coins} Münzen.` }
+  if (city.materials < preis.materials) return { ok: false, reason: `Dir fehlen ${preis.materials - city.materials} Materialien.` }
   return { ok: true }
 }
 
-/**
- * Erweitert das Gebiet. Die Stadt rückt dabei in die Mitte, damit das neue Land
- * rundherum entsteht und nicht nur an einer Seite.
- */
-export function expand(city: CityState): CityState {
-  const step = nextExpansion(city)
-  if (!step || !expansionCheck(city).ok) return city
-  const shift = Math.floor((step.land - city.land) / 2)
-
-  const roads: Record<string, string> = {}
-  for (const [key, type] of Object.entries(city.roads)) {
+function verschiebeStrassen(roads: Record<string, string>, dx: number, dy: number): Record<string, string> {
+  const neu: Record<string, string> = {}
+  for (const [key, type] of Object.entries(roads)) {
     const [x, y] = key.split(':').map(Number)
-    roads[roadKey(x + shift, y + shift)] = type
+    neu[roadKey(x + dx, y + dy)] = type
   }
+  return neu
+}
 
+/** Kauft den Streifen an einer Himmelsseite. Westen und Norden schieben die Stadt. */
+export function kaufen(city: CityState, seite: Rand): CityState {
+  if (!kaufCheck(city, seite).ok) return city
+  const preis = streifenPreis(city, seite)
+  const { w, h } = masse(city)
+  let breite = w
+  let hoehe = h
+  let weltX = city.weltX ?? 0
+  let weltY = city.weltY ?? 0
+  let buildings = city.buildings
+  let roads = city.roads
+  if (seite === 'o') breite += STREIFEN
+  else if (seite === 's') hoehe += STREIFEN
+  else if (seite === 'w') {
+    breite += STREIFEN
+    weltX -= STREIFEN
+    buildings = buildings.map((placed) => ({ ...placed, x: placed.x + STREIFEN }))
+    roads = verschiebeStrassen(roads, STREIFEN, 0)
+  } else {
+    hoehe += STREIFEN
+    weltY -= STREIFEN
+    buildings = buildings.map((placed) => ({ ...placed, y: placed.y + STREIFEN }))
+    roads = verschiebeStrassen(roads, 0, STREIFEN)
+  }
   return withLevel({
     ...city,
-    land: step.land,
-    coins: city.coins - step.coins,
-    materials: city.materials - step.materials,
-    buildings: city.buildings.map((placed) => ({ ...placed, x: placed.x + shift, y: placed.y + shift })),
+    breite,
+    hoehe,
+    land: Math.max(breite, hoehe),
+    weltX,
+    weltY,
+    buildings,
     roads,
+    coins: city.coins - preis.coins,
+    materials: city.materials - preis.materials,
   })
+}
+
+/**
+ * Neue Landschaft, dieselbe Kasse, dieselben Bewohner. Jedes Gebäude außer dem Rathaus
+ * liegt danach im Inventar und kann neu gestellt werden.
+ */
+export function umziehen(city: CityState, now = Date.now()): CityState {
+  let inventar = [...(city.inventar ?? [])]
+  for (const placed of city.buildings) {
+    if (placed.type === RATHAUS) continue
+    inventar = vorratDazu(inventar, placed.type, placed.level)
+  }
+  const saat = (Math.imul(now | 0, 1597) ^ Math.floor(Math.random() * 1_000_000_000)) >>> 0
+  const neu = createCity(city.name, city.motto, city.emblem, now, saat || 1)
+  const geruest = new Set(['haus', 'familienhaus', 'laden'])
+  return withLevel({
+    ...neu,
+    buildings: neu.buildings.filter((placed) => !geruest.has(placed.type)),
+    coins: city.coins,
+    materials: city.materials,
+    population: city.population,
+    tax: city.tax,
+    helped: city.helped,
+    theme: city.theme,
+    ...(city.schummel ? { schummel: true } : {}),
+    inventar,
+    umzugSchutz: city.population > 0 ? true : undefined,
+  })
+}
+
+/** Ein mitgebrachtes Gebäude auf eine Kachel stellen. Es kostet nichts. */
+export function ausVorrat(
+  city: CityState,
+  type: string,
+  level: number,
+  x: number,
+  y: number,
+  rot: 0 | 1 | 2 | 3,
+  now = Date.now(),
+): CityState {
+  const stapel = (city.inventar ?? []).find((eintrag) => eintrag.type === type && eintrag.level === level && eintrag.anzahl > 0)
+  if (!stapel || !canPlace(city, type, x, y, rot, { free: true }).ok) return city
+  const def = buildingDef(type)
+  const stufe = Math.max(1, Math.min(def ? maxLevel(def) : 1, level))
+  const placed: Placed = { id: `b${city.nextId}`, type, x, y, rot, level: stufe, at: now, mitgebracht: true }
+  const inventar = (city.inventar ?? []).flatMap((eintrag) => {
+    if (eintrag.type !== type || eintrag.level !== level) return [eintrag]
+    if (eintrag.anzahl <= 1) return []
+    return [{ ...eintrag, anzahl: eintrag.anzahl - 1 }]
+  })
+  return withLevel(nachWohnraum({ ...city, buildings: [...city.buildings, placed], nextId: city.nextId + 1, inventar }))
 }
 
 /** Eine Bitte wurde gelöst: Belohnung, Dankbarkeit, Bitte schließen */
@@ -719,22 +837,23 @@ export function runCycles(city: CityState, now = Date.now()): { city: CityState;
     const platz = wohnplatz(next)
 
     let population = next.population
-    if (population > platz) {
+    if (population > platz && !next.umzugSchutz) {
       // Zu hohe Steuern oder Kriminalität: wer es sich leisten kann, geht
       const weg = Math.max(1, Math.round((population - platz) * 0.5))
       population -= weg
       movedOut += weg
-    } else if (mood >= MOVE_IN_MOOD && population < platz) {
+    } else if (!next.umzugSchutz && mood >= MOVE_IN_MOOD && population < platz) {
       // Zuzug kommt langsam: je Stadttag höchstens ein kleiner Teil des freien Platzes
       const zuzug = Math.min(platz - population, Math.max(1, Math.round(platz * 0.03 * ((mood - 40) / 60))))
       population += zuzug
       movedIn += zuzug
-    } else if (mood < MOVE_OUT_MOOD && population > 0) {
+    } else if (!next.umzugSchutz && mood < MOVE_OUT_MOOD && population > 0) {
       const wegzug = Math.min(population, Math.max(1, Math.round(population * 0.1)))
       population -= wegzug
       movedOut += wegzug
     }
-    next = { ...next, population, coins: next.coins + income.total, materials: next.materials + ziegel }
+    const schutz = next.umzugSchutz && population > platz ? true : undefined
+    next = { ...next, population, coins: next.coins + income.total, materials: next.materials + ziegel, umzugSchutz: schutz }
 
     // Beschwerden laufen nur, solange man in der Stadt zusieht – nicht in der Zwischenzeit
 
@@ -805,10 +924,12 @@ function freieKacheln(city: CityState): { x: number; y: number }[] {
   const belegt = new Set<string>()
   for (const placed of city.buildings) for (const t of tilesOf(placed)) belegt.add(roadKey(t.x, t.y))
   const liste: { x: number; y: number }[] = []
-  for (let y = 0; y < city.land; y++) {
-    for (let x = 0; x < city.land; x++) {
+  const gebiet = masse(city)
+  for (let y = 0; y < gebiet.h; y++) {
+    for (let x = 0; x < gebiet.w; x++) {
       const key = roadKey(x, y)
       if (belegt.has(key) || city.roads[key]) continue
+      if (!bebauen(bodenVon(city, x, y))) continue
       if (roadAt(city, x + 1, y) || roadAt(city, x - 1, y) || roadAt(city, x, y + 1) || roadAt(city, x, y - 1)) {
         liste.push({ x, y })
       }
@@ -1139,10 +1260,12 @@ export function mitRathaus(city: CityState, now = Date.now()): CityState {
   if (rathausVon(city)) return city
   const def = buildingDef(RATHAUS)
   if (!def) return city
-  const m = Math.floor(city.land / 2)
+  const gebiet = masse(city)
+  const mx = gebiet.w / 2
+  const my = gebiet.h / 2
   const kandidaten: { x: number; y: number; d: number }[] = []
-  for (let y = 0; y + 2 <= city.land; y++) {
-    for (let x = 0; x + 2 <= city.land; x++) kandidaten.push({ x, y, d: Math.hypot(x + 1 - m, y + 1 - m) })
+  for (let y = 0; y + 2 <= gebiet.h; y++) {
+    for (let x = 0; x + 2 <= gebiet.w; x++) kandidaten.push({ x, y, d: Math.hypot(x + 1 - mx, y + 1 - my) })
   }
   kandidaten.sort((a, b) => a.d - b.d)
   const weich = new Set(['natur', 'schmuck', 'wege'])
@@ -1208,13 +1331,34 @@ export function catalogFor(city: CityState, levels: Record<string, number>, cate
 const int = (value: unknown, fallback = 0) =>
   typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : fallback
 
+function liesVorrat(value: unknown): Vorrat[] {
+  if (!Array.isArray(value)) return []
+  const liste: Vorrat[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const item = entry as Record<string, unknown>
+    const type = typeof item.type === 'string' ? item.type : ''
+    const def = buildingDef(type)
+    if (!def || def.id === RATHAUS) continue
+    liste.push({
+      type: def.id,
+      level: Math.max(1, Math.min(maxLevel(def), int(item.level, 1))),
+      anzahl: Math.max(1, Math.min(99, int(item.anzahl, 1))),
+    })
+  }
+  return liste.slice(0, 80)
+}
+
 /** Prüft einen geladenen Stadtstand. null heißt: keine gültige Stadt. */
 export function sanitizeCity(input: unknown): CityState | null {
   if (typeof input !== 'object' || input === null) return null
   const raw = input as Record<string, unknown>
   if (typeof raw.name !== 'string') return null
 
-  const land = Math.max(START_LAND, Math.min(80, int(raw.land, START_LAND)))
+  const landAlt = Math.max(START_LAND, Math.min(80, int(raw.land, START_LAND)))
+  const breite = Math.max(START_LAND, Math.min(MAX_SEITE, int(raw.breite, landAlt)))
+  const hoehe = Math.max(START_LAND, Math.min(MAX_SEITE, int(raw.hoehe, landAlt)))
+  const land = Math.max(breite, hoehe)
   const buildings: Placed[] = []
   const taken = new Set<string>()
   const roads: Record<string, string> = {}
@@ -1224,7 +1368,7 @@ export function sanitizeCity(input: unknown): CityState | null {
       if (typeof type !== 'string' || !roadDef(type)) continue
       const [x, y] = key.split(':').map(Number)
       if (!Number.isInteger(x) || !Number.isInteger(y)) continue
-      if (x < 0 || y < 0 || x >= land || y >= land) continue
+      if (x < 0 || y < 0 || x >= breite || y >= hoehe) continue
       roads[roadKey(x, y)] = type
     }
   }
@@ -1237,7 +1381,7 @@ export function sanitizeCity(input: unknown): CityState | null {
       if (item.type === 'weg' && Number.isInteger(item.x) && Number.isInteger(item.y)) {
         const x = int(item.x)
         const y = int(item.y)
-        if (x >= 0 && y >= 0 && x < land && y < land) roads[roadKey(x, y)] = 'weg'
+        if (x >= 0 && y >= 0 && x < breite && y < hoehe) roads[roadKey(x, y)] = 'weg'
         continue
       }
       const def = typeof item.type === 'string' ? buildingDef(item.type) : undefined
@@ -1252,6 +1396,7 @@ export function sanitizeCity(input: unknown): CityState | null {
         level: Math.max(1, Math.min(maxLevel(def), int(item.level, 1))),
         at: int(item.at, 0),
         ...(item.auto === true ? { auto: true } : {}),
+        ...(item.mitgebracht === true ? { mitgebracht: true } : {}),
         ...(typeof item.verlassen === 'number' && item.verlassen > 0 ? { verlassen: int(item.verlassen) } : {}),
         ...(typeof item.beschwerde === 'object' && item.beschwerde !== null && typeof (item.beschwerde as Record<string, unknown>).grund === 'string'
           ? {
@@ -1268,7 +1413,7 @@ export function sanitizeCity(input: unknown): CityState | null {
       // Ein Rathaus gibt es nur einmal
       if (def.id === RATHAUS && buildings.some((b) => b.type === RATHAUS)) continue
       const [w, h] = footprint(def, placed.rot)
-      if (placed.x < 0 || placed.y < 0 || placed.x + w > land || placed.y + h > land) continue
+      if (placed.x < 0 || placed.y < 0 || placed.x + w > breite || placed.y + h > hoehe) continue
       // Doppelt belegte Kacheln können nur durch kaputte Daten entstehen – dann gewinnt das erste
       const tiles = tilesOf(placed)
       if (tiles.some((tile) => taken.has(roadKey(tile.x, tile.y)))) continue
@@ -1284,6 +1429,8 @@ export function sanitizeCity(input: unknown): CityState | null {
     emblem: typeof raw.emblem === 'string' && raw.emblem ? raw.emblem.slice(0, 4) : '🏙️',
     theme: themeById(typeof raw.theme === 'string' ? raw.theme : undefined).id,
     land,
+    breite,
+    hoehe,
     level: 1,
     coins: Math.max(0, int(raw.coins)),
     materials: Math.max(0, int(raw.materials)),
@@ -1304,10 +1451,24 @@ export function sanitizeCity(input: unknown): CityState | null {
       : {}),
   }
 
+  const hatSaat = typeof raw.saat === 'number'
+  city.saat = hatSaat ? int(raw.saat, 1) || 1 : ((int(raw.foundedAt, 1) * 997) >>> 0) || 1
+  city.weltX = int(raw.weltX, 0)
+  city.weltY = int(raw.weltY, 0)
+  if (hatSaat && Array.isArray(raw.lichtung)) {
+    city.lichtung = (raw.lichtung as unknown[]).filter((eintrag) => typeof eintrag === 'string').slice(0, 4000) as string[]
+  } else {
+    const keys: string[] = []
+    for (let y = 0; y < hoehe; y++) for (let x = 0; x < breite; x++) keys.push(`${(city.weltX ?? 0) + x}:${(city.weltY ?? 0) + y}`)
+    city.lichtung = keys
+  }
+  city.inventar = liesVorrat(raw.inventar)
+  if (raw.umzugSchutz === true) city.umzugSchutz = true
+
   // Version 2 und älter kannten keine Einwohnerzahl: Dort wohnte jeder, der Platz fand.
   const platz = statsOf(city).capacity
   const gemeldet = typeof raw.population === 'number' ? Math.max(0, int(raw.population)) : platz
-  city.population = Math.min(platz, gemeldet)
+  city.population = city.umzugSchutz ? gemeldet : Math.min(platz, gemeldet)
 
   // Version 8 hatte einen zu strengen Leerstand, der ganze Städte leerte – das wird geheilt
   if (int(raw.version, 0) < 9) {
