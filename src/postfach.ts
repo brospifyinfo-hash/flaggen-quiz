@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-10-01-c',
+    datum: '1. Oktober 2026',
+    titel: 'Die Landschaft hat ein Gesicht',
+    text: 'Wiese, Wasser und Berge sind neu gezeichnet. Man sieht Ufer, Wellen, Hügel und Gipfel, und auf den Hängen stehen Bäume.',
+    punkte: [
+      'Sand am Wasser, Schaum an der Kante, Wellen auf Fluss und See.',
+      'Hügel heben sich ab, Gipfel haben Fels und Schnee.',
+      'Außerhalb der Siedlung wachsen Laubbäume und Tannen.',
+    ],
+  },
+  {
     id: '2026-10-01-b',
     datum: '1. Oktober 2026',
     titel: 'Flüsse, Seen und Berge',

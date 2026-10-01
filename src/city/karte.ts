@@ -53,16 +53,27 @@ function boden(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolea
   const { w, h } = masse(city)
   const rand = AUSBLICK
   rechteck(ctx, -rand - 4, -rand - 4, w + (rand + 4) * 2, h + (rand + 4) * 2, shade(theme.soil[1], -18))
+  const nass = (x: number, y: number) => {
+    const b = bodenVon(city, x, y)
+    return b === 'fluss' || b === 'see'
+  }
   for (let y = -rand; y < h + rand; y++) {
     for (let x = -rand; x < w + rand; x++) {
       const art = bodenVon(city, x, y)
-      const aussen = x < 0 || y < 0 || x >= w || y >= h
-      const hell = wobble(x * 7 + 3, y * 13 + 5) > 0.82
-      ctx.globalAlpha = aussen ? 0.62 : 1
-      rechteck(ctx, x, y, 1, 1, KARTEN_FARBE[art](hell, theme.ground))
+      const ufer = art !== 'fluss' && art !== 'see' && art !== 'berg' && (nass(x + 1, y) || nass(x - 1, y) || nass(x, y + 1) || nass(x, y - 1))
+      const seicht = (art === 'fluss' || art === 'see') && (nass(x + 1, y) === false || nass(x - 1, y) === false || nass(x, y + 1) === false || nass(x, y - 1) === false)
+      let farbe = KARTEN_FARBE[art](false, theme.ground)
+      if (ufer) farbe = '#e6d3a4'
+      else if (art === 'see' && !seicht) farbe = '#145a8c'
+      else if (art === 'see') farbe = '#3eb4d4'
+      else if (art === 'fluss') farbe = '#2f92c4'
+      else if (art === 'wiese') farbe = wobble(Math.floor(x / 3), Math.floor(y / 3)) > 0.6 ? shade(theme.ground[0], -8) : theme.ground[0]
+      rechteck(ctx, x, y, 1, 1, farbe)
+      if (art === 'berg') {
+        rechteck(ctx, x + 0.22, y + 0.22, 0.56, 0.56, '#f4f1ec')
+      }
     }
   }
-  ctx.globalAlpha = 1
   if (buildMode) {
     ctx.strokeStyle = 'rgba(255,255,255,0.22)'
     ctx.lineWidth = 1 / K
@@ -77,9 +88,12 @@ function boden(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolea
     }
     ctx.stroke()
   }
-  ctx.strokeStyle = theme.edge
-  ctx.lineWidth = 3 / K
+  ctx.strokeStyle = 'rgba(42, 28, 16, 0.45)'
+  ctx.lineWidth = 2.2 / K
   ctx.strokeRect(0, 0, w, h)
+  ctx.strokeStyle = 'rgba(255, 246, 220, 0.8)'
+  ctx.lineWidth = 0.8 / K
+  ctx.strokeRect(0.04, 0.04, w - 0.08, h - 0.08)
   const streifen = kauf ? streifenKacheln(city, kauf) : null
   if (streifen) {
     ctx.fillStyle = 'rgba(255, 210, 70, 0.28)'

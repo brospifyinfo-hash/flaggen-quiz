@@ -1,9 +1,9 @@
 // Zeichnet die Stadt als kleines Diorama: schräge Sicht, Schatten, Fassaden mit Fenstern,
 // Dächer, Bäume. Alles in ein Canvas, damit auch große Städte flüssig bleiben.
 import { koerperVon } from './bau'
-import { bauHoehe, drawBuilding, einzug, umrissPunkte } from './buildings'
-import { RATHAUS, buildingDef, footprint, roadDef } from './catalog'
-import { fade, lift, quad, quadPath, roundedPath, wobble, type Point } from './draw'
+import { bauHoehe, drawBuilding, einzug, tree, umrissPunkte } from './buildings'
+import { RATHAUS, buildingDef, footprint, roadDef, type Look } from './catalog'
+import { fade, lift, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
 import { drawAgent } from './figures'
 import { umlauf, type Grund } from './geo'
 import { blickJetzt, nachRechts, setBlick, setLichtSeite, setProjektion, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
@@ -546,15 +546,36 @@ function kriminalitaetMarken(ctx: CanvasRenderingContext2D, city: CityState): vo
   }
 }
 
-const BODEN_FARBE: Record<Exclude<Boden, 'wiese'>, [string, string]> = {
-  hang: ['#93a64a', '#748438'],
-  fluss: ['#49a4e2', '#2c74b4'],
-  see: ['#1c6aab', '#134e82'],
-  berg: ['#a89f94', '#6e675e'],
+type Viereck = [Point, Point, Point, Point]
+
+const SAND = ['#f0e2b8', '#d9c48e']
+const FLACH = ['#7fd4ea', '#3aafd4']
+const TIEF = ['#1f78b4', '#145a8c']
+const FLUSS = ['#3aa6d8', '#217fba']
+const FELS = ['#c4b8aa', '#8a7d72', '#5c534c']
+
+function kachelPfad(x: number, y: number): Viereck {
+  return [toScreen(x, y), toScreen(x + 1, y), toScreen(x + 1, y + 1), toScreen(x, y + 1)]
 }
 
-function kachelPfad(x: number, y: number): [Point, Point, Point, Point] {
-  return [toScreen(x, y), toScreen(x + 1, y), toScreen(x + 1, y + 1), toScreen(x, y + 1)]
+function zurMitte(ecken: Point[], anteil: number): Point[] {
+  const mx = (ecken[0].sx + ecken[2].sx) / 2
+  const my = (ecken[0].sy + ecken[2].sy) / 2
+  return ecken.map((p) => ({ sx: mx + (p.sx - mx) * anteil, sy: my + (p.sy - my) * anteil }))
+}
+
+/** Vorderseiten zwischen zwei Höhen, hell zur Lichtseite */
+function saum(ctx: CanvasRenderingContext2D, unten: Point[], oben: Point[], hell: string, dunkel: string): void {
+  const kanten: [number, number, number, number][] = [
+    [0, -1, 0, 1],
+    [1, 0, 1, 2],
+    [0, 1, 2, 3],
+    [-1, 0, 3, 0],
+  ]
+  for (const [nx, ny, i, j] of kanten) {
+    if (!zeigtNachVorn(nx, ny)) continue
+    quad(ctx, unten[i], unten[j], oben[j], oben[i], nachRechts(nx, ny) >= 0 ? hell : dunkel)
+  }
 }
 
 function flaechenFuellen(ctx: CanvasRenderingContext2D, kacheln: [Point, Point, Point, Point][], farbe: string): void {
@@ -565,28 +586,52 @@ function flaechenFuellen(ctx: CanvasRenderingContext2D, kacheln: [Point, Point, 
   ctx.fill()
 }
 
-/** Ein Berg: Felswände zum Betrachter, oben eine Kuppe, hohe Gipfel mit Schnee */
-function bergMalen(ctx: CanvasRenderingContext2D, x: number, y: number, hoehe: number): void {
+/** Hügel oder Gipfel: mehrere Absätze, Fels mit Schichten, oben Schnee */
+function relief(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  hoehe: number,
+  stufen: { mass: number; hub: number; flaeche: string; hell: string; dunkel: string }[],
+): void {
   const boden = kachelPfad(x, y)
-  const dach = boden.map((p) => lift(p, hoehe)) as [Point, Point, Point, Point]
-  const kanten: [number, number, Point, Point, Point, Point][] = [
-    [0, -1, boden[0], boden[1], dach[1], dach[0]],
-    [1, 0, boden[1], boden[2], dach[2], dach[1]],
-    [0, 1, boden[2], boden[3], dach[3], dach[2]],
-    [-1, 0, boden[3], boden[0], dach[0], dach[3]],
-  ]
-  for (const [nx, ny, a, b, c, d] of kanten) {
-    if (!zeigtNachVorn(nx, ny)) continue
-    quad(ctx, a, b, c, d, nachRechts(nx, ny) >= 0 ? '#8d857b' : '#5e584f')
+  let vorher: Point[] = boden
+  let hub = 0
+  for (const stufe of stufen) {
+    const naechstes = zurMitte(boden, stufe.mass).map((p) => lift(p, hub + stufe.hub * hoehe))
+    saum(ctx, vorher, naechstes, stufe.hell, stufe.dunkel)
+    vorher = naechstes
+    hub += stufe.hub * hoehe
   }
-  quad(ctx, dach[0], dach[1], dach[2], dach[3], hoehe > 20 ? '#d7d2cb' : '#b7aea3')
-  if (hoehe > 18) {
-    const schnee = dach.map((p) => {
-      const mitte = { sx: (dach[0].sx + dach[2].sx) / 2, sy: (dach[0].sy + dach[2].sy) / 2 - 2 }
-      return { sx: mitte.sx + (p.sx - mitte.sx) * 0.42, sy: mitte.sy + (p.sy - mitte.sy) * 0.42 }
-    })
-    quad(ctx, schnee[0], schnee[1], schnee[2], schnee[3], 'rgba(255,255,255,0.92)')
+  const dach = vorher
+  const letzte = stufen[stufen.length - 1]
+  quad(ctx, dach[0], dach[1], dach[2], dach[3], letzte.flaeche)
+}
+
+function hangMalen(ctx: CanvasRenderingContext2D, x: number, y: number, theme: Theme): void {
+  const hoehe = 8 + tileNoise(x + 2, y + 9) * 10
+  const boden = kachelPfad(x, y)
+  const dach = boden.map((p) => lift(p, hoehe))
+  saum(ctx, boden, dach, shade(theme.ground[1], -10), shade(theme.soil[1], -8))
+  quad(ctx, dach[0], dach[1], dach[2], dach[3], tileNoise(x, y) > 0.55 ? theme.ground[0] : shade(theme.ground[0], -12))
+}
+
+function bergMalen(ctx: CanvasRenderingContext2D, x: number, y: number, hoehe: number, gipfel: boolean): void {
+  if (!gipfel) {
+    relief(ctx, x, y, Math.max(16, hoehe * 0.38), [
+      { mass: 1, hub: 0.55, flaeche: '#7d914c', hell: '#8aa85a', dunkel: '#4e6234' },
+      { mass: 0.78, hub: 0.45, flaeche: FELS[1], hell: FELS[0], dunkel: FELS[2] },
+    ])
+    return
   }
+  relief(ctx, x, y, hoehe, [
+    { mass: 0.92, hub: 0.22, flaeche: '#6d8a48', hell: '#8aa85a', dunkel: shade('#5c7340', -18) },
+    { mass: 0.62, hub: 0.38, flaeche: FELS[1], hell: FELS[0], dunkel: FELS[2] },
+    { mass: 0.34, hub: 0.4, flaeche: '#d5cdc4', hell: '#ebe4dc', dunkel: '#8d847c' },
+  ])
+  const dach = zurMitte(kachelPfad(x, y), 0.34).map((p) => lift(p, hoehe))
+  const schnee = zurMitte(dach, 0.62)
+  quad(ctx, schnee[0], schnee[1], schnee[2], schnee[3], '#f7f5f2')
 }
 
 /** Boden, Gewässer, Berge. Über den Zaun hinaus sieht man die Landschaft weiter. */
@@ -597,6 +642,7 @@ function drawGround(
   theme: Theme,
   fein: boolean,
   kauf: Rand | null,
+  zeit: number,
 ): void {
   const { w, h } = masse(city)
   const rand = AUSBLICK
@@ -618,9 +664,25 @@ function drawGround(
     quad(ctx, a, b, lift(b, -depth), lift(a, -depth), nachRechts(nx, ny) >= 0 ? theme.soil[0] : theme.soil[1])
   }
 
-  const gruppen = new Map<string, [Point, Point, Point, Point][]>()
-  const berge: { x: number; y: number; hoehe: number; aussen: boolean }[] = []
-  const merken = (key: string, pfad: [Point, Point, Point, Point]) => {
+  const cache = new Map<string, Boden>()
+  const artBei = (x: number, y: number): Boden => {
+    const key = `${x}:${y}`
+    const da = cache.get(key)
+    if (da) return da
+    const boden = bodenVon(city, x, y)
+    cache.set(key, boden)
+    return boden
+  }
+  const nass = (boden: Boden) => boden === 'fluss' || boden === 'see'
+  const amUfer = (x: number, y: number) =>
+    nass(artBei(x + 1, y)) || nass(artBei(x - 1, y)) || nass(artBei(x, y + 1)) || nass(artBei(x, y - 1))
+
+  const gruppen = new Map<string, Viereck[]>()
+  const haenge: { x: number; y: number }[] = []
+  const berge: { x: number; y: number; hoehe: number }[] = []
+  const schaum: [Point, Point][] = []
+  const wellen: Point[] = []
+  const merken = (key: string, pfad: Viereck) => {
     const liste = gruppen.get(key)
     if (liste) liste.push(pfad)
     else gruppen.set(key, [pfad])
@@ -628,60 +690,74 @@ function drawGround(
 
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
-      const art = bodenVon(city, x, y)
-      const aussen = x < 0 || y < 0 || x >= w || y >= h
+      const art = artBei(x, y)
+      const pfad = kachelPfad(x, y)
       if (art === 'berg') {
-        berge.push({ x, y, hoehe: bergHoehe(city.saat ?? 1, (city.weltX ?? 0) + x, (city.weltY ?? 0) + y), aussen })
-        merken(aussen ? 'fels-aussen' : 'fels', kachelPfad(x, y))
+        berge.push({ x, y, hoehe: bergHoehe(city.saat ?? 1, (city.weltX ?? 0) + x, (city.weltY ?? 0) + y) })
+        merken(FELS[2], pfad)
         continue
       }
-      const tupfer = tileNoise(x * 4 + 1, y * 6 + 2) > 0.78
-      const farbe =
-        art === 'wiese'
-          ? tupfer
-            ? theme.ground[1]
-            : theme.ground[0]
-          : tupfer
-            ? BODEN_FARBE[art][1]
-            : BODEN_FARBE[art][0]
-      merken(`${aussen ? 'a' : 'i'}:${farbe}`, kachelPfad(x, y))
+      if (art === 'hang') {
+        haenge.push({ x, y })
+        merken(shade(theme.ground[1], -6), pfad)
+        continue
+      }
+      if (art === 'fluss' || art === 'see') {
+        const seicht = amUfer(x, y)
+        const ton = art === 'fluss' ? (seicht ? FLUSS[0] : FLUSS[1]) : seicht ? FLACH[0] : TIEF[1]
+        merken(ton, pfad)
+        if ((x + y) % 2 === 0) wellen.push(toScreen(x + 0.5, y + 0.5))
+        const nachbarn: [number, number, number, number][] = [
+          [0, -1, 0, 1],
+          [1, 0, 1, 2],
+          [0, 1, 2, 3],
+          [-1, 0, 3, 0],
+        ]
+        for (const [dx, dy, i, j] of nachbarn) {
+          if (!nass(artBei(x + dx, y + dy))) schaum.push([pfad[i], pfad[j]])
+        }
+        continue
+      }
+      if (amUfer(x, y)) {
+        merken(SAND[0], pfad)
+        continue
+      }
+      merken(theme.ground[0], pfad)
     }
   }
 
-  const aussenDecke: [Point, Point, Point, Point][] = []
-  for (const [key, kacheln] of gruppen) {
-    const aussen = key.startsWith('a:') || key.endsWith('aussen')
-    const farbe = key.startsWith('fels') ? '#7d756c' : key.slice(2)
-    flaechenFuellen(ctx, kacheln, farbe)
-    if (aussen) aussenDecke.push(...kacheln)
-  }
-  ctx.globalAlpha = 0.22
-  flaechenFuellen(ctx, aussenDecke, 'rgba(12, 22, 16, 0.95)')
-  ctx.globalAlpha = 1
+  for (const [farbe, kacheln] of gruppen) flaechenFuellen(ctx, kacheln, farbe)
 
-  // Helle Streifen auf dem Wasser, damit Fluss und See nicht wie Farbe wirken
-  const wasser: [Point, Point, Point, Point][] = []
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
-      const art = bodenVon(city, x, y)
-      if (art !== 'fluss' && art !== 'see') continue
-      if ((x + y * 2) % 3 !== 0) continue
-      const [p, q, r, s] = kachelPfad(x, y)
-      const mitte = { sx: (p.sx + r.sx) / 2, sy: (p.sy + r.sy) / 2 }
-      const schmal = (a: Point): Point => ({ sx: mitte.sx + (a.sx - mitte.sx) * 0.55, sy: mitte.sy + (a.sy - mitte.sy) * 0.28 })
-      wasser.push([schmal(p), schmal(q), schmal(r), schmal(s)])
-    }
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'
+  ctx.lineWidth = 1.4
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  for (const [a, b] of schaum) {
+    ctx.moveTo(a.sx, a.sy)
+    ctx.lineTo(b.sx, b.sy)
   }
-  ctx.globalAlpha = 0.35
-  flaechenFuellen(ctx, wasser, 'rgba(220,245,255,0.9)')
-  ctx.globalAlpha = 1
+  ctx.stroke()
 
-  berge.sort((m, n) => tiefe(m.x, m.y) - tiefe(n.x, n.y))
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)'
+  ctx.lineWidth = 1.2
+  ctx.beginPath()
+  wellen.forEach((p, i) => {
+    const versatz = Math.sin(zeit * 1.3 + i) * 1.6
+    ctx.moveTo(p.sx + 8, p.sy + versatz)
+    ctx.ellipse(p.sx, p.sy + versatz, 7, 2.4, 0, 0, Math.PI * 2)
+  })
+  ctx.stroke()
+
+  haenge.sort((a, b) => tiefe(a.x, a.y) - tiefe(b.x, b.y))
+  for (const hang of haenge) hangMalen(ctx, hang.x, hang.y, theme)
+  const bergKarte = new Map(berge.map((berg) => [`${berg.x}:${berg.y}`, berg.hoehe]))
+  berge.sort((a, b) => tiefe(a.x, a.y) - tiefe(b.x, b.y))
   for (const berg of berge) {
-    ctx.globalAlpha = berg.aussen ? 0.7 : 1
-    bergMalen(ctx, berg.x, berg.y, berg.hoehe)
+    const neben = [bergKarte.get(`${berg.x + 1}:${berg.y}`), bergKarte.get(`${berg.x - 1}:${berg.y}`), bergKarte.get(`${berg.x}:${berg.y + 1}`), bergKarte.get(`${berg.x}:${berg.y - 1}`)]
+    const hoechster = Math.max(0, ...neben.filter((wert): wert is number => wert !== undefined))
+    const gipfel = berg.hoehe > hoechster || (berg.hoehe === hoechster && (berg.x + berg.y) % 2 === 0)
+    bergMalen(ctx, berg.x, berg.y, berg.hoehe, gipfel && berg.hoehe > 34)
   }
-  ctx.globalAlpha = 1
 
   if (fein) {
     const belegt = new Set<string>(Object.keys(city.roads))
@@ -700,7 +776,7 @@ function drawGround(
           const py = y + 0.12 + tileNoise(y + i * 23, x + i * 31) * 0.76
           halme.push(toScreen(px, py))
         }
-        if (art === 'wiese' && tileNoise(x * 9 + 1, y * 11 + 4) > 0.9) {
+        if (art === 'wiese' && tileNoise(x * 9 + 1, y * 11 + 4) > 0.72) {
           blumen.push(toScreen(x + 0.3 + tileNoise(x, y * 2) * 0.4, y + 0.3 + tileNoise(y, x * 2) * 0.4))
         }
       }
@@ -718,18 +794,37 @@ function drawGround(
       ctx.lineTo(p.sx + 1.2, p.sy - 2)
     }
     ctx.stroke()
-    if (blumen.length) {
-      ctx.fillStyle = 'rgba(255,240,180,0.9)'
+    const farben = ['#ffe08a', '#ff8fab', '#ffffff', '#c9a0ff']
+    farben.forEach((farbe, index) => {
+      const punkte = blumen.filter((_, i) => i % farben.length === index)
+      if (!punkte.length) return
+      ctx.fillStyle = farbe
       ctx.beginPath()
-      for (const p of blumen) {
-        ctx.moveTo(p.sx + 1, p.sy)
-        ctx.arc(p.sx, p.sy, 1, 0, Math.PI * 2)
-        ctx.moveTo(p.sx + 4, p.sy + 1.5)
-        ctx.arc(p.sx + 3, p.sy + 1.5, 0.9, 0, Math.PI * 2)
+      for (const p of punkte) {
+        ctx.moveTo(p.sx + 1.3, p.sy)
+        ctx.arc(p.sx, p.sy, 1.3, 0, Math.PI * 2)
       }
       ctx.fill()
+    })
+  }
+
+  // Schilf am Ufer, auch aus der Ferne, damit Wasser eine Kante hat
+  ctx.strokeStyle = '#2f6a3a'
+  ctx.lineWidth = 1.1
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      if (!amUfer(x, y) || nass(artBei(x, y)) || artBei(x, y) === 'berg') continue
+      if (tileNoise(x + 8, y + 3) < 0.45) continue
+      const fuss = toScreen(x + 0.35 + tileNoise(x, y) * 0.3, y + 0.35 + tileNoise(y, x) * 0.3)
+      ctx.moveTo(fuss.sx, fuss.sy)
+      ctx.lineTo(fuss.sx - 1.2, fuss.sy - 7)
+      ctx.moveTo(fuss.sx + 2, fuss.sy)
+      ctx.lineTo(fuss.sx + 3, fuss.sy - 9)
     }
   }
+  ctx.stroke()
 
   if (buildMode) {
     ctx.strokeStyle = 'rgba(255,255,255,0.22)'
@@ -753,12 +848,28 @@ function drawGround(
   }
 
   const zaun = [toScreen(0, 0), toScreen(w, 0), toScreen(w, h), toScreen(0, h)]
-  ctx.strokeStyle = 'rgba(255,255,255,0.88)'
-  ctx.lineWidth = 3
-  ctx.beginPath()
-  zaun.forEach((p, i) => (i === 0 ? ctx.moveTo(p.sx, p.sy) : ctx.lineTo(p.sx, p.sy)))
-  ctx.closePath()
+  const zaunPfad = () => {
+    ctx.beginPath()
+    zaun.forEach((p, i) => (i === 0 ? ctx.moveTo(p.sx, p.sy) : ctx.lineTo(p.sx, p.sy)))
+    ctx.closePath()
+  }
+  zaunPfad()
+  ctx.strokeStyle = 'rgba(42, 28, 16, 0.4)'
+  ctx.lineWidth = 5
   ctx.stroke()
+  zaunPfad()
+  ctx.strokeStyle = 'rgba(255, 246, 220, 0.72)'
+  ctx.lineWidth = 1.6
+  ctx.stroke()
+  ctx.fillStyle = '#efe6d4'
+  for (const p of zaun) {
+    ctx.beginPath()
+    ctx.arc(p.sx, p.sy, 3.2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(42, 28, 16, 0.45)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
 
   const streifen = kauf ? streifenKacheln(city, kauf) : null
   if (streifen) {
@@ -800,6 +911,65 @@ function outline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number,
 
 /** Etwas, das zwischen den Häusern steht und nach Tiefe eingereiht wird */
 type Ding = { x: number; y: number; breite: number; tiefe: number; malen: () => void }
+
+/** Bäume und Tannen auf freiem Land, damit die Landschaft nicht leer bleibt */
+function landschaftSchmuck(
+  ctx: CanvasRenderingContext2D,
+  city: CityState,
+  theme: Theme,
+  fein: boolean,
+): { x: number; y: number; malen: () => void }[] {
+  const { w, h } = masse(city)
+  const belegt = new Set<string>(Object.keys(city.roads))
+  for (const placed of city.buildings) for (const t of tilesOf(placed)) belegt.add(`${t.x}:${t.y}`)
+  const licht = new Set(city.lichtung ?? [])
+  const wx = city.weltX ?? 0
+  const wy = city.weltY ?? 0
+  const laub: Look = { kind: 'baum', height: 1, wall: theme.tree[0], roof: theme.tree[2], accent: theme.tree[1] }
+  const liste: { x: number; y: number; malen: () => void }[] = []
+  const rand = fein ? AUSBLICK : 3
+  for (let y = -rand; y < h + rand && liste.length < 80; y++) {
+    for (let x = -rand; x < w + rand && liste.length < 80; x++) {
+      if (belegt.has(`${x}:${y}`)) continue
+      const art = bodenVon(city, x, y)
+      const frei = !licht.has(`${wx + x}:${wy + y}`)
+      if (art === 'wiese' && frei && tileNoise(x * 3 + 1, y * 5 + 2) > 0.86) {
+        const samen = tileNoise(x, y)
+        liste.push({ x: x + 0.5, y: y + 0.5, malen: () => tree(ctx, x, y, laub, samen, fein) })
+      } else if (art === 'hang' && tileNoise(x * 4 + 2, y * 2 + 6) > 0.78) {
+        liste.push({
+          x: x + 0.5,
+          y: y + 0.5,
+          malen: () => tanne(ctx, x, y, tileNoise(x + 4, y + 1)),
+        })
+      }
+    }
+  }
+  return liste
+}
+
+/** Nadelbaum, spitz, damit Hänge nicht nur grün sind */
+function tanne(ctx: CanvasRenderingContext2D, x: number, y: number, samen: number): void {
+  const c = toScreen(x + 0.5, y + 0.5)
+  const hoch = 18 + samen * 14
+  ctx.fillStyle = 'rgba(16, 28, 18, 0.28)'
+  ctx.beginPath()
+  ctx.ellipse(c.sx, c.sy + 2, 6, 2.4, 0, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#6a4a30'
+  ctx.fillRect(c.sx - 1.4, c.sy - 8, 2.8, 9)
+  for (let i = 0; i < 3; i++) {
+    const breit = 11 - i * 2.4
+    const basis = c.sy - 4 - i * (hoch / 3.4)
+    ctx.fillStyle = i === 2 ? '#3eaf62' : '#217246'
+    ctx.beginPath()
+    ctx.moveTo(c.sx, basis - hoch / 3.2)
+    ctx.lineTo(c.sx - breit, basis)
+    ctx.lineTo(c.sx + breit, basis)
+    ctx.closePath()
+    ctx.fill()
+  }
+}
 
 /** Fehler, die schon gemeldet wurden – ein Bild pro Sekunde reicht nicht als Protokoll */
 const gemeldet = new Set<string>()
@@ -970,7 +1140,7 @@ function stadtMalen(
   // beim Zoomen nicht bei jedem Bild die Fassaden umschaltet.
   const fein = nahGenug(camera.zoom) && options.detail !== false
 
-  drawGround(ctx, city, options.buildMode === true, theme, fein, options.kauf ?? null)
+  drawGround(ctx, city, options.buildMode === true, theme, fein, options.kauf ?? null, zeit)
   drawRoads(ctx, city, theme, fein)
 
   // Vorschau beim Straßenziehen
@@ -1029,6 +1199,9 @@ function stadtMalen(
   }
   for (const m of strassenMoebel(city, zeit, fein)) {
     dinge.push({ x: m.x, y: m.y, breite: 0.06, tiefe: m.x * g.x + m.y * g.y, malen: () => m.malen(ctx) })
+  }
+  for (const schmuck of landschaftSchmuck(ctx, city, theme, fein)) {
+    dinge.push({ x: schmuck.x, y: schmuck.y, breite: 0.4, tiefe: schmuck.x * g.x + schmuck.y * g.y, malen: schmuck.malen })
   }
 
   const faecher: Ding[][] = sorted.map(() => [])
