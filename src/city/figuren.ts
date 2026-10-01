@@ -3,7 +3,22 @@
 // bleibt erkennbar – ein Rad ist ein Rad, ein Apfel ein Apfel, eine Burg eine Burg.
 import { buildingDef, footprint, type Figur, type Look } from './catalog'
 import { fade, lift, mix, quad, quadPath, shade, wobble, ziegelReihen, type Point } from './draw'
-import { NORMALE, SEITEN, schwerpunkt, umlauf, waende, type Grund, type Wand } from './geo'
+import {
+  aussen,
+  licht3,
+  NORMALE,
+  normale3,
+  proj,
+  SEITEN,
+  schwerpunkt,
+  sichtbar3,
+  umlauf,
+  waende,
+  type Grund,
+  type P3,
+  type Seite,
+  type Wand,
+} from './geo'
 import { nachRechts, TILE_H, TILE_W, toScreen, zeigtNachVorn } from './iso'
 import { fensterAn, fensterDunkel, leuchte, lichtJetzt } from './licht'
 import type { Placed } from './types'
@@ -27,7 +42,7 @@ interface Opt {
 
 const HOCH: Record<Figur, number> = {
   riesenrad: 2.9,
-  apfel: 1.55,
+  apfel: 1.75,
   schloss: 1.85,
   wal: 1.35,
   einhorn: 1.45,
@@ -53,13 +68,208 @@ const HOCH: Record<Figur, number> = {
   obelisk: 2.1,
 }
 
-const WEIT: Partial<Record<Figur, number>> = { riesenrad: 0.72, windrad: 0.9, wal: 0.62, drache: 0.62 }
+const WEIT: Partial<Record<Figur, number>> = { riesenrad: 0.72, windrad: 0.9, wal: 0.62, drache: 0.62, palme: 0.58, ufo: 0.55 }
 
 const STEIN = '#cfc6b6'
 const DACHROT = '#8c2e2a'
 const PUTZ = '#f4efe6'
 const HOLZ = '#6b4423'
 const GLAS_HELL = 'rgba(255,224,150,0.92)'
+
+/** Welche Modellseite zur Tür zeigt. Drehen des Gebäudes rückt die Tür auf die nächste Wand. */
+let bauRot = 0
+const TUER_NACH: Seite[] = ['s', 'o', 'n', 'w']
+const RING: Seite[] = ['n', 'o', 's', 'w']
+
+function tuerWand(): Seite {
+  return TUER_NACH[bauRot & 3]
+}
+
+function ring(seite: Seite, schritt: number): Seite {
+  return RING[(RING.indexOf(seite) + schritt + 4) % 4]
+}
+
+interface F3 {
+  pts: P3[]
+  farbe: string
+  /** Dünne Fläche, von beiden Seiten sichtbar: Speiche, Blatt, Flügel */
+  duenn?: boolean
+}
+
+function mittelP(pts: P3[]): P3 {
+  const n = pts.length || 1
+  let x = 0
+  let y = 0
+  let z = 0
+  for (const p of pts) {
+    x += p.x
+    y += p.y
+    z += p.z
+  }
+  return { x: x / n, y: y / n, z: z / n }
+}
+
+/** Flächen eines Körpers, hinten zuerst, nur die zum Betrachter. */
+function maleNetz(ctx: CanvasRenderingContext2D, netz: F3[], kern: P3): void {
+  const liste: { pts: P3[]; farbe: string; sy: number }[] = []
+  for (const f of netz) {
+    if (f.pts.length < 3) continue
+    const roh = normale3(f.pts[0], f.pts[1], f.pts[2])
+    const m = mittelP(f.pts)
+    let n = aussen(roh, m, kern)
+    if (f.duenn && !sichtbar3(n)) n = [-n[0], -n[1], -n[2]]
+    if (!sichtbar3(n)) continue
+    liste.push({ pts: f.pts, farbe: shade(f.farbe, licht3(n)), sy: proj(m).sy })
+  }
+  liste.sort((a, b) => a.sy - b.sy)
+  for (const f of liste) {
+    ctx.beginPath()
+    f.pts.forEach((p, i) => {
+      const q = proj(p)
+      if (i === 0) ctx.moveTo(q.sx, q.sy)
+      else ctx.lineTo(q.sx, q.sy)
+    })
+    ctx.closePath()
+    ctx.fillStyle = f.farbe
+    ctx.fill()
+  }
+}
+
+function kugelNetz(c: P3, rxy: number, rz: number, farbe: string, rings = 7, segs = 10): F3[] {
+  const netz: F3[] = []
+  const pkt = (i: number, j: number): P3 => {
+    const v = (i / rings) * Math.PI
+    const u = (j / segs) * Math.PI * 2
+    const sr = Math.sin(v)
+    return { x: c.x + Math.cos(u) * sr * rxy, y: c.y + Math.sin(u) * sr * rxy, z: c.z + Math.cos(v) * rz }
+  }
+  for (let i = 0; i < rings; i++) {
+    const ton = i < 2 ? shade(farbe, 28) : i > rings - 3 ? shade(farbe, -36) : farbe
+    for (let j = 0; j < segs; j++) {
+      netz.push({ pts: [pkt(i, j), pkt(i, j + 1), pkt(i + 1, j + 1), pkt(i + 1, j)], farbe: ton })
+    }
+  }
+  return netz
+}
+
+function dreh90(x: number, y: number, rot: number): { x: number; y: number } {
+  const r = rot & 3
+  if (r === 1) return { x: y, y: -x }
+  if (r === 2) return { x: -x, y: -y }
+  if (r === 3) return { x: -y, y: x }
+  return { x, y }
+}
+
+/** Senkrechtes Rad in der Karte: von vorn ein Kreis, von der Seite eine Kante. */
+function radNetz(cx: number, cy: number, cz: number, radius: number, farbe: string, phase: number): F3[] {
+  const nrm = dreh90(Math.SQRT1_2, Math.SQRT1_2, bauRot)
+  const u = { x: -nrm.y, y: nrm.x }
+  const px = 45
+  const dick = 0.045
+  const seg = 18
+  const netz: F3[] = []
+  const punkt = (winkel: number, radial: number, seite: number): P3 => ({
+    x: cx + u.x * radial * Math.cos(winkel) + nrm.x * seite,
+    y: cy + u.y * radial * Math.cos(winkel) + nrm.y * seite,
+    z: cz + radial * px * Math.sin(winkel),
+  })
+  for (let i = 0; i < seg; i++) {
+    const a0 = phase + (i / seg) * Math.PI * 2
+    const a1 = phase + ((i + 1) / seg) * Math.PI * 2
+    const innen = radius * 0.84
+    netz.push({ pts: [punkt(a0, radius, dick), punkt(a1, radius, dick), punkt(a1, radius, -dick), punkt(a0, radius, -dick)], farbe })
+    netz.push({
+      pts: [punkt(a0, innen, -dick), punkt(a1, innen, -dick), punkt(a1, innen, dick), punkt(a0, innen, dick)],
+      farbe: shade(farbe, -25),
+    })
+    netz.push({ pts: [punkt(a0, innen, dick), punkt(a1, innen, dick), punkt(a1, radius, dick), punkt(a0, radius, dick)], farbe: shade(farbe, 12) })
+    netz.push({
+      pts: [punkt(a0, radius, -dick), punkt(a1, radius, -dick), punkt(a1, innen, -dick), punkt(a0, innen, -dick)],
+      farbe: shade(farbe, -12),
+    })
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = phase + (i / 8) * Math.PI * 2
+    netz.push({
+      pts: [punkt(a - 0.05, 0.08, 0.01), punkt(a + 0.05, 0.08, 0.01), punkt(a + 0.03, radius * 0.84, 0.01), punkt(a - 0.03, radius * 0.84, 0.01)],
+      farbe: '#c9a227',
+      duenn: true,
+    })
+  }
+  return netz
+}
+
+function scheibeNetz(cx: number, cy: number, z: number, r: number, dicke: number, farbe: string): F3[] {
+  const seg = 14
+  const netz: F3[] = []
+  const rand = (a: number, zz: number): P3 => ({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, z: zz })
+  for (let i = 0; i < seg; i++) {
+    const a0 = (i / seg) * Math.PI * 2
+    const a1 = ((i + 1) / seg) * Math.PI * 2
+    netz.push({ pts: [rand(a0, z), rand(a1, z), rand(a1, z + dicke), rand(a0, z + dicke)], farbe })
+    netz.push({ pts: [rand(a0, z + dicke), rand(a1, z + dicke), { x: cx, y: cy, z: z + dicke }], farbe: shade(farbe, 16) })
+    netz.push({ pts: [{ x: cx, y: cy, z }, rand(a1, z), rand(a0, z)], farbe: shade(farbe, -22) })
+  }
+  return netz
+}
+
+/** Drei Flügel in derselben senkrechten Ebene wie das Riesenrad. */
+function fluegelNetz(cx: number, cy: number, cz: number, laenge: number, farbe: string, phase: number): F3[] {
+  const nrm = dreh90(Math.SQRT1_2, Math.SQRT1_2, bauRot)
+  const u = { x: -nrm.y, y: nrm.x }
+  const px = 45
+  const netz: F3[] = []
+  const punkt = (winkel: number, radial: number, seite: number): P3 => ({
+    x: cx + u.x * radial * Math.cos(winkel) + nrm.x * seite,
+    y: cy + u.y * radial * Math.cos(winkel) + nrm.y * seite,
+    z: cz + radial * px * Math.sin(winkel),
+  })
+  for (let i = 0; i < 3; i++) {
+    const a = phase + (i * 2 * Math.PI) / 3
+    netz.push({
+      pts: [punkt(a - 0.16, 0.05, 0.04), punkt(a + 0.07, 0.05, 0.04), punkt(a + 0.03, laenge, 0.04), punkt(a - 0.05, laenge, 0.04)],
+      farbe,
+      duenn: true,
+    })
+    netz.push({
+      pts: [punkt(a - 0.16, 0.05, -0.04), punkt(a - 0.16, 0.05, 0.04), punkt(a - 0.05, laenge, 0.04), punkt(a - 0.05, laenge, -0.04)],
+      farbe,
+    })
+    netz.push({
+      pts: [punkt(a + 0.07, 0.05, -0.04), punkt(a + 0.03, laenge, -0.04), punkt(a + 0.03, laenge, 0.04), punkt(a + 0.07, 0.05, 0.04)],
+      farbe,
+    })
+  }
+  return netz
+}
+
+/** Achsenparalleler Klotz. Der Kern des Netzes muss im Körper liegen, sonst dreht aussen() die Flächen um. */
+function quaderNetz(x: number, y: number, z: number, w: number, h: number, hoch: number, farbe: string): F3[] {
+  const p = (ix: number, iy: number, iz: number): P3 => ({ x: x + ix * w, y: y + iy * h, z: z + iz * hoch })
+  return [
+    { pts: [p(0, 0, 0), p(1, 0, 0), p(1, 0, 1), p(0, 0, 1)], farbe },
+    { pts: [p(1, 0, 0), p(1, 1, 0), p(1, 1, 1), p(1, 0, 1)], farbe },
+    { pts: [p(1, 1, 0), p(0, 1, 0), p(0, 1, 1), p(1, 1, 1)], farbe },
+    { pts: [p(0, 1, 0), p(0, 0, 0), p(0, 0, 1), p(0, 1, 1)], farbe },
+    { pts: [p(0, 0, 1), p(1, 0, 1), p(1, 1, 1), p(0, 1, 1)], farbe },
+    { pts: [p(0, 0, 0), p(0, 1, 0), p(1, 1, 0), p(1, 0, 0)], farbe },
+  ]
+}
+
+/** Halbbogen in der YZ-Ebene, Dicke entlang X. Für Rippen. */
+function rippe(x: number, y: number, z0: number, breit: number, hoehe: number, farbe: string): F3[] {
+  const seg = 5
+  const dick = 0.028
+  const netz: F3[] = []
+  const p = (i: number, seite: number): P3 => {
+    const ang = Math.PI * (1 - i / seg)
+    return { x: x + seite, y: y + Math.cos(ang) * breit, z: z0 + Math.sin(ang) * hoehe }
+  }
+  for (let i = 0; i < seg; i++) {
+    netz.push({ pts: [p(i, -dick), p(i + 1, -dick), p(i + 1, dick), p(i, dick)], farbe })
+  }
+  return netz
+}
 
 /** Wie hoch die Figur über dem Boden reicht, in Bildpunkten. Für Umriss und Vorschau. */
 export function figurHoehe(w: number, h: number, figur: Figur): number {
@@ -94,6 +304,7 @@ export function zeichneFigur(
   const def = buildingDef(placed.type)
   if (!def) return false
   const [w, h] = footprint(def, placed.rot)
+  bauRot = ((placed.rot % 4) + 4) % 4
   const m = toScreen(placed.x + w / 2, placed.y + h / 2)
   ctx.save()
   ctx.globalAlpha = 0.16
@@ -129,8 +340,9 @@ function platte(ctx: CanvasRenderingContext2D, g: Grund, farbe: string, hoch = 0
 function kasten(ctx: CanvasRenderingContext2D, g: Grund, hoehe: number, farbe: string, opt: Opt = {}): void {
   if (g.w < 0.04 || g.h < 0.04 || hoehe < 1) return
   const basis = opt.basis ?? 0
+  const tuere = opt.tuer ? tuerWand() : null
   const liste = waendeVon(g, basis)
-  liste.forEach((wand, index) => wandMalen(ctx, wand, hoehe, farbe, opt, index === liste.length - 1))
+  liste.forEach((wand) => wandMalen(ctx, wand, hoehe, farbe, opt, wand.seite === tuere))
   const top = umlauf(g, basis + hoehe)
   quad(ctx, top[0], top[1], top[2], top[3], shade(farbe, 18))
 }
@@ -176,6 +388,8 @@ function wandMalen(
     for (let row = 0; row < reihen; row++) {
       const z = sockel + ((hoehe - sockel) * (row + 0.62)) / reihen
       for (let col = 0; col < spalten; col++) {
+        // Rückseite: unten geschlossen, Fenster erst ab dem ersten Obergeschoss
+        if (opt.tuer && wand.seite === ring(tuerWand(), 2) && row === 0) continue
         if (vorn && opt.tuer && row === 0 && Math.abs((col + 0.5) / spalten - 0.5) < 0.28) continue
         const t = (col + 0.5) / spalten
         const halb = 0.34 / spalten
@@ -187,6 +401,17 @@ function wandMalen(
       }
     }
     if (fenster.length > 0) fensterMalen(ctx, fenster, winH, farbe)
+    // Die Seite neben der Tür hat Läden, die gegenüberliegende bleibt unten geschlossen
+    if (opt.tuer && wand.seite === ring(tuerWand(), 1)) {
+      for (const f of fenster) {
+        const a = mix(f.p0, f.p1, -0.55)
+        const b = mix(f.p0, f.p1, -0.08)
+        const c = mix(f.p0, f.p1, 1.08)
+        const d = mix(f.p0, f.p1, 1.55)
+        quad(ctx, a, b, lift(b, winH), lift(a, winH), '#6d3b22')
+        quad(ctx, c, d, lift(d, winH), lift(c, winH), '#6d3b22')
+      }
+    }
     if (reihen > 1) {
       ctx.strokeStyle = fade('#ffffff', 0.1)
       ctx.lineWidth = 1
@@ -364,6 +589,22 @@ function sattel(ctx: CanvasRenderingContext2D, g: Grund, basis: number, rise: nu
   }
 }
 
+/** Balkon an einer festen Kartenseite, nicht an der Seite, die gerade zur Kamera zeigt. */
+function balkonAn(ctx: CanvasRenderingContext2D, g: Grund, basis: number, wandH: number, seite: Seite): void {
+  if (wandH < 14 || Math.min(g.w, g.h) < 0.22) return
+  const tiefe = 0.11
+  const slab: Grund =
+    seite === 's'
+      ? { x: g.x + g.w * 0.2, y: g.y + g.h - 0.01, w: g.w * 0.6, h: tiefe }
+      : seite === 'n'
+        ? { x: g.x + g.w * 0.2, y: g.y - tiefe + 0.01, w: g.w * 0.6, h: tiefe }
+        : seite === 'o'
+          ? { x: g.x + g.w - 0.01, y: g.y + g.h * 0.2, w: tiefe, h: g.h * 0.6 }
+          : { x: g.x - tiefe + 0.01, y: g.y + g.h * 0.2, w: tiefe, h: g.h * 0.6 }
+  const z = basis + wandH * 0.46
+  kasten(ctx, slab, 3, '#d9d3c8', { basis: z, etagen: 0, fein: true })
+}
+
 function haus(
   ctx: CanvasRenderingContext2D,
   g: Grund,
@@ -373,10 +614,14 @@ function haus(
   opt: Opt & { rise?: number; schlot?: boolean; time?: number; kopf?: boolean },
 ): void {
   const basis = opt.basis ?? 0
+  const seite = opt.tuer ? ring(tuerWand(), 3) : null
+  const zuerst = seite ? !zeigtNachVorn(NORMALE[seite][0], NORMALE[seite][1]) : false
+  if (seite && zuerst) balkonAn(ctx, g, basis, wandH, seite)
   kasten(ctx, g, wandH, wandF, opt)
   const dachBasis = basis + wandH
   sattel(ctx, g, dachBasis, opt.rise ?? Math.min(TILE_H * 0.55, wandH * 0.7), dachF, opt.fein !== false, opt.kopf)
   if (opt.schlot) schlot(ctx, { x: g.x + g.w * 0.68, y: g.y + g.h * 0.22, w: 0.1, h: 0.1 }, dachBasis, opt.time ?? 0, opt.fein !== false)
+  if (seite && !zuerst) balkonAn(ctx, g, basis, wandH, seite)
 }
 
 function schlot(ctx: CanvasRenderingContext2D, g: Grund, basis: number, time: number, fein: boolean): void {
@@ -469,8 +714,8 @@ function fachwerk(ctx: CanvasRenderingContext2D, g: Grund, hoehe: number, basis 
 }
 
 function markise(ctx: CanvasRenderingContext2D, g: Grund, hoehe: number, farbe: string): void {
-  const front = waendeVon(g, hoehe).at(-1)
-  if (!front) return
+  const front = waende(g, hoehe)[tuerWand()]
+  if (!front.sichtbar) return
   const a = mix(front.a, front.b, 0.06)
   const b = mix(front.a, front.b, 0.94)
   const vor = front.raus
@@ -721,8 +966,8 @@ function schloss(ctx: CanvasRenderingContext2D, los: Los): void {
     const hoch = TILE_H * 1.25
     mauerwerk(ctx, teil.g, hoch, STEIN, 0)
     zinnen(ctx, teil.g, hoch, STEIN)
-    const front = waendeVon(teil.g).at(-1)
-    if (!front) continue
+    const front = waende(teil.g)[tuerWand()]
+    if (!front.sichtbar) continue
     bogen(ctx, front, 1, 0.2, 14, '#141820')
     ctx.strokeStyle = '#c6a15a'
     ctx.lineWidth = 1
@@ -771,98 +1016,97 @@ function riesenrad(ctx: CanvasRenderingContext2D, los: Los): void {
   const vorne = radMitte === -1 ? teile.length : radMitte
   for (let i = 0; i < vorne; i++) teile[i].mal()
 
-  const nabe = oben(feld(los, los.w * 0.5 - 0.05, los.h * 0.42, 0.1, 0.1), mastH + 6)
-  const r = Math.min(los.w, los.h) * 30
-  ctx.strokeStyle = '#8a7020'
-  ctx.lineWidth = 7
-  ctx.beginPath()
-  ctx.arc(nabe.sx, nabe.sy, r, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.strokeStyle = '#f4d35e'
-  ctx.lineWidth = 3
-  ctx.beginPath()
-  ctx.arc(nabe.sx, nabe.sy, r, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.strokeStyle = '#6b5420'
-  ctx.lineWidth = 1.4
-  ctx.beginPath()
-  ctx.arc(nabe.sx, nabe.sy, r * 0.62, 0, Math.PI * 2)
-  ctx.stroke()
-  const dreh = los.time * 0.4
-  ctx.strokeStyle = '#d4ac0d'
-  ctx.lineWidth = 1.5
-  for (let i = 0; i < 8; i++) {
-    const winkel = dreh + (i / 8) * Math.PI * 2
-    ctx.beginPath()
-    ctx.moveTo(nabe.sx, nabe.sy)
-    ctx.lineTo(nabe.sx + Math.cos(winkel) * r, nabe.sy + Math.sin(winkel) * r)
-    ctx.stroke()
-  }
-  oval(ctx, nabe.sx, nabe.sy, 5, 5, '#2c3e50')
-  oval(ctx, nabe.sx, nabe.sy, 2.2, 2.2, '#e6c15a')
+  const radius = Math.min(los.w, los.h) * 0.4
+  const cx = los.x + los.w * 0.52
+  const cy = los.y + los.h * 0.4
+  const cz = radius * 45 + 6
+  const phase = los.time * 0.4
+  const nrm = dreh90(Math.SQRT1_2, Math.SQRT1_2, bauRot)
+  const u = { x: -nrm.y, y: nrm.x }
+  const punkt = (winkel: number): P3 => ({
+    x: cx + u.x * radius * Math.cos(winkel),
+    y: cy + u.y * radius * Math.cos(winkel),
+    z: cz + radius * 45 * Math.sin(winkel),
+  })
   const farben = ['#e74c3c', '#5dade2', '#27ae60', '#f4d35e', '#af7ac5', '#e67e22', '#f5b7c5', '#1abc9c']
-  for (let i = 0; i < 8; i++) {
-    const winkel = dreh + (i / 8) * Math.PI * 2
-    const gx = nabe.sx + Math.cos(winkel) * r
-    const gy = nabe.sy + Math.sin(winkel) * r
-    ctx.fillStyle = '#2c3e50'
-    ctx.fillRect(gx - 7, gy, 14, 3)
-    ctx.fillStyle = farben[i]
-    ctx.fillRect(gx - 6.5, gy + 3, 13, 11)
-    ctx.fillStyle = shade(farben[i], -28)
-    ctx.fillRect(gx - 6.5, gy + 3, 3, 11)
-    ctx.fillStyle = fade('#ffffff', 0.55)
-    ctx.fillRect(gx - 3, gy + 5, 6, 4)
-    ctx.strokeStyle = shade(farben[i], -40)
-    ctx.lineWidth = 1
-    ctx.strokeRect(gx - 6.5, gy + 3, 13, 11)
+  const gondeln = farben.map((farbe, i) => {
+    const p = punkt(phase + (i / 8) * Math.PI * 2)
+    return { farbe, p, sy: proj(p).sy }
+  })
+  gondeln.sort((a, b) => a.sy - b.sy)
+  const schnitt = gondeln.findIndex((g) => g.sy > proj({ x: cx, y: cy, z: cz }).sy)
+  const halb = schnitt === -1 ? gondeln.length : schnitt
+  const gondel = (g: (typeof gondeln)[number]) => {
+    kasten(ctx, { x: g.p.x - 0.07, y: g.p.y - 0.05, w: 0.14, h: 0.1 }, 8, g.farbe, { basis: g.p.z - 10, etagen: 1, fein: los.fein })
   }
+  for (let i = 0; i < halb; i++) gondel(gondeln[i])
+  maleNetz(
+    ctx,
+    [...radNetz(cx, cy, cz, radius, '#f4d35e', phase), ...kugelNetz({ x: cx, y: cy, z: cz }, 0.06, 4, '#2c3e50', 3, 6)],
+    { x: cx, y: cy, z: cz },
+  )
+  for (let i = halb; i < gondeln.length; i++) gondel(gondeln[i])
   for (let i = vorne; i < teile.length; i++) teile[i].mal()
 }
 
 function apfel(ctx: CanvasRenderingContext2D, los: Los): void {
   const sockel = feld(los, 0.16, 0.28, 0.68, 0.5)
   kasten(ctx, sockel, 8, STEIN, { fugen: true, etagen: 0, fein: los.fein })
-  const p = oben(sockel, 8)
-  const s = 16
-  oval(ctx, p.sx + 1, p.sy - s * 0.2, s * 0.95, s * 0.72, '#7b241c')
-  oval(ctx, p.sx, p.sy - s * 0.55, s * 1.05, s * 0.95, '#c0392b')
-  oval(ctx, p.sx - s * 0.12, p.sy - s * 0.85, s * 0.78, s * 0.62, '#e74c3c')
-  oval(ctx, p.sx - s * 0.35, p.sy - s * 1.05, s * 0.28, s * 0.16, fade('#f5b7b1', 0.85))
-  ctx.fillStyle = '#922b21'
-  ctx.beginPath()
-  ctx.moveTo(p.sx - s * 0.16, p.sy - s * 1.35)
-  ctx.quadraticCurveTo(p.sx, p.sy - s * 0.95, p.sx + s * 0.16, p.sy - s * 1.35)
-  ctx.quadraticCurveTo(p.sx, p.sy - s * 1.15, p.sx - s * 0.16, p.sy - s * 1.35)
-  ctx.fill()
-  ctx.strokeStyle = '#6b4423'
-  ctx.lineWidth = 2.4
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(p.sx, p.sy - s * 1.32)
-  ctx.quadraticCurveTo(p.sx + 2, p.sy - s * 1.7, p.sx + 4, p.sy - s * 1.85)
-  ctx.stroke()
-  ctx.fillStyle = '#1e8449'
-  ctx.beginPath()
-  ctx.ellipse(p.sx + s * 0.45, p.sy - s * 1.7, s * 0.38, s * 0.16, -0.7, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.strokeStyle = '#145a32'
-  ctx.lineWidth = 0.8
-  ctx.beginPath()
-  ctx.moveTo(p.sx + 4, p.sy - s * 1.72)
-  ctx.lineTo(p.sx + s * 0.7, p.sy - s * 1.68)
-  ctx.stroke()
-  // Tür im Apfel, damit er ein Gebäude bleibt und keine flache Frucht
-  ctx.fillStyle = '#4a241c'
-  ctx.beginPath()
-  ctx.moveTo(p.sx - 4, p.sy - 2)
-  ctx.lineTo(p.sx + 4, p.sy - 2)
-  ctx.lineTo(p.sx + 4, p.sy - 12)
-  ctx.quadraticCurveTo(p.sx, p.sy - 16, p.sx - 4, p.sy - 12)
-  ctx.closePath()
-  ctx.fill()
-  ctx.fillStyle = '#e6c15a'
-  ctx.fillRect(p.sx + 1.5, p.sy - 8, 1.2, 1.2)
+  const cx = los.x + los.w * 0.5
+  const cy = los.y + los.h * 0.52
+  const rxy = 0.3
+  const rz = 15
+  const cz = 8 + rz
+  const kern = { x: cx, y: cy, z: cz }
+  const [nx, ny] = NORMALE[tuerWand()]
+  const breit = 0.13
+  const tief = 0.055
+  let dx = cx - breit / 2
+  let dy = cy - 0.045
+  let dw = breit
+  let dh = 0.09
+  if (nx > 0) {
+    dx = cx + rxy * 0.42
+    dw = tief
+  } else if (nx < 0) {
+    dx = cx - rxy * 0.42 - tief
+    dw = tief
+  } else if (ny > 0) {
+    dy = cy + rxy * 0.42
+    dh = tief
+    dw = breit
+    dx = cx - breit / 2
+  } else {
+    dy = cy - rxy * 0.42 - tief
+    dh = tief
+    dw = breit
+    dx = cx - breit / 2
+  }
+  const netz = [
+    ...kugelNetz(kern, rxy, rz, '#c0392b', 8, 12),
+    ...quaderNetz(cx - 0.02, cy - 0.02, cz + rz - 3, 0.04, 0.04, 8, '#6b4423'),
+    ...quaderNetz(dx, dy, 10, dw, dh, 11, HOLZ),
+    ...quaderNetz(
+      Math.abs(nx) > 0 ? (nx > 0 ? dx + dw - 0.012 : dx - 0.004) : dx + dw * 0.68,
+      Math.abs(ny) > 0 ? (ny > 0 ? dy + dh - 0.012 : dy - 0.004) : dy + dh * 0.38,
+      14.2,
+      Math.abs(nx) > 0 ? 0.016 : 0.02,
+      Math.abs(ny) > 0 ? 0.016 : 0.02,
+      1.5,
+      '#e6c15a',
+    ),
+    {
+      pts: [
+        { x: cx, y: cy, z: cz + rz + 2 },
+        { x: cx + 0.18, y: cy - 0.02, z: cz + rz + 5 },
+        { x: cx + 0.24, y: cy + 0.07, z: cz + rz },
+        { x: cx + 0.04, y: cy + 0.05, z: cz + rz - 1 },
+      ],
+      farbe: '#1e8449',
+      duenn: true,
+    },
+  ]
+  maleNetz(ctx, netz, kern)
 }
 
 function pilz(ctx: CanvasRenderingContext2D, los: Los): void {
@@ -896,8 +1140,8 @@ function iglu(ctx: CanvasRenderingContext2D, los: Los): void {
     z += ring.h
   }
   const fuss = feld(los, 0.06, 0.06, los.w - 0.12, los.h - 0.12)
-  const front = waendeVon(fuss).at(-1)
-  if (front) bogen(ctx, front, 0, 0.14, 9, '#5d6d7e')
+  const front = waende(fuss)[tuerWand()]
+  if (front.sichtbar) bogen(ctx, front, 0, 0.14, 9, '#5d6d7e')
   kegel(ctx, feld(los, 0.4, 0.4, los.w - 0.8, los.h - 0.8), z, 7, '#f7fbff', los.fein, '#f7fbff')
 }
 
@@ -927,15 +1171,51 @@ function hausboot(ctx: CanvasRenderingContext2D, los: Los): void {
   platte(ctx, feld(los, 0.04, 0.18, 0.92, 0.72), '#1a5276')
   platte(ctx, feld(los, 0.1, 0.26, 0.8, 0.56), '#2471a3', 1)
   const rumpf = feld(los, 0.16, 0.32, 0.68, 0.4)
+  const seite = tuerWand()
+  const wand = waende(rumpf)[seite]
+  const [nx, ny] = NORMALE[seite]
+  const mx = (wand.ka.x + wand.kb.x) / 2
+  const my = (wand.ka.y + wand.kb.y) / 2
+  const spitze = { x: mx + nx * 0.26, y: my + ny * 0.26 }
+  const kern = { x: rumpf.x + rumpf.w / 2, y: rumpf.y + rumpf.h / 2, z: 4 }
+  const bugNetz: F3[] = [
+    {
+      pts: [
+        { x: wand.ka.x, y: wand.ka.y, z: 8 },
+        { x: wand.kb.x, y: wand.kb.y, z: 8 },
+        { x: spitze.x, y: spitze.y, z: 7 },
+      ],
+      farbe: '#a56b42',
+    },
+    {
+      pts: [
+        { x: wand.ka.x, y: wand.ka.y, z: 1 },
+        { x: spitze.x, y: spitze.y, z: 2 },
+        { x: wand.ka.x, y: wand.ka.y, z: 8 },
+      ],
+      farbe: '#6e4630',
+    },
+    {
+      pts: [
+        { x: wand.kb.x, y: wand.kb.y, z: 1 },
+        { x: wand.kb.x, y: wand.kb.y, z: 8 },
+        { x: spitze.x, y: spitze.y, z: 2 },
+      ],
+      farbe: '#6e4630',
+    },
+    {
+      pts: [
+        { x: wand.ka.x, y: wand.ka.y, z: 1 },
+        { x: wand.kb.x, y: wand.kb.y, z: 1 },
+        { x: spitze.x, y: spitze.y, z: 2 },
+      ],
+      farbe: '#5c3a28',
+    },
+  ]
+  const vorn = proj({ x: spitze.x, y: spitze.y, z: 4 }).sy >= proj(kern).sy
+  if (!vorn) maleNetz(ctx, bugNetz, kern)
   kasten(ctx, rumpf, 8, '#8c5a3a', { etagen: 0, fugen: true, fein: los.fein })
-  const bug = waendeVon(rumpf).at(-1)
-  if (bug) {
-    const l = bug.a
-    const r = bug.b
-    const spitze = { sx: (l.sx + r.sx) / 2 + bug.raus.sx * 14, sy: (l.sy + r.sy) / 2 + bug.raus.sy * 14 }
-    quad(ctx, l, r, lift(spitze, 8), lift(spitze, 8), '#6e4630')
-    quad(ctx, lift(l, 8), lift(r, 8), lift(spitze, 8), lift(spitze, 8), '#a56b42')
-  }
+  if (vorn) maleNetz(ctx, bugNetz, kern)
   const kajuete = feld(los, 0.28, 0.38, 0.4, 0.26)
   haus(ctx, kajuete, 14, PUTZ, DACHROT, { basis: 8, etagen: 1, tuer: true, fein: los.fein, rise: 9, schlot: true, time: los.time })
 }
@@ -955,6 +1235,25 @@ function rakete(ctx: CanvasRenderingContext2D, los: Los): void {
   const rampe = feld(los, 0.2, 0.32, 0.6, 0.42)
   kasten(ctx, rampe, 4, '#d5d8dc', { fugen: true, etagen: 0, fein: los.fein })
   const leib = feld(los, 0.36, 0.38, 0.28, 0.28)
+  const cx = leib.x + leib.w / 2
+  const cy = leib.y + leib.h / 2
+  const flack = Math.sin(los.time * 12)
+  const farbe = flack > 0 ? '#f4d35e' : '#e67e22'
+  const kern = { x: cx, y: cy, z: 6 }
+  const flamme: F3[] = []
+  for (let i = 0; i < 6; i++) {
+    const a0 = (i / 6) * Math.PI * 2
+    const a1 = ((i + 1) / 6) * Math.PI * 2
+    const r = 0.07
+    flamme.push({
+      pts: [
+        { x: cx + Math.cos(a0) * r, y: cy + Math.sin(a0) * r, z: 2 },
+        { x: cx + Math.cos(a1) * r, y: cy + Math.sin(a1) * r, z: 2 },
+        { x: cx, y: cy, z: -14 - flack * 3 },
+      ],
+      farbe,
+    })
+  }
   const flossen = [
     feld(los, 0.2, 0.44, 0.2, 0.1),
     feld(los, 0.6, 0.44, 0.2, 0.1),
@@ -965,17 +1264,7 @@ function rakete(ctx: CanvasRenderingContext2D, los: Los): void {
   band(ctx, leib, 6, 4, '#c0392b')
   band(ctx, leib, 22, 4, '#c0392b')
   kegel(ctx, leib, 36, 20, '#c0392b', los.fein)
-  const flamme = oben(leib, 1)
-  ctx.save()
-  ctx.globalAlpha = 0.9
-  ctx.fillStyle = Math.sin(los.time * 12) > 0 ? '#f4d35e' : '#e67e22'
-  ctx.beginPath()
-  ctx.moveTo(flamme.sx - 5, flamme.sy - 2)
-  ctx.lineTo(flamme.sx + 5, flamme.sy - 2)
-  ctx.lineTo(flamme.sx, flamme.sy + 12)
-  ctx.closePath()
-  ctx.fill()
-  ctx.restore()
+  maleNetz(ctx, flamme, kern)
 }
 
 function leuchtturm(ctx: CanvasRenderingContext2D, los: Los): void {
@@ -988,20 +1277,28 @@ function leuchtturm(ctx: CanvasRenderingContext2D, los: Los): void {
   const laterne = feld(los, 0.3, 0.14, 0.4, 0.4)
   kasten(ctx, laterne, 8, '#2c3e50', { basis: 46, etagen: 1, fein: los.fein })
   const an = Math.sin(los.time * 3) > 0
-  if (an) {
-    const scheibe = oben(laterne, 50)
-    ctx.save()
-    ctx.globalAlpha = 0.22
-    ctx.fillStyle = '#f4d35e'
-    ctx.beginPath()
-    ctx.moveTo(scheibe.sx, scheibe.sy)
-    ctx.lineTo(scheibe.sx + 36, scheibe.sy - 8)
-    ctx.lineTo(scheibe.sx + 36, scheibe.sy + 10)
-    ctx.closePath()
-    ctx.fill()
-    ctx.restore()
-  }
+  const cx = laterne.x + laterne.w / 2
+  const cy = laterne.y + laterne.h / 2
+  const z = 50
+  const winkel = los.time * 0.7
+  const dx = Math.cos(winkel)
+  const dy = Math.sin(winkel)
+  const reich = 0.9
+  const strahl: F3[] = [
+    {
+      pts: [
+        { x: cx, y: cy, z },
+        { x: cx + dx * reich, y: cy + dy * reich, z: z - 4 },
+        { x: cx + dx * reich, y: cy + dy * reich, z: z + 6 },
+      ],
+      farbe: '#f8e7a0',
+      duenn: true,
+    },
+  ]
+  const vorn = proj({ x: cx + dx * reich, y: cy + dy * reich, z }).sy > proj({ x: cx, y: cy, z }).sy
+  if (an && !vorn) maleNetz(ctx, strahl, { x: cx, y: cy, z })
   kegel(ctx, laterne, 54, 10, DACHROT, los.fein)
+  if (an && vorn) maleNetz(ctx, strahl, { x: cx, y: cy, z })
   haus(ctx, hausG, 16, PUTZ, '#5d6d7e', { etagen: 1, tuer: true, fein: los.fein, rise: 10, schlot: true, time: los.time })
 }
 
@@ -1010,67 +1307,63 @@ function windrad(ctx: CanvasRenderingContext2D, los: Los): void {
   haus(ctx, fuss, 12, '#e7eef2', '#8d99a6', { etagen: 1, tuer: true, fein: los.fein, rise: 8 })
   const mast = feld(los, 0.44, 0.46, 0.12, 0.12)
   kasten(ctx, mast, 52, '#f7f9fb', { basis: 10, etagen: 0, fein: los.fein })
-  const nabe = oben(mast, 64)
   kasten(ctx, feld(los, 0.4, 0.42, 0.2, 0.16), 6, '#5d6d7e', { basis: 60, etagen: 0, fein: los.fein })
-  ctx.strokeStyle = '#f4f7fb'
-  ctx.lineWidth = 3.2
-  ctx.lineCap = 'round'
-  const dreh = los.time * 0.8
-  for (let i = 0; i < 3; i++) {
-    const w = dreh + (i * 2 * Math.PI) / 3
-    ctx.beginPath()
-    ctx.moveTo(nabe.sx, nabe.sy)
-    ctx.lineTo(nabe.sx + Math.cos(w) * 28, nabe.sy + Math.sin(w) * 28)
-    ctx.stroke()
-    ctx.strokeStyle = '#d5dde6'
-    ctx.lineWidth = 1.2
-    ctx.beginPath()
-    ctx.moveTo(nabe.sx, nabe.sy)
-    ctx.lineTo(nabe.sx + Math.cos(w) * 26, nabe.sy + Math.sin(w) * 26)
-    ctx.stroke()
-    ctx.strokeStyle = '#f4f7fb'
-    ctx.lineWidth = 3.2
-  }
-  oval(ctx, nabe.sx, nabe.sy, 3.2, 3.2, '#2c3e50')
+  const cx = los.x + los.w * 0.5
+  const cy = los.y + los.h * 0.52
+  const cz = 66
+  maleNetz(ctx, [...fluegelNetz(cx, cy, cz, 0.62, '#f4f7fb', los.time * 0.8), ...kugelNetz({ x: cx, y: cy, z: cz }, 0.045, 3.2, '#2c3e50', 4, 6)], {
+    x: cx,
+    y: cy,
+    z: cz,
+  })
 }
 
 function geist(ctx: CanvasRenderingContext2D, los: Los): void {
   const g = feld(los, 0.08, 0.12, los.w - 0.2, los.h - 0.28)
   haus(ctx, g, 24, '#3c3358', '#6c3483', { etagen: 2, tuer: true, fein: los.fein, rise: 14, schlot: true, time: los.time })
-  const front = waendeVon(g).at(-1)
-  if (front) bogen(ctx, front, 0, 0.18, 12, '#120c18')
+  const front = waende(g)[tuerWand()]
+  if (front.sichtbar) bogen(ctx, front, 0, 0.18, 12, '#120c18')
   const schiene = feld(los, 0.15, los.h - 0.22, los.w - 0.3, 0.08)
   kasten(ctx, schiene, 2, '#5d6d7e', { etagen: 0, fein: los.fein })
-  const gy = oben(g, 36 + Math.sin(los.time * 2) * 2)
-  ctx.save()
-  ctx.globalAlpha = 0.88
-  ctx.fillStyle = '#f7f4ee'
-  ctx.beginPath()
-  ctx.moveTo(gy.sx - 7, gy.sy)
-  ctx.quadraticCurveTo(gy.sx - 8, gy.sy - 16, gy.sx, gy.sy - 18)
-  ctx.quadraticCurveTo(gy.sx + 8, gy.sy - 16, gy.sx + 7, gy.sy)
-  ctx.quadraticCurveTo(gy.sx + 4, gy.sy - 3, gy.sx, gy.sy - 1)
-  ctx.quadraticCurveTo(gy.sx - 4, gy.sy - 3, gy.sx - 7, gy.sy)
-  ctx.fill()
-  ctx.fillStyle = '#2c3e50'
-  ctx.fillRect(gy.sx - 3, gy.sy - 12, 1.6, 1.6)
-  ctx.fillRect(gy.sx + 1.6, gy.sy - 12, 1.6, 1.6)
-  ctx.restore()
+  const bob = Math.sin(los.time * 2) * 3
+  const cx = g.x + g.w * 0.78
+  const cy = g.y + g.h * 0.2
+  const cz = 24 + bob
+  const [nx, ny] = NORMALE[tuerWand()]
+  const tx = -ny
+  const ty = nx
+  const augen: F3[] = [-0.04, 0.018].map((s) => ({
+    pts: [
+      { x: cx + nx * 0.09 + tx * s, y: cy + ny * 0.09 + ty * s, z: cz + 1 },
+      { x: cx + nx * 0.09 + tx * (s + 0.018), y: cy + ny * 0.09 + ty * (s + 0.018), z: cz + 1 },
+      { x: cx + nx * 0.09 + tx * (s + 0.018), y: cy + ny * 0.09 + ty * (s + 0.018), z: cz + 2.8 },
+      { x: cx + nx * 0.09 + tx * s, y: cy + ny * 0.09 + ty * s, z: cz + 2.8 },
+    ],
+    farbe: '#2c3e50',
+    duenn: true,
+  }))
+  maleNetz(ctx, [...kugelNetz({ x: cx, y: cy, z: cz }, 0.11, 9, '#f7f4ee', 6, 8), ...augen], { x: cx, y: cy, z: cz })
 }
 
 function ufo(ctx: CanvasRenderingContext2D, los: Los): void {
   const stiel = feld(los, 0.42, 0.44, 0.16, 0.14)
-  kasten(ctx, stiel, 14, '#aeb6bf', { etagen: 0, fein: los.fein })
-  const disc = feld(los, 0.16, 0.2, 0.68, 0.58)
-  kasten(ctx, disc, 7, '#d5dbe2', { basis: 12, etagen: 1, fein: los.fein })
-  const mit = oben(disc, 16)
-  oval(ctx, mit.sx, mit.sy + 2, 22, 9, '#8d99a6')
-  oval(ctx, mit.sx, mit.sy - 1, 22, 8, '#eef2f6')
+  kasten(ctx, stiel, 12, '#aeb6bf', { etagen: 0, fein: los.fein })
+  const cx = los.x + los.w * 0.5
+  const cy = los.y + los.h * 0.48
+  const z = 11
+  const r = Math.min(los.w, los.h) * 0.4
   const an = Math.sin(los.time * 4) > 0
-  for (let i = -2; i <= 2; i++) oval(ctx, mit.sx + i * 8, mit.sy + 1, 1.7, 1.3, an && i % 2 === 0 ? '#f4d35e' : '#e74c3c')
-  const kuppel = feld(los, 0.34, 0.34, 0.32, 0.28)
-  kasten(ctx, kuppel, 8, '#9aa6ff', { basis: 18, etagen: 1, fein: los.fein })
-  kegel(ctx, kuppel, 26, 8, '#b7c0ff', los.fein, '#e8ecff')
+  const lichter: F3[] = []
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    const lx = cx + Math.cos(a) * r * 0.78
+    const ly = cy + Math.sin(a) * r * 0.78
+    lichter.push(...quaderNetz(lx - 0.03, ly - 0.025, z + 1.4, 0.06, 0.05, 2.2, an && i % 2 === 0 ? '#f4d35e' : '#e74c3c'))
+  }
+  maleNetz(ctx, [...scheibeNetz(cx, cy, z, r, 5, '#d5dbe2'), ...lichter], { x: cx, y: cy, z: z + 2.5 })
+  const kuppel = feld(los, 0.36, 0.36, 0.28, 0.24)
+  kasten(ctx, kuppel, 7, '#9aa6ff', { basis: 16, etagen: 1, fein: los.fein })
+  kegel(ctx, kuppel, 23, 8, '#b7c0ff', los.fein, '#e8ecff')
 }
 
 function sockel(ctx: CanvasRenderingContext2D, los: Los, farbe = STEIN): Grund {
@@ -1082,33 +1375,37 @@ function sockel(ctx: CanvasRenderingContext2D, los: Los, farbe = STEIN): Grund {
 function wal(ctx: CanvasRenderingContext2D, los: Los): void {
   const g = feld(los, 0.06, 0.38, 0.88, 0.28)
   kasten(ctx, g, 5, STEIN, { fugen: true, etagen: 0, fein: los.fein })
-  const a = oben(feld(los, 0.1, 0.45, 0.1, 0.1), 5)
-  const b = oben(feld(los, 0.8, 0.48, 0.1, 0.1), 5)
-  ctx.strokeStyle = '#f7f4ee'
-  ctx.lineWidth = 3
-  ctx.lineCap = 'round'
-  ctx.beginPath()
-  ctx.moveTo(a.sx, a.sy)
-  ctx.quadraticCurveTo((a.sx + b.sx) / 2, a.sy - 22, b.sx, b.sy)
-  ctx.stroke()
+  const y = g.y + g.h * 0.5
+  const netz: F3[] = []
   for (let i = 0; i < 7; i++) {
     const t = (i + 0.5) / 7
-    const x = a.sx + (b.sx - a.sx) * t
-    const scheitel = a.sy - Math.sin(t * Math.PI) * 20
-    ctx.strokeStyle = i % 2 ? '#e8e4dc' : '#f7f4ee'
-    ctx.lineWidth = 2.2
-    ctx.beginPath()
-    ctx.moveTo(x - 6, a.sy)
-    ctx.quadraticCurveTo(x, scheitel, x + 6, a.sy + 1)
-    ctx.stroke()
+    const x = g.x + g.w * (0.18 + t * 0.68)
+    const hoehe = 7 + Math.sin(t * Math.PI) * 12
+    netz.push(...rippe(x, y, 5, 0.09 + Math.sin(t * Math.PI) * 0.03, hoehe, i % 2 ? '#e8e4dc' : '#f7f4ee'))
+    if (i < 6) {
+      const t2 = (i + 1.5) / 7
+      const x2 = g.x + g.w * (0.18 + t2 * 0.68)
+      const h2 = 5 + 7 + Math.sin(t2 * Math.PI) * 12
+      const h1 = 5 + hoehe
+      netz.push({
+        pts: [
+          { x, y: y - 0.02, z: h1 },
+          { x: x2, y: y - 0.02, z: h2 },
+          { x: x2, y: y + 0.02, z: h2 },
+          { x, y: y + 0.02, z: h1 },
+        ],
+        farbe: '#f7f4ee',
+      })
+    }
   }
-  const kopf = oben(feld(los, 0.08, 0.4, 0.16, 0.16), 8)
-  oval(ctx, kopf.sx, kopf.sy - 6, 8, 6, '#f7f4ee')
-  oval(ctx, kopf.sx - 2, kopf.sy - 8, 1.4, 1.4, '#2c3e50')
+  const kx = g.x + g.w * 0.12
+  netz.push(...kugelNetz({ x: kx, y, z: 13 }, 0.09, 6.5, '#f7f4ee', 5, 8))
+  netz.push(...kugelNetz({ x: kx + 0.02, y: y + 0.06, z: 14 }, 0.018, 1.3, '#2c3e50', 3, 5))
+  maleNetz(ctx, netz, { x: g.x + g.w / 2, y, z: 12 })
 }
 
 function einhorn(ctx: CanvasRenderingContext2D, los: Los): void {
-  const boden = sockel(ctx, los)
+  sockel(ctx, los)
   const bein = (x: number, y: number) => kasten(ctx, feld(los, x, y, 0.07, 0.07), 12, '#f7f4ee', { basis: 6, etagen: 0, fein: los.fein })
   bein(0.28, 0.48)
   bein(0.4, 0.5)
@@ -1121,20 +1418,32 @@ function einhorn(ctx: CanvasRenderingContext2D, los: Los): void {
   const kopf = feld(los, 0.6, 0.28, 0.16, 0.12)
   kasten(ctx, kopf, 7, '#f7f4ee', { basis: 30, etagen: 0, fein: los.fein })
   kegel(ctx, feld(los, 0.64, 0.3, 0.08, 0.08), 36, 12, '#f4d35e', false)
-  const auge = oben(kopf, 34)
-  oval(ctx, auge.sx + 2, auge.sy, 1.3, 1.3, '#2c3e50')
-  ctx.strokeStyle = '#f5b7c5'
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  const m = oben(leib, 26)
-  ctx.moveTo(m.sx, m.sy)
-  ctx.quadraticCurveTo(m.sx - 8, m.sy - 8, m.sx - 4, m.sy - 14)
-  ctx.stroke()
-  const schweif = oben(boden, 18)
-  ctx.beginPath()
-  ctx.moveTo(schweif.sx - 6, schweif.sy - 8)
-  ctx.quadraticCurveTo(schweif.sx - 16, schweif.sy - 4, schweif.sx - 12, schweif.sy + 2)
-  ctx.stroke()
+  const [nx, ny] = NORMALE[tuerWand()]
+  maleNetz(
+    ctx,
+    [
+      ...kugelNetz({ x: kopf.x + kopf.w * 0.7 + nx * 0.04, y: kopf.y + kopf.h * 0.4 + ny * 0.04, z: 34 }, 0.02, 1.4, '#2c3e50', 3, 5),
+      {
+        pts: [
+          { x: leib.x + leib.w * 0.7, y: leib.y + leib.h * 0.15, z: 26 },
+          { x: leib.x + leib.w * 0.55, y: leib.y - 0.02, z: 34 },
+          { x: leib.x + leib.w * 0.4, y: leib.y + leib.h * 0.2, z: 30 },
+        ],
+        farbe: '#f5b7c5',
+        duenn: true,
+      },
+      {
+        pts: [
+          { x: leib.x + 0.02, y: leib.y + leib.h * 0.4, z: 20 },
+          { x: leib.x - 0.14, y: leib.y + leib.h * 0.15, z: 24 },
+          { x: leib.x - 0.08, y: leib.y + leib.h * 0.7, z: 16 },
+        ],
+        farbe: '#f5b7c5',
+        duenn: true,
+      },
+    ],
+    { x: leib.x + leib.w / 2, y: leib.y + leib.h / 2, z: 22 },
+  )
 }
 
 function zwerg(ctx: CanvasRenderingContext2D, los: Los): void {
@@ -1173,8 +1482,8 @@ function moai(ctx: CanvasRenderingContext2D, los: Los): void {
   kasten(ctx, leib, 28, '#a89880', { basis: 6, etagen: 0, fugen: true, fein: los.fein })
   const stirn = feld(los, 0.24, 0.28, 0.52, 0.28)
   kasten(ctx, stirn, 6, '#8d7b66', { basis: 30, etagen: 0, fein: los.fein })
-  const front = waendeVon(leib, 6).at(-1)
-  if (front) {
+  const front = waende(leib, 6)[tuerWand()]
+  if (front.sichtbar) {
     const auge = (t: number) => {
       const l = lift(mix(front.a, front.b, t - 0.06), 16)
       const r = lift(mix(front.a, front.b, t + 0.06), 16)
@@ -1205,22 +1514,35 @@ function drache(ctx: CanvasRenderingContext2D, los: Los): void {
   const kopf = feld(los, 0.68, 0.34, 0.18, 0.14)
   kasten(ctx, kopf, 8, '#1e8449', { basis: 14, etagen: 0, fein: los.fein })
   kegel(ctx, feld(los, 0.74, 0.32, 0.06, 0.06), 20, 8, '#f4d35e', false)
-  const auge = oben(kopf, 18)
-  oval(ctx, auge.sx, auge.sy, 1.4, 1.4, '#f4d35e')
-  const ruecken = oben(feld(los, 0.4, 0.44, 0.1, 0.1), 16)
-  ctx.fillStyle = '#145232'
-  ctx.beginPath()
-  ctx.moveTo(ruecken.sx - 10, ruecken.sy)
-  ctx.lineTo(ruecken.sx, ruecken.sy - 14)
-  ctx.lineTo(ruecken.sx + 8, ruecken.sy + 2)
-  ctx.closePath()
-  ctx.fill()
-  ctx.beginPath()
-  ctx.moveTo(ruecken.sx + 6, ruecken.sy + 4)
-  ctx.lineTo(ruecken.sx + 18, ruecken.sy - 8)
-  ctx.lineTo(ruecken.sx + 16, ruecken.sy + 6)
-  ctx.closePath()
-  ctx.fill()
+  const [nx, ny] = NORMALE[tuerWand()]
+  const rx = los.x + 0.46
+  const ry = los.y + 0.46
+  const rz = 18
+  maleNetz(
+    ctx,
+    [
+      ...kugelNetz({ x: kopf.x + kopf.w * 0.55 + nx * 0.05, y: kopf.y + kopf.h * 0.4 + ny * 0.05, z: 18 }, 0.02, 1.5, '#f4d35e', 3, 5),
+      {
+        pts: [
+          { x: rx, y: ry, z: rz },
+          { x: rx - 0.28, y: ry - 0.06, z: rz + 14 },
+          { x: rx - 0.2, y: ry + 0.16, z: rz + 3 },
+        ],
+        farbe: '#145232',
+        duenn: true,
+      },
+      {
+        pts: [
+          { x: rx + 0.06, y: ry, z: rz - 1 },
+          { x: rx + 0.32, y: ry - 0.1, z: rz + 12 },
+          { x: rx + 0.24, y: ry + 0.12, z: rz + 2 },
+        ],
+        farbe: '#196f3d',
+        duenn: true,
+      },
+    ],
+    { x: rx, y: ry, z: rz },
+  )
 }
 
 function roboter(ctx: CanvasRenderingContext2D, los: Los): void {
@@ -1234,14 +1556,13 @@ function roboter(ctx: CanvasRenderingContext2D, los: Los): void {
   band(ctx, leib, 20, 2, '#e74c3c')
   const kopf = feld(los, 0.34, 0.4, 0.32, 0.22)
   kasten(ctx, kopf, 10, '#eef1f4', { basis: 30, etagen: 1, fein: los.fein })
-  const antenne = oben(kopf, 40)
-  ctx.strokeStyle = '#7f8c8d'
-  ctx.lineWidth = 1.4
-  ctx.beginPath()
-  ctx.moveTo(antenne.sx, antenne.sy)
-  ctx.lineTo(antenne.sx, antenne.sy - 8)
-  ctx.stroke()
-  oval(ctx, antenne.sx, antenne.sy - 9, 2, 2, '#e74c3c')
+  const ax = kopf.x + kopf.w * 0.5
+  const ay = kopf.y + kopf.h * 0.35
+  maleNetz(ctx, [...quaderNetz(ax - 0.012, ay - 0.012, 40, 0.024, 0.024, 8, '#7f8c8d'), ...kugelNetz({ x: ax, y: ay, z: 49 }, 0.03, 2, '#e74c3c', 3, 5)], {
+    x: ax,
+    y: ay,
+    z: 44,
+  })
 }
 
 function stuhl(ctx: CanvasRenderingContext2D, los: Los): void {
@@ -1263,21 +1584,38 @@ function palme(ctx: CanvasRenderingContext2D, los: Los): void {
   const topf = feld(los, 0.3, 0.4, 0.4, 0.32)
   kasten(ctx, topf, 8, '#c0392b', { etagen: 0, fein: los.fein })
   const stamm = [0, 8, 16, 24]
-  stamm.forEach((z, i) => {
+  const stammMal = (z: number, i: number) => {
     const seit = (i % 2 === 0 ? -0.02 : 0.02) * i
     kasten(ctx, feld(los, 0.44 + seit, 0.48, 0.12, 0.12), 8, '#8c5a3a', { basis: 8 + z, etagen: 0, fugen: true, fein: los.fein })
-  })
-  const krone = oben(feld(los, 0.46, 0.5, 0.1, 0.1), 42)
-  for (let i = 0; i < 6; i++) {
-    const w = -2.2 + i * 0.7
-    ctx.strokeStyle = i % 2 ? '#27ae60' : '#1e8449'
-    ctx.lineWidth = 2.4
-    ctx.lineCap = 'round'
-    ctx.beginPath()
-    ctx.moveTo(krone.sx, krone.sy)
-    ctx.quadraticCurveTo(krone.sx + Math.cos(w) * 10, krone.sy + Math.sin(w) * 4, krone.sx + Math.cos(w) * 18, krone.sy + Math.sin(w) * 8)
-    ctx.stroke()
   }
+  stamm.forEach((z, i) => {
+    if (i < stamm.length - 1) stammMal(z, i)
+  })
+  const cx = los.x + los.w * 0.5
+  const cy = los.y + los.h * 0.54
+  const cz = 44
+  const wedel: F3[] = []
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2
+    const dx = Math.cos(a)
+    const dy = Math.sin(a)
+    wedel.push({
+      pts: [
+        { x: cx, y: cy, z: cz },
+        { x: cx + dx * 0.14, y: cy + dy * 0.14, z: cz + 3 },
+        { x: cx + dx * 0.4, y: cy + dy * 0.4, z: cz - 10 },
+        { x: cx + dx * 0.06, y: cy + dy * 0.02, z: cz - 1 },
+      ],
+      farbe: i % 2 ? '#27ae60' : '#1e8449',
+      duenn: true,
+    })
+  }
+  const stammP = { x: cx, y: cy, z: cz }
+  const hinten = wedel.filter((f) => proj(mittelP(f.pts)).sy < proj(stammP).sy)
+  const vorn = wedel.filter((f) => proj(mittelP(f.pts)).sy >= proj(stammP).sy)
+  if (hinten.length) maleNetz(ctx, hinten, { x: cx, y: cy, z: cz - 4 })
+  stammMal(stamm[stamm.length - 1], stamm.length - 1)
+  if (vorn.length) maleNetz(ctx, vorn, { x: cx, y: cy, z: cz - 4 })
 }
 
 function kaktus(ctx: CanvasRenderingContext2D, los: Los): void {
@@ -1304,8 +1642,8 @@ function astronaut(ctx: CanvasRenderingContext2D, los: Los): void {
   kasten(ctx, feld(los, 0.58, 0.42, 0.12, 0.16), 10, '#d5d8dc', { basis: 16, etagen: 0, fein: los.fein })
   const helm = feld(los, 0.38, 0.38, 0.24, 0.18)
   kasten(ctx, helm, 9, '#f7f4ee', { basis: 28, etagen: 0, fein: los.fein })
-  const front = waendeVon(helm, 28).at(-1)
-  if (front) {
+  const front = waende(helm, 28)[tuerWand()]
+  if (front.sichtbar) {
     const l = lift(mix(front.a, front.b, 0.22), 2)
     const r = lift(mix(front.a, front.b, 0.78), 2)
     quad(ctx, l, r, lift(r, 5), lift(l, 5), '#f4d35e')

@@ -20,6 +20,16 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-10-01-a',
+    datum: '1. Oktober 2026',
+    titel: 'Häuser von jeder Seite',
+    text: 'Die besonderen Bauten sind Körper. Drehst du die Stadt, siehst du die andere Wand, nicht dieselbe Fassade noch einmal.',
+    punkte: [
+      'Tür, Fensterläden und Balkon bleiben an ihrer Seite. Hinten ist unten keine Tür.',
+      'Riesenrad, Windrad, Apfel, UFO, Wal, Palme und die Rakete haben eine Kante, sobald du von der Seite schaust.',
+    ],
+  },
+  {
     id: '2026-09-30-c',
     datum: '30. September 2026',
     titel: 'Dieselbe Grafik wie die übrigen Häuser',
