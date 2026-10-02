@@ -3,13 +3,13 @@
 import { tileNoise } from './iso'
 import type { CityState } from './types'
 
-export type Boden = 'wiese' | 'hang' | 'fluss' | 'see' | 'berg'
+export type Boden = 'wiese' | 'hang' | 'fluss' | 'see' | 'berg' | 'meer' | 'teich'
 export type Rand = 'n' | 'o' | 's' | 'w'
 
 /** So viele Kacheln hat ein gekaufter Streifen */
 export const STREIFEN = 6
-/** Weiter wächst eine Seite nicht */
-export const MAX_SEITE = 54
+/** Weiter wächst eine Seite nicht. Reichlich Luft, damit die Stadt lange wachsen kann. */
+export const MAX_SEITE = 300
 /** So weit sieht man die Landschaft über den Zaun hinaus */
 export const AUSBLICK = 7
 
@@ -65,6 +65,31 @@ function feuchteBei(saat: number, x: number, y: number): number {
   return wert(saat + 3, x, y, 18)
 }
 
+/**
+ * Ein Meer ist ein weites, tiefes Becken, kein einzelner nasser Fleck.
+ * Hängt nur von Saat und Weltkoordinate ab, damit es beim Weiterkaufen liegen bleibt.
+ */
+function meerGrund(saat: number, wx: number, wy: number): boolean {
+  const weit = wert(saat + 11, wx, wy, 72)
+  if (weit > 0.2) return false
+  if (hoeheBei(saat, wx, wy) > 0.52) return false
+  let tief = 0
+  const proben: [number, number][] = [
+    [14, 0],
+    [-14, 0],
+    [0, 14],
+    [0, -14],
+    [10, 10],
+    [-10, 10],
+    [10, -10],
+    [-10, -10],
+  ]
+  for (const [dx, dy] of proben) {
+    if (wert(saat + 11, wx + dx, wy + dy, 72) < 0.28 && hoeheBei(saat, wx + dx, wy + dy) < 0.58) tief++
+  }
+  return tief >= 6
+}
+
 /** Boden einer Weltkachel. Die Lichtung bleibt Wiese, egal was der Zufall sagt. */
 function enthalten(menge: readonly string[] | ReadonlySet<string> | undefined, key: string): boolean {
   if (!menge) return false
@@ -80,7 +105,10 @@ export function bodenAn(
 ): Boden {
   const key = `${wx}:${wy}`
   if (enthalten(lichtung, key)) return 'wiese'
-  if (amFluss(saat, wx, wy)) return 'fluss'
+  const meer = meerGrund(saat, wx, wy)
+  // Flüsse laufen ins Meer, schneiden es aber nicht in Streifen
+  if (amFluss(saat, wx, wy) && !meer) return 'fluss'
+  if (meer) return 'meer'
   const hoehe = hoeheBei(saat, wx, wy)
   const feuchte = feuchteBei(saat, wx, wy)
   // Seen sind Mulden, keine einzelnen nassen Kacheln
@@ -104,27 +132,52 @@ export function bodenAn(
 }
 
 export const bebauen = (boden: Boden): boolean => boden === 'wiese' || boden === 'hang'
+export const istWasser = (boden: Boden): boolean => boden === 'fluss' || boden === 'see' || boden === 'meer' || boden === 'teich'
+/** Kleine Gewässer kann man zuschütten. Das Meer nicht. */
+export const laesstSichZuschuetten = (boden: Boden): boolean => boden === 'fluss' || boden === 'see' || boden === 'teich'
 
 /** Wie hoch ein Berg im Bild aufragt, in Bildpunkten */
 export function bergHoehe(saat: number, wx: number, wy: number): number {
   return 28 + Math.floor(wert(saat + 9, wx, wy, 4) * 42)
 }
 
-let bodenCache: { city: CityState; licht?: ReadonlySet<string>; abtrag?: ReadonlySet<string> } | null = null
+let bodenCache: {
+  city: CityState
+  licht?: ReadonlySet<string>
+  abtrag?: ReadonlySet<string>
+  gewaesser?: ReadonlySet<string>
+  zugeschuettet?: ReadonlySet<string>
+} | null = null
 
-function mengen(city: CityState): { licht?: ReadonlySet<string>; abtrag?: ReadonlySet<string> } {
+function satz(liste?: string[]): ReadonlySet<string> | undefined {
+  return liste && liste.length > 0 ? new Set(liste) : undefined
+}
+
+function mengen(city: CityState): {
+  licht?: ReadonlySet<string>
+  abtrag?: ReadonlySet<string>
+  gewaesser?: ReadonlySet<string>
+  zugeschuettet?: ReadonlySet<string>
+} {
   if (bodenCache?.city === city) return bodenCache
   bodenCache = {
     city,
-    licht: city.lichtung && city.lichtung.length > 0 ? new Set(city.lichtung) : undefined,
-    abtrag: city.abgetragen && city.abgetragen.length > 0 ? new Set(city.abgetragen) : undefined,
+    licht: satz(city.lichtung),
+    abtrag: satz(city.abgetragen),
+    gewaesser: satz(city.gewaesser),
+    zugeschuettet: satz(city.zugeschuettet),
   }
   return bodenCache
 }
 
 export function bodenVon(city: CityState, x: number, y: number): Boden {
-  const { licht, abtrag } = mengen(city)
-  return bodenAn(city.saat ?? 1, (city.weltX ?? 0) + x, (city.weltY ?? 0) + y, licht, abtrag)
+  const { licht, abtrag, gewaesser, zugeschuettet } = mengen(city)
+  const wx = (city.weltX ?? 0) + x
+  const wy = (city.weltY ?? 0) + y
+  const key = `${wx}:${wy}`
+  if (enthalten(gewaesser, key)) return 'teich'
+  if (enthalten(zugeschuettet, key)) return 'wiese'
+  return bodenAn(city.saat ?? 1, wx, wy, licht, abtrag)
 }
 
 /** Wie hoch diese Kachel im Bild aufragt, in Bildpunkten. Wiese und Wasser liegen flach. */
@@ -165,6 +218,7 @@ export function sucheUrsprung(saat: number, kante: number): { x: number; y: numb
     let see = 0
     let berge = 0
     let wiese = 0
+    let meer = 0
     for (let y = -4; y < kante + 4; y++) {
       for (let x = -4; x < kante + 4; x++) {
         const b = bodenAn(saat, ox + x, oy + y)
@@ -172,14 +226,17 @@ export function sucheUrsprung(saat: number, kante: number): { x: number; y: numb
         else if (b === 'see') see++
         else if (b === 'berg') berge++
         else if (b === 'wiese') wiese++
+        else if (b === 'meer') meer++
       }
     }
-    // Fluss im Blick, dazu ein See und ein Gebirge – die Wiese bleibt die Fläche
+    // Fluss im Blick, dazu ein See und ein Gebirge – die Wiese bleibt die Fläche, das Meer liegt weiter draußen
     const score =
       (fluss >= 6 && fluss <= 28 ? 70 : -20) +
       (see >= 6 && see <= 40 ? 60 : -Math.abs(see - 12)) +
       (berge >= 4 && berge <= 28 ? 50 : -10) +
-      wiese * 0.15
+      wiese * 0.15 -
+      meer * 8 -
+      (meer > 4 ? 400 : 0)
     if (score > best.score) best = { x: ox, y: oy, score }
   }
   return { x: best.x, y: best.y }

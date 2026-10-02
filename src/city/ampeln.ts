@@ -1,7 +1,8 @@
-// Ampeln. An jeder Kreuzung von Straßen (nicht Fußwegen) mit drei oder mehr Armen
-// steht eine Ampelanlage. Sie schaltet nach einer festen Uhr: erst hat die
+// Ampeln. Nur an Kreuzungen doppelspuriger Straßen, nicht an jeder Kurve und nicht
+// an schmalen Straßen. Sie schaltet nach einer festen Uhr: erst hat die
 // Nord-Süd-Richtung Grün, dann kurz Gelb, dann Ost-West. Jede Kreuzung hat ihren
 // eigenen Versatz, damit nicht alle im Gleichtakt springen.
+import { roadDef } from './catalog'
 import { tileNoise } from './iso'
 import { roadAt } from './state'
 import type { CityState } from './types'
@@ -31,9 +32,11 @@ export function arme(city: CityState, x: number, y: number): { n: boolean; o: bo
   return { n, o, s, w, zahl: +n + +o + +s + +w }
 }
 
-/** Steht hier eine Ampel? Kreuzungen und Einmündungen von Straßen. */
+const doppelspurig = (city: CityState, x: number, y: number): boolean => (roadDef(roadAt(city, x, y) ?? '')?.spuren ?? 1) >= 2
+
+/** Steht hier eine Ampel? Nur eine doppelspurige Kreuzung, keine Kurve und keine schmale Straße. */
 export function istKreuzung(city: CityState, x: number, y: number): boolean {
-  if (!fahrbahn(city, x, y)) return false
+  if (!doppelspurig(city, x, y)) return false
   return arme(city, x, y).zahl >= 3
 }
 

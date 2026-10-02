@@ -6,13 +6,13 @@ import { RATHAUS, buildingDef, footprint, roadDef, type Look } from './catalog'
 import { fade, lift, quad, quadPath, roundedPath, shade, wobble, type Point } from './draw'
 import { drawAgent } from './figures'
 import { umlauf, type Grund } from './geo'
-import { blickJetzt, nachRechts, setBlick, setLichtSeite, setProjektion, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
+import { blickJetzt, nachRechts, setBlick, setLichtSeite, setProjektion, sichtfeld, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
 import { leuchtSchichtBeginnen, leuchtenLeeren, leuchtenMalen, lichtFuer, setLicht, verdecken, type Licht } from './licht'
 import { brennt, type Life } from './life'
-import { AUSBLICK, bodenVon, bergHoehe, gelaendeHoehe, masse, streifenKacheln, type Boden, type Rand } from './landschaft'
+import { AUSBLICK, bodenVon, bergHoehe, gelaendeHoehe, istWasser, masse, streifenKacheln, type Boden, type Rand } from './landschaft'
 import { kriminalitaetsfeld } from './society'
 import { seiteZurStrasse, tilesOf } from './state'
-import { drawRoads, gelaendeNetz, netzPfad, strassenMoebel } from './strassen'
+import { drawRoads, fahrbahnHoehe, gelaendeNetz, netzPfad, strassenMoebel } from './strassen'
 import { themeById, type Theme } from './themes'
 import type { CityState, Placed } from './types'
 import { seedAus, zeichen, zeichenFuerEmoji, type Zeichen } from './zeichen'
@@ -40,6 +40,10 @@ export interface Paint {
   adding: boolean
   /** Bergkacheln markieren, die abgetragen werden */
   abtrag?: boolean
+  /** Gewässer graben */
+  wasser?: boolean
+  /** Kleine Gewässer zuschütten */
+  zuschuetten?: boolean
 }
 
 export interface DrawOptions {
@@ -554,6 +558,7 @@ const SAND = ['#f0e2b8', '#d9c48e']
 const FLACH = ['#7fd4ea', '#3aafd4']
 const TIEF = ['#1f78b4', '#145a8c']
 const FLUSS = ['#3aa6d8', '#217fba']
+const MEER = ['#1a6798', '#0c3f68']
 const FELS = ['#c4b8aa', '#8a7d72', '#5c534c']
 
 function kachelPfad(x: number, y: number): Viereck {
@@ -662,6 +667,8 @@ function drawGround(
   fein: boolean,
   kauf: Rand | null,
   zeit: number,
+  fenster?: { x0: number; y0: number; x1: number; y1: number },
+  zoom = 1,
 ): void {
   const { w, h } = masse(city)
   const rand = AUSBLICK
@@ -669,6 +676,15 @@ function drawGround(
   const y0 = -rand
   const x1 = w + rand
   const y1 = h + rand
+  const sicht = {
+    x0: fenster ? Math.max(x0, fenster.x0) : x0,
+    y0: fenster ? Math.max(y0, fenster.y0) : y0,
+    x1: fenster ? Math.min(x1, fenster.x1) : x1,
+    y1: fenster ? Math.min(y1, fenster.y1) : y1,
+  }
+  const flaeche = Math.max(0, sicht.x1 - sicht.x0) * Math.max(0, sicht.y1 - sicht.y0)
+  const step = flaeche > 28000 ? 3 : flaeche > 9000 ? 2 : 1
+  const grob = zoom < 0.42 || step > 1
   const aussenEcke = [toScreen(x0, y0), toScreen(x1, y0), toScreen(x1, y1), toScreen(x0, y1)]
 
   const depth = 28
@@ -692,7 +708,7 @@ function drawGround(
     cache.set(key, boden)
     return boden
   }
-  const nass = (boden: Boden) => boden === 'fluss' || boden === 'see'
+  const nass = (boden: Boden) => istWasser(boden)
   const amUfer = (x: number, y: number) =>
     nass(artBei(x + 1, y)) || nass(artBei(x - 1, y)) || nass(artBei(x, y + 1)) || nass(artBei(x, y - 1))
 
@@ -707,25 +723,39 @@ function drawGround(
     else gruppen.set(key, [pfad])
   }
 
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
+  for (let y = sicht.y0; y < sicht.y1; y += step) {
+    for (let x = sicht.x0; x < sicht.x1; x += step) {
       const art = artBei(x, y)
-      const pfad = kachelPfad(x, y)
+      const pfad: Viereck =
+        step === 1
+          ? kachelPfad(x, y)
+          : [toScreen(x, y), toScreen(x + step, y), toScreen(x + step, y + step), toScreen(x, y + step)]
       if (art === 'berg') {
-        berge.push({ x, y, hoehe: bergHoehe(city.saat ?? 1, (city.weltX ?? 0) + x, (city.weltY ?? 0) + y) })
+        if (!grob) berge.push({ x, y, hoehe: bergHoehe(city.saat ?? 1, (city.weltX ?? 0) + x, (city.weltY ?? 0) + y) })
         merken(FELS[2], pfad)
         continue
       }
       if (art === 'hang') {
-        haenge.push({ x, y })
+        if (!grob) haenge.push({ x, y })
         merken(shade(theme.ground[1], -6), pfad)
         continue
       }
-      if (art === 'fluss' || art === 'see') {
+      if (istWasser(art)) {
         const seicht = amUfer(x, y)
-        const ton = art === 'fluss' ? (seicht ? FLUSS[0] : FLUSS[1]) : seicht ? FLACH[0] : TIEF[1]
+        const ton =
+          art === 'meer'
+            ? seicht
+              ? MEER[0]
+              : MEER[1]
+            : art === 'fluss'
+              ? seicht
+                ? FLUSS[0]
+                : FLUSS[1]
+              : seicht
+                ? FLACH[0]
+                : TIEF[1]
         merken(ton, pfad)
-        if ((x + y) % 2 === 0) wellen.push(toScreen(x + 0.5, y + 0.5))
+        if (!grob && (x + y) % 2 === 0) wellen.push(toScreen(x + 0.5, y + 0.5))
         const nachbarn: [number, number, number, number][] = [
           [0, -1, 0, 1],
           [1, 0, 1, 2],
@@ -783,8 +813,8 @@ function drawGround(
     for (const placed of city.buildings) for (const t of tilesOf(placed)) belegt.add(`${t.x}:${t.y}`)
     const halme: Point[] = []
     const blumen: Point[] = []
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
+    for (let y = Math.max(0, sicht.y0); y < Math.min(h, sicht.y1); y++) {
+      for (let x = Math.max(0, sicht.x0); x < Math.min(w, sicht.x1); x++) {
         if (belegt.has(`${x}:${y}`)) continue
         const art = bodenVon(city, x, y)
         if (art !== 'wiese' && art !== 'hang') continue
@@ -832,8 +862,8 @@ function drawGround(
   ctx.lineWidth = 1.1
   ctx.lineCap = 'round'
   ctx.beginPath()
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
+  if (!grob) for (let y = sicht.y0; y < sicht.y1; y++) {
+    for (let x = sicht.x0; x < sicht.x1; x++) {
       if (!amUfer(x, y) || nass(artBei(x, y)) || artBei(x, y) === 'berg') continue
       if (tileNoise(x + 8, y + 3) < 0.45) continue
       const fuss = toScreen(x + 0.35 + tileNoise(x, y) * 0.3, y + 0.35 + tileNoise(y, x) * 0.3)
@@ -937,6 +967,7 @@ function landschaftSchmuck(
   city: CityState,
   theme: Theme,
   fein: boolean,
+  fenster?: { x0: number; y0: number; x1: number; y1: number },
 ): { x: number; y: number; malen: () => void }[] {
   const { w, h } = masse(city)
   const belegt = new Set<string>(Object.keys(city.roads))
@@ -947,8 +978,12 @@ function landschaftSchmuck(
   const laub: Look = { kind: 'baum', height: 1, wall: theme.tree[0], roof: theme.tree[2], accent: theme.tree[1] }
   const liste: { x: number; y: number; malen: () => void }[] = []
   const rand = fein ? AUSBLICK : 3
-  for (let y = -rand; y < h + rand && liste.length < 80; y++) {
-    for (let x = -rand; x < w + rand && liste.length < 80; x++) {
+  const vonY = fenster ? Math.max(-rand, fenster.y0) : -rand
+  const bisY = fenster ? Math.min(h + rand, fenster.y1) : h + rand
+  const vonX = fenster ? Math.max(-rand, fenster.x0) : -rand
+  const bisX = fenster ? Math.min(w + rand, fenster.x1) : w + rand
+  for (let y = vonY; y < bisY && liste.length < 80; y++) {
+    for (let x = vonX; x < bisX && liste.length < 80; x++) {
       if (belegt.has(`${x}:${y}`)) continue
       const art = bodenVon(city, x, y)
       const frei = !licht.has(`${wx + x}:${wy + y}`)
@@ -1168,8 +1203,9 @@ function stadtMalen(
   // Kleinteile nur in der Nahansicht. Die Schwelle hat Spielraum, damit ein Zittern
   // beim Zoomen nicht bei jedem Bild die Fassaden umschaltet.
   const fein = nahGenug(camera.zoom) && options.detail !== false
+  const fenster = sichtfeld(camera, view, 8)
 
-  drawGround(ctx, city, options.buildMode === true, theme, fein, options.kauf ?? null, zeit)
+  drawGround(ctx, city, options.buildMode === true, theme, fein, options.kauf ?? null, zeit, fenster, camera.zoom)
   drawRoads(ctx, city, theme, fein)
 
   // Vorschau beim Straßenziehen
@@ -1178,7 +1214,16 @@ function stadtMalen(
     const def = roadDef(paint.type)
     ctx.save()
     ctx.globalAlpha = 0.6
-    ctx.fillStyle = paint.abtrag ? 'rgba(196, 154, 92, 0.85)' : paint.adding ? (def?.surface ?? '#ffffff') : '#ff5f7a'
+    ctx.fillStyle = paint.abtrag
+      ? 'rgba(196, 154, 92, 0.85)'
+      : paint.wasser
+        ? 'rgba(58, 166, 216, 0.8)'
+        : paint.zuschuetten
+          ? 'rgba(196, 168, 110, 0.8)'
+          : paint.adding
+            ? (def?.surface ?? '#ffffff')
+            : '#ff5f7a'
+    if (def?.bruecke && paint.adding && !paint.wasser && !paint.zuschuetten && !paint.abtrag) ctx.translate(0, -18)
     ctx.beginPath()
     for (const key of paint.tiles) {
       const [x, y] = key.split(':').map(Number)
@@ -1215,7 +1260,7 @@ function stadtMalen(
         breite: agent.art === 'auto' || agent.art === 'dienst' ? 0.34 : 0.14,
         tiefe: agent.x * g.x + agent.y * g.y,
         malen: () => {
-          const hub = gelaendeHoehe(city, agent.x, agent.y)
+          const hub = fahrbahnHoehe(city, agent.x, agent.y)
           if (hub < 0.4) {
             drawAgent(ctx, agent, zeit, fein)
             return
@@ -1231,7 +1276,7 @@ function stadtMalen(
   for (const m of strassenMoebel(city, zeit, fein)) {
     dinge.push({ x: m.x, y: m.y, breite: 0.06, tiefe: m.x * g.x + m.y * g.y, malen: () => m.malen(ctx) })
   }
-  for (const schmuck of landschaftSchmuck(ctx, city, theme, fein)) {
+  for (const schmuck of landschaftSchmuck(ctx, city, theme, fein, fenster)) {
     dinge.push({ x: schmuck.x, y: schmuck.y, breite: 0.4, tiefe: schmuck.x * g.x + schmuck.y * g.y, malen: schmuck.malen })
   }
 

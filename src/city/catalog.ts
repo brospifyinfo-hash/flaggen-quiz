@@ -30,6 +30,10 @@ export interface RoadDef {
   marking?: string
   /** Bäume am Rand */
   trees?: boolean
+  /** 2 heißt doppelspurig: dort stehen Ampeln, an schmalen Straßen und in Kurven nicht */
+  spuren?: number
+  /** Liegt über dem Wasser, nicht auf der Wiese */
+  bruecke?: boolean
 }
 
 export const ROADS: RoadDef[] = [
@@ -68,6 +72,70 @@ export const ROADS: RoadDef[] = [
     edge: '#d3cfc4',
     marking: '#ffd23f',
     trees: true,
+  },
+  {
+    id: 'landstrasse',
+    name: 'Landstraße',
+    emoji: '🌾',
+    coins: 48,
+    materials: 1,
+    note: 'Schmal, ohne Ampel',
+    width: 0.56,
+    surface: '#5c564c',
+    edge: '#cfc6b4',
+  },
+  {
+    id: 'bundesstrasse',
+    name: 'Bundesstraße',
+    emoji: '🚗',
+    coins: 120,
+    materials: 2,
+    note: 'Zwei Spuren, Ampeln an Kreuzungen',
+    width: 0.92,
+    surface: '#3a404a',
+    edge: '#d7d2c8',
+    marking: '#f4f1e8',
+    spuren: 2,
+  },
+  {
+    id: 'autobahn',
+    name: 'Autobahn',
+    emoji: '🏁',
+    coins: 240,
+    materials: 4,
+    note: 'Breit, mit Standstreifen',
+    width: 1.16,
+    surface: '#2c3138',
+    edge: '#6f8f45',
+    marking: '#f7f4ea',
+    spuren: 2,
+  },
+  {
+    id: 'bruecke',
+    name: 'Brücke',
+    emoji: '🌉',
+    coins: 95,
+    materials: 3,
+    note: 'Über Fluss, See und Meer',
+    width: 0.7,
+    surface: '#4a4f59',
+    edge: '#f3efe6',
+    marking: '#e7e2d4',
+    bruecke: true,
+  },
+  {
+    id: 'autobahnbruecke',
+    name: 'Autobahnbrücke',
+    emoji: '🌉',
+    coins: 320,
+    materials: 6,
+    note: 'Autobahn über dem Wasser',
+    width: 1.16,
+    surface: '#2c3138',
+    edge: '#f4f0e8',
+    marking: '#f7f4ea',
+    spuren: 2,
+    bruecke: true,
   },
 ]
 

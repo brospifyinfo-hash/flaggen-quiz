@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-10-02-b',
+    datum: '2. Oktober 2026',
+    titel: 'Wasser, Brücken und Autobahnen',
+    text: 'Man kann Gewässer anlegen und kleine wieder zuschütten. Über dem Wasser liegen Brücken, und die Stadt kann viel weiter wachsen.',
+    punkte: [
+      'Gewässer anlegen gräbt Teiche und Kanäle. Zuschütten macht aus Fluss, See und Teich wieder Wiese. Das Meer bleibt.',
+      'Neu: Landstraße, Bundesstraße, Autobahn, Brücke und Autobahnbrücke. Ampeln nur noch an doppelspurigen Kreuzungen.',
+      'Jede Seite lässt sich bis 300 Kacheln kaufen.',
+    ],
+  },
+  {
     id: '2026-10-02-a',
     datum: '2. Oktober 2026',
     titel: 'Berge abtragen, Straßen am Hang',

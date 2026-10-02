@@ -21,9 +21,33 @@ const GEHWEG = '#b9b5ab'
 const GEHWEG_FUGE = 'rgba(70,70,80,0.16)'
 const BORD = '#dcd8ce'
 
-/** Punkt auf dem Gelände: Hänge heben ihn an, damit die Straße mit dem Hang fällt */
+/** Wie hoch eine Brücke über dem Wasser liegt */
+const BRUECKE = 18
+
+/** Anteil 0 bis 1, wie sehr dieser Punkt auf einer Brücke liegt. An der Kante wird es eine Rampe. */
+function brueckenAnteil(city: CityState, x: number, y: number): number {
+  const probe: [number, number][] = [
+    [x - 0.02, y - 0.02],
+    [x + 0.02, y - 0.02],
+    [x - 0.02, y + 0.02],
+    [x + 0.02, y + 0.02],
+  ]
+  let summe = 0
+  for (const [px, py] of probe) {
+    const art = roadAt(city, Math.floor(px), Math.floor(py))
+    if (art && roadDef(art)?.bruecke) summe += 1
+  }
+  return summe / 4
+}
+
+/** Höhe der Fahrbahn: Hang plus Brückendeck */
+export function fahrbahnHoehe(city: CityState, x: number, y: number): number {
+  return gelaendeHoehe(city, x, y) + brueckenAnteil(city, x, y) * BRUECKE
+}
+
+/** Punkt auf dem Gelände: Hänge heben ihn an, Brücken liegen über dem Wasser */
 function heb(city: CityState, x: number, y: number): Point {
-  return lift(toScreen(x, y), gelaendeHoehe(city, x, y))
+  return lift(toScreen(x, y), fahrbahnHoehe(city, x, y))
 }
 
 /** Mitte, Kanten und Ecken einer Kachel, alle auf der Geländehöhe */
@@ -73,10 +97,30 @@ function bodenQuad(ctx: CanvasRenderingContext2D, city: CityState, x0: number, y
  */
 function gehwege(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel[], fein: boolean): void {
   const licht = lichtJetzt()
-  ctx.beginPath()
-  for (const k of kacheln) netzPfad(ctx, gelaendeNetz(city, k.x, k.y))
-  ctx.fillStyle = GEHWEG
-  ctx.fill()
+  const deck = kacheln.filter((k) => roadDef(k.art)?.bruecke)
+  const pflaster = kacheln.filter((k) => !roadDef(k.art)?.bruecke)
+  const fuellen = (liste: Kachel[], farbe: string) => {
+    if (liste.length === 0) return
+    ctx.beginPath()
+    for (const k of liste) netzPfad(ctx, gelaendeNetz(city, k.x, k.y))
+    ctx.fillStyle = farbe
+    ctx.fill()
+  }
+  fuellen(pflaster, GEHWEG)
+  fuellen(deck, '#c9c3b8')
+  if (deck.length > 0) {
+    ctx.strokeStyle = '#8a837c'
+    ctx.lineWidth = 3.2
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    for (const k of deck) {
+      const fuss = toScreen(k.x + 0.5, k.y + 0.5)
+      const kopf = heb(city, k.x + 0.5, k.y + 0.5)
+      ctx.moveTo(fuss.sx, fuss.sy)
+      ctx.lineTo(kopf.sx, kopf.sy)
+    }
+    ctx.stroke()
+  }
   // Platten: leicht unterschiedliche Helligkeit je Kachelviertel
   if (fein) {
     ctx.beginPath()
@@ -361,6 +405,7 @@ function ampeln(city: CityState, kacheln: Kachel[], uhr: number, fein: boolean, 
  */
 function laternen(city: CityState, kacheln: Kachel[], fein: boolean, ziel: Moebel[]): void {
   for (const k of kacheln) {
+    if (roadDef(k.art)?.bruecke) continue
     if ((k.x + k.y) % 2 !== 0) continue
     const a = arme(city, k.x, k.y)
     if (a.zahl >= 3) continue
@@ -429,7 +474,7 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
       const def = roadDef(art)
       if (!def) continue
       if (pass === 2 && !def.marking) continue
-      const bord = art === 'weg' ? def.edge : BORD
+      const bord = def.bruecke ? def.edge : (def.spuren ?? 1) >= 2 ? def.edge : art === 'weg' ? def.edge : BORD
       ctx.strokeStyle = pass === 0 ? bord : pass === 1 ? def.surface : (def.marking as string)
       ctx.lineWidth = def.width * TILE_H * (pass === 0 ? 1.3 : pass === 1 ? 1 : 0.12)
       ctx.setLineDash(pass === 2 ? [6, 8] : [])
@@ -445,10 +490,23 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
         }
         // Markierung nur auf gerader Strecke, nicht in der Kreuzung
         const striche = pass === 2 && ziele.length !== 2 ? [] : ziele
+        const doppel = (def.spuren ?? 1) >= 2
         for (const ziel of striche) {
           const kurz = pass === 2 ? mix(center, ziel, 0.86) : ziel
-          ctx.moveTo(center.sx, center.sy)
-          ctx.lineTo(kurz.sx, kurz.sy)
+          if (pass === 2 && doppel) {
+            const dx = kurz.sx - center.sx
+            const dy = kurz.sy - center.sy
+            const laenge = Math.hypot(dx, dy) || 1
+            const ox = (-dy / laenge) * 3.4
+            const oy = (dx / laenge) * 1.7
+            ctx.moveTo(center.sx + ox, center.sy + oy)
+            ctx.lineTo(kurz.sx + ox, kurz.sy + oy)
+            ctx.moveTo(center.sx - ox, center.sy - oy)
+            ctx.lineTo(kurz.sx - ox, kurz.sy - oy)
+          } else {
+            ctx.moveTo(center.sx, center.sy)
+            ctx.lineTo(kurz.sx, kurz.sy)
+          }
         }
       }
       ctx.stroke()

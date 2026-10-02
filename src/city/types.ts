@@ -72,6 +72,10 @@ export interface CityState {
   lichtung?: string[]
   /** Abgetragene Bergkacheln, in Weltkoordinaten. Dort liegt danach Wiese. */
   abgetragen?: string[]
+  /** Selbst gegrabene Gewässer, in Weltkoordinaten. Kleine Teiche und Kanäle. */
+  gewaesser?: string[]
+  /** Zugeschüttete Flüsse, Seen und Teiche. Das Meer lässt sich nicht zuschütten. */
+  zugeschuettet?: string[]
   /** Gebäude, die mit in die neue Stadt gekommen sind und noch keinen Platz haben */
   inventar?: Vorrat[]
   /** Bewohner warten auf Wohnraum, nach einem Umzug zieht niemand weg */

@@ -18,6 +18,8 @@ import { gesellschaft, KLASSEN, kriminalitaetBei, STEUER_MAX, STEUER_MIN, STEUER
 import {
   bebauen,
   bodenVon,
+  istWasser,
+  laesstSichZuschuetten,
   masse,
   seiteOffen,
   streifenPreis,
@@ -194,7 +196,10 @@ export function canPlace(
       if (taken.has(key)) return { ok: false, reason: 'Hier steht schon etwas.' }
       if (city.roads[key]) return { ok: false, reason: 'Hier verläuft eine Straße.' }
       const boden = bodenVon(city, x + dx, y + dy)
-      if (!bebauen(boden)) return { ok: false, reason: boden === 'berg' ? 'Da steht ein Berg.' : 'Da ist Wasser.' }
+      if (!bebauen(boden)) {
+        const grund = boden === 'berg' ? 'Da steht ein Berg.' : boden === 'meer' ? 'Da ist das Meer.' : 'Da ist Wasser.'
+        return { ok: false, reason: grund }
+      }
     }
   }
 
@@ -323,11 +328,15 @@ export function rathausStufe(cityLevel: number): number {
 
 // ---------- Straßen ----------
 
-/** Liegt die Kachel frei für eine Straße? */
-export function canPave(city: CityState, x: number, y: number): boolean {
+/** Liegt die Kachel frei für eine Straße? Brücken nur über Wasser, alles andere nur auf Land. */
+export function canPave(city: CityState, x: number, y: number, type?: string): boolean {
   const gebiet = masse(city)
   if (x < 0 || y < 0 || x >= gebiet.w || y >= gebiet.h) return false
-  if (!bebauen(bodenVon(city, x, y))) return false
+  const boden = bodenVon(city, x, y)
+  const def = type ? roadDef(type) : undefined
+  if (def?.bruecke) {
+    if (!istWasser(boden)) return false
+  } else if (!bebauen(boden)) return false
   const key = roadKey(x, y)
   for (const placed of city.buildings) {
     for (const tile of tilesOf(placed)) {
@@ -343,7 +352,7 @@ export function paveCost(city: CityState, tiles: { x: number; y: number }[], typ
   if (!def) return { coins: 0, materials: 0, count: 0 }
   let count = 0
   for (const tile of tiles) {
-    if (!canPave(city, tile.x, tile.y)) continue
+    if (!canPave(city, tile.x, tile.y, type)) continue
     if (roadAt(city, tile.x, tile.y) === type) continue
     count += 1
   }
@@ -360,7 +369,7 @@ export function pave(city: CityState, tiles: { x: number; y: number }[], type: s
   let changed = false
 
   for (const tile of tiles) {
-    if (!canPave(city, tile.x, tile.y)) continue
+    if (!canPave(city, tile.x, tile.y, type)) continue
     const key = roadKey(tile.x, tile.y)
     if (roads[key] === type) continue
     if (coins < def.coins || materials < def.materials) break
@@ -397,6 +406,80 @@ export function abtragen(city: CityState, tiles: { x: number; y: number }[]): Ci
   }
   if (!changed) return city
   return { ...city, abgetragen: [...liste], coins, materials }
+}
+
+/** Was ein selbst gegrabenes Gewässer je Kachel kostet */
+export const WASSER_MUENZEN = 28
+export const WASSER_MATERIAL = 1
+/** Was das Zuschütten eines kleinen Gewässers je Kachel kostet */
+export const ZUSCHUETT_MUENZEN = 36
+export const ZUSCHUETT_MATERIAL = 2
+
+function kachelBelegt(city: CityState, x: number, y: number): boolean {
+  if (city.roads[roadKey(x, y)]) return true
+  for (const placed of city.buildings) {
+    for (const tile of tilesOf(placed)) {
+      if (tile.x === x && tile.y === y) return true
+    }
+  }
+  return false
+}
+
+function imGebiet(city: CityState, x: number, y: number): boolean {
+  const gebiet = masse(city)
+  return x >= 0 && y >= 0 && x < gebiet.w && y < gebiet.h
+}
+
+/** Teich oder Kanal graben. Nur auf freier Wiese oder auf einem Hang. */
+export function gewaesserAnlegen(city: CityState, tiles: { x: number; y: number }[]): CityState {
+  const liste = new Set(city.gewaesser ?? [])
+  const zu = new Set(city.zugeschuettet ?? [])
+  let coins = city.coins
+  let materials = city.materials
+  let changed = false
+  const wx = city.weltX ?? 0
+  const wy = city.weltY ?? 0
+  for (const tile of tiles) {
+    if (!imGebiet(city, tile.x, tile.y) || kachelBelegt(city, tile.x, tile.y)) continue
+    if (!bebauen(bodenVon(city, tile.x, tile.y))) continue
+    const key = `${wx + tile.x}:${wy + tile.y}`
+    if (liste.has(key)) continue
+    if (coins < WASSER_MUENZEN || materials < WASSER_MATERIAL) break
+    liste.add(key)
+    zu.delete(key)
+    coins -= WASSER_MUENZEN
+    materials -= WASSER_MATERIAL
+    changed = true
+  }
+  if (!changed) return city
+  return { ...city, gewaesser: [...liste], zugeschuettet: [...zu], coins, materials }
+}
+
+/** Kleine Gewässer zuschütten. Das Meer bleibt, und unter einer Brücke auch das Wasser. */
+export function zuschuetten(city: CityState, tiles: { x: number; y: number }[]): CityState {
+  const gew = new Set(city.gewaesser ?? [])
+  const zu = new Set(city.zugeschuettet ?? [])
+  let coins = city.coins
+  let materials = city.materials
+  let changed = false
+  const wx = city.weltX ?? 0
+  const wy = city.weltY ?? 0
+  for (const tile of tiles) {
+    if (!imGebiet(city, tile.x, tile.y)) continue
+    if (city.roads[roadKey(tile.x, tile.y)]) continue
+    const boden = bodenVon(city, tile.x, tile.y)
+    if (!laesstSichZuschuetten(boden)) continue
+    const key = `${wx + tile.x}:${wy + tile.y}`
+    if (!gew.has(key) && zu.has(key)) continue
+    if (coins < ZUSCHUETT_MUENZEN || materials < ZUSCHUETT_MATERIAL) break
+    if (gew.has(key)) gew.delete(key)
+    else zu.add(key)
+    coins -= ZUSCHUETT_MUENZEN
+    materials -= ZUSCHUETT_MATERIAL
+    changed = true
+  }
+  if (!changed) return city
+  return { ...city, gewaesser: [...gew], zugeschuettet: [...zu], coins, materials }
 }
 
 /** Straße wieder aufnehmen – die Hälfte kommt zurück */
@@ -1489,9 +1572,14 @@ export function sanitizeCity(input: unknown): CityState | null {
     city.lichtung = keys
   }
   city.inventar = liesVorrat(raw.inventar)
-  if (Array.isArray(raw.abgetragen)) {
-    city.abgetragen = (raw.abgetragen as unknown[]).filter((eintrag) => typeof eintrag === 'string').slice(0, 4000) as string[]
+  const weltListe = (value: unknown): string[] | undefined => {
+    if (!Array.isArray(value)) return undefined
+    const liste = (value as unknown[]).filter((eintrag) => typeof eintrag === 'string').slice(0, 20000) as string[]
+    return liste.length > 0 ? liste : undefined
   }
+  city.abgetragen = weltListe(raw.abgetragen)
+  city.gewaesser = weltListe(raw.gewaesser)
+  city.zugeschuettet = weltListe(raw.zugeschuettet)
   if (raw.umzugSchutz === true) city.umzugSchutz = true
 
   // Version 2 und älter kannten keine Einwohnerzahl: Dort wohnte jeder, der Platz fand.

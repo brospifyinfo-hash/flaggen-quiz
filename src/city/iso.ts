@@ -156,3 +156,29 @@ export function tiefenRichtung(): { x: number; y: number } {
 /** Kantenlänge des Feldes, um dessen Mitte gerade gedreht wird – zum Zurücksetzen nach Vorschauen */
 export const feldJetzt = (): number => mitteX * 2
 export const feldHoeheJetzt = (): number => mitteY * 2
+
+/** Kacheln, die bei dieser Kamera im Bild liegen, mit Rand für Hügel und Gipfel */
+export function sichtfeld(
+  camera: { x: number; y: number; zoom: number },
+  view: { w: number; h: number },
+  rand = 2,
+): { x0: number; y0: number; x1: number; y1: number } {
+  const zoom = camera.zoom > 0.02 ? camera.zoom : 0.02
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (const [px, py] of [
+    [0, 0],
+    [view.w, 0],
+    [view.w, view.h],
+    [0, view.h],
+  ]) {
+    const t = toTile((px - view.w / 2) / zoom + camera.x, (py - view.h / 2) / zoom + camera.y)
+    x0 = Math.min(x0, t.x)
+    y0 = Math.min(y0, t.y)
+    x1 = Math.max(x1, t.x)
+    y1 = Math.max(y1, t.y)
+  }
+  return { x0: Math.floor(x0) - rand, y0: Math.floor(y0) - rand, x1: Math.ceil(x1) + rand, y1: Math.ceil(y1) + rand }
+}

@@ -5,10 +5,10 @@
 import { buildingDef, footprint, roadDef, type BuildingDef, RATHAUS } from './catalog'
 import { fade, shade, wobble } from './draw'
 import { BAUARTEN } from './figures'
-import { blickJetzt, feldHoeheJetzt, feldJetzt, OBEN_KACHEL, setBlick, setProjektion, toScreen, toTile } from './iso'
+import { blickJetzt, feldHoeheJetzt, feldJetzt, OBEN_KACHEL, setBlick, setProjektion, sichtfeld, toScreen, toTile } from './iso'
 import { lichtFuer } from './licht'
 import type { Agent } from './life'
-import { AUSBLICK, bodenVon, masse, streifenKacheln, type Boden } from './landschaft'
+import { AUSBLICK, bodenVon, istWasser, masse, streifenKacheln, type Boden } from './landschaft'
 import { krimFarbe, type Camera, type DrawOptions } from './render'
 import { kriminalitaetsfeld } from './society'
 import { tilesOf } from './state'
@@ -46,29 +46,40 @@ const KARTEN_FARBE: Record<Boden, (hell: boolean, wiese: [string, string]) => st
   fluss: (hell) => (hell ? '#49a4e2' : '#2c74b4'),
   see: (hell) => (hell ? '#1c6aab' : '#134e82'),
   berg: (hell) => (hell ? '#d4cdc4' : '#7a7268'),
+  meer: (hell) => (hell ? '#1a6798' : '#0c3f68'),
+  teich: (hell) => (hell ? '#3eb4d4' : '#1c6aab'),
 }
 
-function boden(ctx: CanvasRenderingContext2D, city: CityState, buildMode: boolean, kauf: DrawOptions['kauf']): void {
+function boden(
+  ctx: CanvasRenderingContext2D,
+  city: CityState,
+  buildMode: boolean,
+  kauf: DrawOptions['kauf'],
+  fenster?: { x0: number; y0: number; x1: number; y1: number },
+): void {
   const theme = themeById(city.theme)
   const { w, h } = masse(city)
   const rand = AUSBLICK
   rechteck(ctx, -rand - 4, -rand - 4, w + (rand + 4) * 2, h + (rand + 4) * 2, shade(theme.soil[1], -18))
-  const nass = (x: number, y: number) => {
-    const b = bodenVon(city, x, y)
-    return b === 'fluss' || b === 'see'
-  }
-  for (let y = -rand; y < h + rand; y++) {
-    for (let x = -rand; x < w + rand; x++) {
+  const nass = (x: number, y: number) => istWasser(bodenVon(city, x, y))
+  const yVon = fenster ? Math.max(-rand, fenster.y0) : -rand
+  const yBis = fenster ? Math.min(h + rand, fenster.y1) : h + rand
+  const xVon = fenster ? Math.max(-rand, fenster.x0) : -rand
+  const xBis = fenster ? Math.min(w + rand, fenster.x1) : w + rand
+  const flaeche = Math.max(0, xBis - xVon) * Math.max(0, yBis - yVon)
+  const step = flaeche > 28000 ? 3 : flaeche > 9000 ? 2 : 1
+  for (let y = yVon; y < yBis; y += step) {
+    for (let x = xVon; x < xBis; x += step) {
       const art = bodenVon(city, x, y)
-      const ufer = art !== 'fluss' && art !== 'see' && art !== 'berg' && (nass(x + 1, y) || nass(x - 1, y) || nass(x, y + 1) || nass(x, y - 1))
-      const seicht = (art === 'fluss' || art === 'see') && (nass(x + 1, y) === false || nass(x - 1, y) === false || nass(x, y + 1) === false || nass(x, y - 1) === false)
+      const ufer = !istWasser(art) && art !== 'berg' && (nass(x + 1, y) || nass(x - 1, y) || nass(x, y + 1) || nass(x, y - 1))
+      const seicht = istWasser(art) && (!nass(x + 1, y) || !nass(x - 1, y) || !nass(x, y + 1) || !nass(x, y - 1))
       let farbe = KARTEN_FARBE[art](false, theme.ground)
       if (ufer) farbe = '#e6d3a4'
-      else if (art === 'see' && !seicht) farbe = '#145a8c'
-      else if (art === 'see') farbe = '#3eb4d4'
+      else if (art === 'meer') farbe = seicht ? '#1a6798' : '#0c3f68'
+      else if (art === 'see' || art === 'teich') farbe = seicht ? '#3eb4d4' : '#145a8c'
       else if (art === 'fluss') farbe = '#2f92c4'
       else if (art === 'wiese') farbe = wobble(Math.floor(x / 3), Math.floor(y / 3)) > 0.6 ? shade(theme.ground[0], -8) : theme.ground[0]
-      rechteck(ctx, x, y, 1, 1, farbe)
+      rechteck(ctx, x, y, step, step, farbe)
       if (art === 'berg') {
         rechteck(ctx, x + 0.22, y + 0.22, 0.56, 0.56, '#f4f1ec')
       }
@@ -508,13 +519,25 @@ export function drawKarte(
     ctx.scale(K, K)
     ctx.translate(-feldJetzt() / 2, -feldHoeheJetzt() / 2)
 
-    boden(ctx, city, options.buildMode === true, options.kauf)
+    const fenster = sichtfeld(camera, view, 2)
+    boden(ctx, city, options.buildMode === true, options.kauf, fenster)
     strassen(ctx, city, nacht)
 
     const paint = options.paint
     if (paint && paint.tiles.length > 0) {
       const def = roadDef(paint.type)
-      ctx.fillStyle = fade(paint.adding ? (def?.surface ?? '#ffffff') : '#ff5f7a', 0.6)
+      ctx.fillStyle = fade(
+        paint.abtrag
+          ? '#c49a5c'
+          : paint.wasser
+            ? '#3aa6d8'
+            : paint.zuschuetten
+              ? '#c4a86e'
+              : paint.adding
+                ? (def?.surface ?? '#ffffff')
+                : '#ff5f7a',
+        0.6,
+      )
       for (const key of paint.tiles) {
         const [x, y] = key.split(':').map(Number)
         ctx.fillRect(x, y, 1, 1)
