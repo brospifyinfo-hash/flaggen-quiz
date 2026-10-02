@@ -1,5 +1,6 @@
 // Die Landschaft liegt fest in der Welt. Das gekaufte Gebiet ist nur ein Ausschnitt:
 // Fluss, See und Berg bleiben, wenn man eine Seite dazukauft oder umzieht.
+import { tileNoise } from './iso'
 import type { CityState } from './types'
 
 export type Boden = 'wiese' | 'hang' | 'fluss' | 'see' | 'berg'
@@ -65,8 +66,20 @@ function feuchteBei(saat: number, x: number, y: number): number {
 }
 
 /** Boden einer Weltkachel. Die Lichtung bleibt Wiese, egal was der Zufall sagt. */
-export function bodenAn(saat: number, wx: number, wy: number, lichtung?: readonly string[] | ReadonlySet<string>): Boden {
-  if (lichtung && ('has' in lichtung ? lichtung.has(`${wx}:${wy}`) : lichtung.includes(`${wx}:${wy}`))) return 'wiese'
+function enthalten(menge: readonly string[] | ReadonlySet<string> | undefined, key: string): boolean {
+  if (!menge) return false
+  return 'has' in menge ? menge.has(key) : menge.includes(key)
+}
+
+export function bodenAn(
+  saat: number,
+  wx: number,
+  wy: number,
+  lichtung?: readonly string[] | ReadonlySet<string>,
+  abgetragen?: readonly string[] | ReadonlySet<string>,
+): Boden {
+  const key = `${wx}:${wy}`
+  if (enthalten(lichtung, key)) return 'wiese'
   if (amFluss(saat, wx, wy)) return 'fluss'
   const hoehe = hoeheBei(saat, wx, wy)
   const feuchte = feuchteBei(saat, wx, wy)
@@ -83,7 +96,7 @@ export function bodenAn(saat: number, wx: number, wy: number, lichtung?: readonl
   if (hoehe > 0.66) {
     const ring =
       hoeheBei(saat, wx + 1, wy) + hoeheBei(saat, wx - 1, wy) + hoeheBei(saat, wx, wy + 1) + hoeheBei(saat, wx, wy - 1)
-    if (hoehe > 0.72 && ring > 2.45) return 'berg'
+    if (hoehe > 0.72 && ring > 2.45) return enthalten(abgetragen, key) ? 'wiese' : 'berg'
     return 'hang'
   }
   if (hoehe > 0.58) return 'hang'
@@ -97,17 +110,47 @@ export function bergHoehe(saat: number, wx: number, wy: number): number {
   return 28 + Math.floor(wert(saat + 9, wx, wy, 4) * 42)
 }
 
-let lichtCache: { city: CityState; set: ReadonlySet<string> | null } | null = null
+let bodenCache: { city: CityState; licht?: ReadonlySet<string>; abtrag?: ReadonlySet<string> } | null = null
 
-function lichtungVon(city: CityState): ReadonlySet<string> | undefined {
-  if (lichtCache?.city === city) return lichtCache.set ?? undefined
-  const set = city.lichtung && city.lichtung.length > 0 ? new Set(city.lichtung) : null
-  lichtCache = { city, set }
-  return set ?? undefined
+function mengen(city: CityState): { licht?: ReadonlySet<string>; abtrag?: ReadonlySet<string> } {
+  if (bodenCache?.city === city) return bodenCache
+  bodenCache = {
+    city,
+    licht: city.lichtung && city.lichtung.length > 0 ? new Set(city.lichtung) : undefined,
+    abtrag: city.abgetragen && city.abgetragen.length > 0 ? new Set(city.abgetragen) : undefined,
+  }
+  return bodenCache
 }
 
 export function bodenVon(city: CityState, x: number, y: number): Boden {
-  return bodenAn(city.saat ?? 1, (city.weltX ?? 0) + x, (city.weltY ?? 0) + y, lichtungVon(city))
+  const { licht, abtrag } = mengen(city)
+  return bodenAn(city.saat ?? 1, (city.weltX ?? 0) + x, (city.weltY ?? 0) + y, licht, abtrag)
+}
+
+/** Wie hoch diese Kachel im Bild aufragt, in Bildpunkten. Wiese und Wasser liegen flach. */
+export function kachelHoehe(city: CityState, x: number, y: number): number {
+  const boden = bodenVon(city, x, y)
+  if (boden === 'hang') return 8 + tileNoise(x + 2, y + 9) * 10
+  if (boden === 'berg') return bergHoehe(city.saat ?? 1, (city.weltX ?? 0) + x, (city.weltY ?? 0) + y)
+  return 0
+}
+
+/**
+ * Höhe an einem beliebigen Punkt. Zwischen den Kachelmitten wird weich übergeblendet,
+ * damit eine Straße den Hang hinunterläuft und nicht an der Kante abbricht.
+ */
+export function gelaendeHoehe(city: CityState, x: number, y: number): number {
+  const x0 = Math.floor(x - 0.5)
+  const y0 = Math.floor(y - 0.5)
+  const fx = x - 0.5 - x0
+  const fy = y - 0.5 - y0
+  const sx = fx * fx * (3 - 2 * fx)
+  const sy = fy * fy * (3 - 2 * fy)
+  const h00 = kachelHoehe(city, x0, y0)
+  const h10 = kachelHoehe(city, x0 + 1, y0)
+  const h01 = kachelHoehe(city, x0, y0 + 1)
+  const h11 = kachelHoehe(city, x0 + 1, y0 + 1)
+  return h00 * (1 - sx) * (1 - sy) + h10 * sx * (1 - sy) + h01 * (1 - sx) * sy + h11 * sx * sy
 }
 
 /** Weltkoordinate, an der eine 12×12-Siedlung Wasser und Berg im Blick hat */

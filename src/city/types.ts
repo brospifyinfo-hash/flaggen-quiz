@@ -70,6 +70,8 @@ export interface CityState {
   weltY?: number
   /** Weltkacheln, die Wiese bleiben – die erste Siedlung steht nicht im Fluss */
   lichtung?: string[]
+  /** Abgetragene Bergkacheln, in Weltkoordinaten. Dort liegt danach Wiese. */
+  abgetragen?: string[]
   /** Gebäude, die mit in die neue Stadt gekommen sind und noch keinen Platz haben */
   inventar?: Vorrat[]
   /** Bewohner warten auf Wohnraum, nach einem Umzug zieht niemand weg */

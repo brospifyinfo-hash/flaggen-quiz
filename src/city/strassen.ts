@@ -9,6 +9,7 @@ import { tree } from './buildings'
 import { roadDef } from './catalog'
 import { fade, lift, mix, quadPath, roundedPath, type Point } from './draw'
 import { TILE_H, tileNoise, toScreen } from './iso'
+import { gelaendeHoehe } from './landschaft'
 import { leuchte, lichtJetzt } from './licht'
 import { roadAt } from './state'
 import type { Theme } from './themes'
@@ -20,29 +21,60 @@ const GEHWEG = '#b9b5ab'
 const GEHWEG_FUGE = 'rgba(70,70,80,0.16)'
 const BORD = '#dcd8ce'
 
-const kachelQuad = (x: number, y: number): [Point, Point, Point, Point] => [
-  toScreen(x, y),
-  toScreen(x + 1, y),
-  toScreen(x + 1, y + 1),
-  toScreen(x, y + 1),
-]
+/** Punkt auf dem Gelände: Hänge heben ihn an, damit die Straße mit dem Hang fällt */
+function heb(city: CityState, x: number, y: number): Point {
+  return lift(toScreen(x, y), gelaendeHoehe(city, x, y))
+}
+
+/** Mitte, Kanten und Ecken einer Kachel, alle auf der Geländehöhe */
+export function gelaendeNetz(city: CityState, x: number, y: number) {
+  const p = (px: number, py: number) => heb(city, px, py)
+  return {
+    m: p(x + 0.5, y + 0.5),
+    nw: p(x, y),
+    n: p(x + 0.5, y),
+    no: p(x + 1, y),
+    o: p(x + 1, y + 0.5),
+    so: p(x + 1, y + 1),
+    s: p(x + 0.5, y + 1),
+    sw: p(x, y + 1),
+    w: p(x, y + 0.5),
+  }
+}
+
+/** Acht Dreiecke von der Mitte zu den Kanten, damit die Fläche zum Nachbarn hin abfällt */
+export function netzPfad(ctx: CanvasRenderingContext2D, n: ReturnType<typeof gelaendeNetz>): void {
+  const keile = [
+    [n.m, n.nw, n.n],
+    [n.m, n.n, n.no],
+    [n.m, n.no, n.o],
+    [n.m, n.o, n.so],
+    [n.m, n.so, n.s],
+    [n.m, n.s, n.sw],
+    [n.m, n.sw, n.w],
+    [n.m, n.w, n.nw],
+  ]
+  for (const [a, b, c] of keile) {
+    ctx.moveTo(a.sx, a.sy)
+    ctx.lineTo(b.sx, b.sy)
+    ctx.lineTo(c.sx, c.sy)
+    ctx.closePath()
+  }
+}
 
 /** Ein Rechteck auf dem Boden in Kachelkoordinaten */
-function bodenQuad(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number): void {
-  quadPath(ctx, toScreen(x0, y0), toScreen(x1, y0), toScreen(x1, y1), toScreen(x0, y1))
+function bodenQuad(ctx: CanvasRenderingContext2D, city: CityState, x0: number, y0: number, x1: number, y1: number): void {
+  quadPath(ctx, heb(city, x0, y0), heb(city, x1, y0), heb(city, x1, y1), heb(city, x0, y1))
 }
 
 /**
  * Gehwege: Straßen liegen in einer Kachel voller Pflaster. Die Fahrbahn wird später
  * darübergelegt, der Rest bleibt Gehweg. Fußwege bekommen keinen.
  */
-function gehwege(ctx: CanvasRenderingContext2D, kacheln: Kachel[], fein: boolean): void {
+function gehwege(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel[], fein: boolean): void {
   const licht = lichtJetzt()
   ctx.beginPath()
-  for (const k of kacheln) {
-    const [a, b, c, d] = kachelQuad(k.x, k.y)
-    quadPath(ctx, a, b, c, d)
-  }
+  for (const k of kacheln) netzPfad(ctx, gelaendeNetz(city, k.x, k.y))
   ctx.fillStyle = GEHWEG
   ctx.fill()
   // Platten: leicht unterschiedliche Helligkeit je Kachelviertel
@@ -53,7 +85,7 @@ function gehwege(ctx: CanvasRenderingContext2D, kacheln: Kachel[], fein: boolean
         if (tileNoise(k.x * 4 + i, k.y * 9 + i * 3) < 0.55) continue
         const qx = k.x + (i % 2) * 0.5
         const qy = k.y + Math.floor(i / 2) * 0.5
-        bodenQuad(ctx, qx, qy, qx + 0.5, qy + 0.5)
+        bodenQuad(ctx, city, qx, qy, qx + 0.5, qy + 0.5)
       }
     }
     ctx.fillStyle = 'rgba(255,255,255,0.07)'
@@ -64,12 +96,12 @@ function gehwege(ctx: CanvasRenderingContext2D, kacheln: Kachel[], fein: boolean
     ctx.beginPath()
     for (const k of kacheln) {
       for (const t of [0.25, 0.5, 0.75]) {
-        const a = toScreen(k.x + t, k.y)
-        const b = toScreen(k.x + t, k.y + 1)
+        const a = heb(city, k.x + t, k.y)
+        const b = heb(city, k.x + t, k.y + 1)
         ctx.moveTo(a.sx, a.sy)
         ctx.lineTo(b.sx, b.sy)
-        const c = toScreen(k.x, k.y + t)
-        const d = toScreen(k.x + 1, k.y + t)
+        const c = heb(city, k.x, k.y + t)
+        const d = heb(city, k.x + 1, k.y + t)
         ctx.moveTo(c.sx, c.sy)
         ctx.lineTo(d.sx, d.sy)
       }
@@ -78,10 +110,7 @@ function gehwege(ctx: CanvasRenderingContext2D, kacheln: Kachel[], fein: boolean
   }
   if (licht.helligkeit < 1) {
     ctx.beginPath()
-    for (const k of kacheln) {
-      const [a, b, c, d] = kachelQuad(k.x, k.y)
-      quadPath(ctx, a, b, c, d)
-    }
+    for (const k of kacheln) netzPfad(ctx, gelaendeNetz(city, k.x, k.y))
     ctx.fillStyle = `rgba(20,26,50,${(1 - licht.helligkeit) * 0.5})`
     ctx.fill()
   }
@@ -101,7 +130,7 @@ function fahrbahnDetails(ctx: CanvasRenderingContext2D, city: CityState, kacheln
     const a = arme(city, k.x, k.y)
     const kreuz = a.zahl >= 3 && def.marking
     const w = tileNoise(k.x * 3 + 1, k.y * 7 + 2)
-    const c = toScreen(k.x + 0.5, k.y + 0.5)
+    const c = heb(city, k.x + 0.5, k.y + 0.5)
     for (let i = 0; i < 4; i++) {
       koerner.push({ sx: c.sx + (tileNoise(k.x + i * 5, k.y + i * 11) - 0.5) * 30, sy: c.sy + (tileNoise(k.y + i * 7, k.x + i * 13) - 0.5) * 14 })
     }
@@ -151,13 +180,13 @@ function fahrbahnDetails(ctx: CanvasRenderingContext2D, city: CityState, kacheln
   tupfen(flicken, 6, 3.2, 'rgba(0,0,0,0.14)')
   if (zebra.length) {
     ctx.beginPath()
-    for (const [x0, y0, x1, y1] of zebra) bodenQuad(ctx, x0, y0, x1, y1)
+    for (const [x0, y0, x1, y1] of zebra) bodenQuad(ctx, city, x0, y0, x1, y1)
     ctx.fillStyle = 'rgba(244,247,255,0.82)'
     ctx.fill()
   }
   if (halte.length) {
     ctx.beginPath()
-    for (const [x0, y0, x1, y1] of halte) bodenQuad(ctx, x0, y0, x1, y1)
+    for (const [x0, y0, x1, y1] of halte) bodenQuad(ctx, city, x0, y0, x1, y1)
     ctx.fillStyle = 'rgba(244,247,255,0.8)'
     ctx.fill()
   }
@@ -314,8 +343,8 @@ function ampeln(city: CityState, kacheln: Kachel[], uhr: number, fein: boolean, 
     const platz = (px: number, py: number, farbe: AmpelFarbe) => {
       const x = k.x + px
       const y = k.y + py
-      const p = toScreen(x, y)
-      const mitte = toScreen(k.x + 0.5, k.y + 0.5)
+      const p = heb(city, x, y)
+      const mitte = heb(city, k.x + 0.5, k.y + 0.5)
       const rechts = p.sx >= mitte.sx ? -1 : 1
       ziel.push({ x, y, malen: (ctx) => ampel(ctx, p, farbe, rechts, fein) })
     }
@@ -358,8 +387,8 @@ function laternen(city: CityState, kacheln: Kachel[], fein: boolean, ziel: Moebe
     if ((nx !== k.x || ny !== k.y) && roadAt(city, nx, ny)) continue
     const x = k.x + px
     const y = k.y + py
-    const p = toScreen(x, y)
-    const mitte = toScreen(k.x + 0.5, k.y + 0.5)
+    const p = heb(city, x, y)
+    const mitte = heb(city, k.x + 0.5, k.y + 0.5)
     const rechts = p.sx >= mitte.sx ? -1 : 1
     ziel.push({ x, y, malen: (ctx) => laterne(ctx, p, rechts, fein) })
   }
@@ -380,15 +409,15 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
 
   const enden = (x: number, y: number) => {
     const list: Point[] = []
-    if (roadAt(city, x, y - 1)) list.push(toScreen(x + 0.5, y))
-    if (roadAt(city, x + 1, y)) list.push(toScreen(x + 1, y + 0.5))
-    if (roadAt(city, x, y + 1)) list.push(toScreen(x + 0.5, y + 1))
-    if (roadAt(city, x - 1, y)) list.push(toScreen(x, y + 0.5))
+    if (roadAt(city, x, y - 1)) list.push(heb(city, x + 0.5, y))
+    if (roadAt(city, x + 1, y)) list.push(heb(city, x + 1, y + 0.5))
+    if (roadAt(city, x, y + 1)) list.push(heb(city, x + 0.5, y + 1))
+    if (roadAt(city, x - 1, y)) list.push(heb(city, x, y + 0.5))
     return list
   }
 
   // Gehwege unter allen Straßen (nicht unter Fußwegen)
-  gehwege(ctx, kacheln.filter((k) => k.art !== 'weg'), fein)
+  gehwege(ctx, city, kacheln.filter((k) => k.art !== 'weg'), fein)
 
   ctx.save()
   ctx.lineCap = 'round'
@@ -407,7 +436,7 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
       ctx.beginPath()
       for (const k of kacheln) {
         if (k.art !== art) continue
-        const center = toScreen(k.x + 0.5, k.y + 0.5)
+        const center = heb(city, k.x + 0.5, k.y + 0.5)
         const ziele = enden(k.x, k.y)
         if (ziele.length === 0) {
           ctx.moveTo(center.sx - 7, center.sy)
@@ -440,7 +469,7 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
       const def = roadDef(k.art)
       if (!def) continue
       ctx.lineWidth = def.width * TILE_H * 1.3
-      const center = toScreen(k.x + 0.5, k.y + 0.5)
+      const center = heb(city, k.x + 0.5, k.y + 0.5)
       for (const ziel of enden(k.x, k.y)) {
         ctx.moveTo(center.sx, center.sy)
         ctx.lineTo(ziel.sx, ziel.sy)

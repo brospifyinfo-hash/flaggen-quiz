@@ -21,6 +21,9 @@ import { masse, RAND_NAME, STREIFEN, streifenPreis, type Rand } from '../city/la
 import { cityFrame, drawCity, hitTest, type Camera } from '../city/render'
 import { drawKarte, hitTestOben, karteFrame } from '../city/karte'
 import {
+  ABTRAG_MATERIAL,
+  ABTRAG_MUENZEN,
+  abtragen,
   ausVorrat,
   canPlace,
   cityTitle,
@@ -224,6 +227,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const [notice, setNotice] = useState<string | null>(null)
   const [roadType, setRoadType] = useState('strasse')
   const [erase, setErase] = useState(false)
+  /** Ziehen trägt Berge ab statt eine Straße zu legen */
+  const [abtrag, setAbtrag] = useState(false)
   const [cycle, setCycle] = useState<CycleReport | null>(null)
   const [shownRequest, setShownRequest] = useState<CityRequest | null>(null)
   const [answer, setAnswer] = useState<string | null>(null)
@@ -261,8 +266,8 @@ function CityWorld({ data }: { data: SaveData }) {
   const framed = useRef(false)
   const stroke = useRef<string[]>([])
   const life = useRef<Life | null>(null)
-  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht, umrissAn, seite, vorrat })
-  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, levels, krimKarte, ansicht, umrissAn, seite, vorrat }
+  const live = useRef({ city, mode, ghost, pick, selected, movingId, roadType, erase, abtrag, levels, krimKarte, ansicht, umrissAn, seite, vorrat })
+  live.current = { city, mode, ghost, pick, selected, movingId, roadType, erase, abtrag, levels, krimKarte, ansicht, umrissAn, seite, vorrat }
 
   useEffect(() => {
     setUmrissAn(false)
@@ -530,7 +535,7 @@ function CityWorld({ data }: { data: SaveData }) {
       const malen = state.ansicht === 'oben' ? drawKarte : drawCity
       malen(ctx, state.city, camera.current, size.current, {
         ghost: shown,
-        paint: state.mode === 'road' ? { tiles: stroke.current, type: state.roadType, adding: !state.erase } : null,
+        paint: state.mode === 'road' ? { tiles: stroke.current, type: state.roadType, adding: !state.erase, abtrag: state.abtrag } : null,
         selected: state.selected,
         buildMode: state.mode !== 'view' && state.mode !== 'select',
         blick: winkel.current,
@@ -609,6 +614,20 @@ function CityWorld({ data }: { data: SaveData }) {
       if (tiles.length === 0) return
       const state = live.current
 
+      if (state.abtrag) {
+        const vorher = state.city.abgetragen?.length ?? 0
+        const neu = abtragen(state.city, tiles)
+        if (neu === state.city) {
+          say('Da steht kein Berg, oder dir fehlt das Geld dafür.')
+          haptic('error')
+          return
+        }
+        setState((current) => (current.city ? { ...current, city: neu } : current))
+        const zahl = (neu.abgetragen?.length ?? 0) - vorher
+        melde(zahl === 1 ? 'Ein Stück Berg ist abgetragen.' : `${zahl} Bergkacheln sind abgetragen.`)
+        haptic('success')
+        return
+      }
       if (state.erase) {
         setState((current) => (current.city ? { ...current, city: unpave(current.city, tiles) } : current))
         haptic('soft')
@@ -1343,9 +1362,11 @@ function CityWorld({ data }: { data: SaveData }) {
         {mode === 'road' && (
           <div className="city-place">
             <p className="city-place-text">
-              {erase
-                ? '🧹 Zieh über Straßen, um sie aufzunehmen.'
-                : `${roadDef(roadType)?.emoji ?? ''} ${roadDef(roadType)?.name ?? ''} · 🪙 ${roadDef(roadType)?.coins ?? 0} je Kachel – zieh über die Karte.`}
+              {abtrag
+                ? `⛰️ Zieh über Berge, um sie abzutragen. 🪙 ${ABTRAG_MUENZEN} · 🧱 ${ABTRAG_MATERIAL} je Kachel.`
+                : erase
+                  ? '🧹 Zieh über Straßen, um sie aufzunehmen.'
+                  : `${roadDef(roadType)?.emoji ?? ''} ${roadDef(roadType)?.name ?? ''} · 🪙 ${roadDef(roadType)?.coins ?? 0} je Kachel – zieh über die Karte.`}
             </p>
             <div className="city-place-row">
               <button className="city-btn" onClick={() => setMode('roadPick')}>
@@ -1376,10 +1397,11 @@ function CityWorld({ data }: { data: SaveData }) {
               {ROADS.map((def) => (
                 <li key={def.id}>
                   <button
-                    className={`city-card${def.id === roadType && !erase ? ' is-on' : ''}`}
+                    className={`city-card${def.id === roadType && !erase && !abtrag ? ' is-on' : ''}`}
                     onClick={() => {
                       setRoadType(def.id)
                       setErase(false)
+                      setAbtrag(false)
                       setMode('road')
                       haptic('tick')
                     }}
@@ -1401,6 +1423,7 @@ function CityWorld({ data }: { data: SaveData }) {
                   className={`city-card${erase ? ' is-on' : ''}`}
                   onClick={() => {
                     setErase(true)
+                    setAbtrag(false)
                     setMode('road')
                     haptic('tick')
                   }}
@@ -1409,6 +1432,27 @@ function CityWorld({ data }: { data: SaveData }) {
                   <span className="city-card-body">
                     <strong>Aufnehmen</strong>
                     <span>Straße entfernen, die Hälfte kommt zurück</span>
+                  </span>
+                  </button>
+                </li>
+              <li>
+                <button
+                  className={`city-card${abtrag ? ' is-on' : ''}`}
+                  onClick={() => {
+                    setAbtrag(true)
+                    setErase(false)
+                    setMode('road')
+                    haptic('tick')
+                  }}
+                >
+                  <span className="city-card-emoji">⛰️</span>
+                  <span className="city-card-body">
+                    <strong>Berg abtragen</strong>
+                    <span>Der Gipfel wird Wiese. Danach kann man dort bauen.</span>
+                  </span>
+                  <span className="city-card-cost">
+                    🪙 {ABTRAG_MUENZEN}
+                    <small>🧱 {ABTRAG_MATERIAL} je Kachel</small>
                   </span>
                 </button>
               </li>

@@ -9,10 +9,10 @@ import { umlauf, type Grund } from './geo'
 import { blickJetzt, nachRechts, setBlick, setLichtSeite, setProjektion, TILE_H, TILE_W, tiefe, tiefenRichtung, tileNoise, toScreen, zeigtNachVorn, type Blick } from './iso'
 import { leuchtSchichtBeginnen, leuchtenLeeren, leuchtenMalen, lichtFuer, setLicht, verdecken, type Licht } from './licht'
 import { brennt, type Life } from './life'
-import { AUSBLICK, bodenVon, bergHoehe, masse, streifenKacheln, type Boden, type Rand } from './landschaft'
+import { AUSBLICK, bodenVon, bergHoehe, gelaendeHoehe, masse, streifenKacheln, type Boden, type Rand } from './landschaft'
 import { kriminalitaetsfeld } from './society'
 import { seiteZurStrasse, tilesOf } from './state'
-import { drawRoads, strassenMoebel } from './strassen'
+import { drawRoads, gelaendeNetz, netzPfad, strassenMoebel } from './strassen'
 import { themeById, type Theme } from './themes'
 import type { CityState, Placed } from './types'
 import { seedAus, zeichen, zeichenFuerEmoji, type Zeichen } from './zeichen'
@@ -38,6 +38,8 @@ export interface Paint {
   type: string
   /** true beim Pflastern, false beim Aufnehmen */
   adding: boolean
+  /** Bergkacheln markieren, die abgetragen werden */
+  abtrag?: boolean
 }
 
 export interface DrawOptions {
@@ -608,12 +610,29 @@ function relief(
   quad(ctx, dach[0], dach[1], dach[2], dach[3], letzte.flaeche)
 }
 
-function hangMalen(ctx: CanvasRenderingContext2D, x: number, y: number, theme: Theme): void {
-  const hoehe = 8 + tileNoise(x + 2, y + 9) * 10
+function hangMalen(ctx: CanvasRenderingContext2D, city: CityState, x: number, y: number, theme: Theme): void {
   const boden = kachelPfad(x, y)
-  const dach = boden.map((p) => lift(p, hoehe))
-  saum(ctx, boden, dach, shade(theme.ground[1], -10), shade(theme.soil[1], -8))
-  quad(ctx, dach[0], dach[1], dach[2], dach[3], tileNoise(x, y) > 0.55 ? theme.ground[0] : shade(theme.ground[0], -12))
+  const n = gelaendeNetz(city, x, y)
+  const kanten: { nx: number; ny: number; a: Point; b: Point; oben: Point[] }[] = [
+    { nx: 0, ny: -1, a: boden[0], b: boden[1], oben: [n.no, n.n, n.nw] },
+    { nx: 1, ny: 0, a: boden[1], b: boden[2], oben: [n.so, n.o, n.no] },
+    { nx: 0, ny: 1, a: boden[2], b: boden[3], oben: [n.sw, n.s, n.so] },
+    { nx: -1, ny: 0, a: boden[3], b: boden[0], oben: [n.nw, n.w, n.sw] },
+  ]
+  for (const k of kanten) {
+    if (!zeigtNachVorn(k.nx, k.ny)) continue
+    ctx.beginPath()
+    ctx.moveTo(k.a.sx, k.a.sy)
+    ctx.lineTo(k.b.sx, k.b.sy)
+    for (const p of k.oben) ctx.lineTo(p.sx, p.sy)
+    ctx.closePath()
+    ctx.fillStyle = nachRechts(k.nx, k.ny) >= 0 ? shade(theme.ground[1], -10) : shade(theme.soil[1], -8)
+    ctx.fill()
+  }
+  ctx.beginPath()
+  netzPfad(ctx, n)
+  ctx.fillStyle = tileNoise(x, y) > 0.55 ? theme.ground[0] : shade(theme.ground[0], -12)
+  ctx.fill()
 }
 
 function bergMalen(ctx: CanvasRenderingContext2D, x: number, y: number, hoehe: number, gipfel: boolean): void {
@@ -749,7 +768,7 @@ function drawGround(
   ctx.stroke()
 
   haenge.sort((a, b) => tiefe(a.x, a.y) - tiefe(b.x, b.y))
-  for (const hang of haenge) hangMalen(ctx, hang.x, hang.y, theme)
+  for (const hang of haenge) hangMalen(ctx, city, hang.x, hang.y, theme)
   const bergKarte = new Map(berge.map((berg) => [`${berg.x}:${berg.y}`, berg.hoehe]))
   berge.sort((a, b) => tiefe(a.x, a.y) - tiefe(b.x, b.y))
   for (const berg of berge) {
@@ -940,7 +959,17 @@ function landschaftSchmuck(
         liste.push({
           x: x + 0.5,
           y: y + 0.5,
-          malen: () => tanne(ctx, x, y, tileNoise(x + 4, y + 1)),
+          malen: () => {
+            const hub = gelaendeHoehe(city, x + 0.5, y + 0.5)
+            if (hub < 0.4) {
+              tanne(ctx, x, y, tileNoise(x + 4, y + 1))
+              return
+            }
+            ctx.save()
+            ctx.translate(0, -hub)
+            tanne(ctx, x, y, tileNoise(x + 4, y + 1))
+            ctx.restore()
+          },
         })
       }
     }
@@ -1149,21 +1178,13 @@ function stadtMalen(
     const def = roadDef(paint.type)
     ctx.save()
     ctx.globalAlpha = 0.6
-    ctx.fillStyle = paint.adding ? (def?.surface ?? '#ffffff') : '#ff5f7a'
+    ctx.fillStyle = paint.abtrag ? 'rgba(196, 154, 92, 0.85)' : paint.adding ? (def?.surface ?? '#ffffff') : '#ff5f7a'
+    ctx.beginPath()
     for (const key of paint.tiles) {
       const [x, y] = key.split(':').map(Number)
-      const a = toScreen(x, y)
-      const b = toScreen(x + 1, y)
-      const c = toScreen(x + 1, y + 1)
-      const d = toScreen(x, y + 1)
-      ctx.beginPath()
-      ctx.moveTo(a.sx, a.sy)
-      ctx.lineTo(b.sx, b.sy)
-      ctx.lineTo(c.sx, c.sy)
-      ctx.lineTo(d.sx, d.sy)
-      ctx.closePath()
-      ctx.fill()
+      netzPfad(ctx, gelaendeNetz(city, x, y))
     }
+    ctx.fill()
     ctx.restore()
   }
 
@@ -1193,7 +1214,17 @@ function stadtMalen(
         y: agent.y,
         breite: agent.art === 'auto' || agent.art === 'dienst' ? 0.34 : 0.14,
         tiefe: agent.x * g.x + agent.y * g.y,
-        malen: () => drawAgent(ctx, agent, zeit, fein),
+        malen: () => {
+          const hub = gelaendeHoehe(city, agent.x, agent.y)
+          if (hub < 0.4) {
+            drawAgent(ctx, agent, zeit, fein)
+            return
+          }
+          ctx.save()
+          ctx.translate(0, -hub)
+          drawAgent(ctx, agent, zeit, fein)
+          ctx.restore()
+        },
       })
     }
   }

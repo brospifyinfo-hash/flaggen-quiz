@@ -20,6 +20,16 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-10-02-a',
+    datum: '2. Oktober 2026',
+    titel: 'Berge abtragen, Straßen am Hang',
+    text: 'Gipfel lassen sich abtragen. Eine Straße über einen Hügel folgt dem Gefälle und läuft zur Wiese hinunter.',
+    punkte: [
+      'Unter Straßen ziehen gibt es Berg abtragen. Eine Kachel kostet 40 Münzen und 1 Material und wird zu Wiese.',
+      'Straßen, Gehwege und Laternen liegen auf der Höhe des Hangs und fallen zur tieferen Nachbarkachel ab.',
+    ],
+  },
+  {
     id: '2026-10-01-c',
     datum: '1. Oktober 2026',
     titel: 'Die Landschaft hat ein Gesicht',

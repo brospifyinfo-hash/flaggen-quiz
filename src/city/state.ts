@@ -373,6 +373,32 @@ export function pave(city: CityState, tiles: { x: number; y: number }[], type: s
   return withLevel({ ...city, roads, coins, materials })
 }
 
+/** Was das Abtragen einer Bergkachel kostet */
+export const ABTRAG_MUENZEN = 40
+export const ABTRAG_MATERIAL = 1
+
+/** Berge abtragen. Die Kachel wird Wiese und kann bebaut werden. */
+export function abtragen(city: CityState, tiles: { x: number; y: number }[]): CityState {
+  const liste = new Set(city.abgetragen ?? [])
+  let coins = city.coins
+  let materials = city.materials
+  let changed = false
+  const wx = city.weltX ?? 0
+  const wy = city.weltY ?? 0
+  for (const tile of tiles) {
+    if (bodenVon(city, tile.x, tile.y) !== 'berg') continue
+    const key = `${wx + tile.x}:${wy + tile.y}`
+    if (liste.has(key)) continue
+    if (coins < ABTRAG_MUENZEN || materials < ABTRAG_MATERIAL) break
+    liste.add(key)
+    coins -= ABTRAG_MUENZEN
+    materials -= ABTRAG_MATERIAL
+    changed = true
+  }
+  if (!changed) return city
+  return { ...city, abgetragen: [...liste], coins, materials }
+}
+
 /** Straße wieder aufnehmen – die Hälfte kommt zurück */
 export function unpave(city: CityState, tiles: { x: number; y: number }[]): CityState {
   const roads = { ...city.roads }
@@ -1463,6 +1489,9 @@ export function sanitizeCity(input: unknown): CityState | null {
     city.lichtung = keys
   }
   city.inventar = liesVorrat(raw.inventar)
+  if (Array.isArray(raw.abgetragen)) {
+    city.abgetragen = (raw.abgetragen as unknown[]).filter((eintrag) => typeof eintrag === 'string').slice(0, 4000) as string[]
+  }
   if (raw.umzugSchutz === true) city.umzugSchutz = true
 
   // Version 2 und älter kannten keine Einwohnerzahl: Dort wohnte jeder, der Platz fand.
