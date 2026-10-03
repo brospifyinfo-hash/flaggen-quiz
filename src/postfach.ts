@@ -20,6 +20,16 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-10-03-a',
+    datum: '3. Oktober 2026',
+    titel: 'Brücken mit Pfeilern, Autobahn mit Mittelstreifen',
+    text: 'Eine Brücke liegt jetzt über dem Wasser, mit Pfeilern und Geländer. Die Autobahn hat einen grünen Rand und zwei Fahrbahnen.',
+    punkte: [
+      'Unter der Brücke bleibt der Fluss sichtbar. Pfeiler stehen im Wasser, ein Geländer läuft am Deck.',
+      'Autobahn und Autobahnbrücke sind breiter, mit Standstreifen und zwei Spuren.',
+    ],
+  },
+  {
     id: '2026-10-02-b',
     datum: '2. Oktober 2026',
     titel: 'Wasser, Brücken und Autobahnen',

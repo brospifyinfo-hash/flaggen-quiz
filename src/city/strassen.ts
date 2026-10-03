@@ -21,8 +21,8 @@ const GEHWEG = '#b9b5ab'
 const GEHWEG_FUGE = 'rgba(70,70,80,0.16)'
 const BORD = '#dcd8ce'
 
-/** Wie hoch eine Brücke über dem Wasser liegt */
-const BRUECKE = 18
+/** Wie hoch eine Brücke über dem Wasser liegt, in Bildpunkten */
+export const BRUECKEN_HUB = 32
 
 /** Anteil 0 bis 1, wie sehr dieser Punkt auf einer Brücke liegt. An der Kante wird es eine Rampe. */
 function brueckenAnteil(city: CityState, x: number, y: number): number {
@@ -42,7 +42,7 @@ function brueckenAnteil(city: CityState, x: number, y: number): number {
 
 /** Höhe der Fahrbahn: Hang plus Brückendeck */
 export function fahrbahnHoehe(city: CityState, x: number, y: number): number {
-  return gelaendeHoehe(city, x, y) + brueckenAnteil(city, x, y) * BRUECKE
+  return gelaendeHoehe(city, x, y) + brueckenAnteil(city, x, y) * BRUECKEN_HUB
 }
 
 /** Punkt auf dem Gelände: Hänge heben ihn an, Brücken liegen über dem Wasser */
@@ -97,7 +97,6 @@ function bodenQuad(ctx: CanvasRenderingContext2D, city: CityState, x0: number, y
  */
 function gehwege(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel[], fein: boolean): void {
   const licht = lichtJetzt()
-  const deck = kacheln.filter((k) => roadDef(k.art)?.bruecke)
   const pflaster = kacheln.filter((k) => !roadDef(k.art)?.bruecke)
   const fuellen = (liste: Kachel[], farbe: string) => {
     if (liste.length === 0) return
@@ -107,24 +106,10 @@ function gehwege(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel
     ctx.fill()
   }
   fuellen(pflaster, GEHWEG)
-  fuellen(deck, '#c9c3b8')
-  if (deck.length > 0) {
-    ctx.strokeStyle = '#8a837c'
-    ctx.lineWidth = 3.2
-    ctx.lineCap = 'round'
-    ctx.beginPath()
-    for (const k of deck) {
-      const fuss = toScreen(k.x + 0.5, k.y + 0.5)
-      const kopf = heb(city, k.x + 0.5, k.y + 0.5)
-      ctx.moveTo(fuss.sx, fuss.sy)
-      ctx.lineTo(kopf.sx, kopf.sy)
-    }
-    ctx.stroke()
-  }
   // Platten: leicht unterschiedliche Helligkeit je Kachelviertel
   if (fein) {
     ctx.beginPath()
-    for (const k of kacheln) {
+    for (const k of pflaster) {
       for (let i = 0; i < 4; i++) {
         if (tileNoise(k.x * 4 + i, k.y * 9 + i * 3) < 0.55) continue
         const qx = k.x + (i % 2) * 0.5
@@ -138,7 +123,7 @@ function gehwege(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel
     ctx.strokeStyle = GEHWEG_FUGE
     ctx.lineWidth = 0.7
     ctx.beginPath()
-    for (const k of kacheln) {
+    for (const k of pflaster) {
       for (const t of [0.25, 0.5, 0.75]) {
         const a = heb(city, k.x + t, k.y)
         const b = heb(city, k.x + t, k.y + 1)
@@ -154,7 +139,7 @@ function gehwege(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel
   }
   if (licht.helligkeit < 1) {
     ctx.beginPath()
-    for (const k of kacheln) netzPfad(ctx, gelaendeNetz(city, k.x, k.y))
+    for (const k of pflaster) netzPfad(ctx, gelaendeNetz(city, k.x, k.y))
     ctx.fillStyle = `rgba(20,26,50,${(1 - licht.helligkeit) * 0.5})`
     ctx.fill()
   }
@@ -443,6 +428,108 @@ function laternen(city: CityState, kacheln: Kachel[], fein: boolean, ziel: Moebe
 // Alles zusammen
 // ---------------------------------------------------------------------------
 
+/** Zwei Pfeiler je Brückenkachel, das Wasser bleibt daneben sichtbar */
+function pfeiler(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel[]): void {
+  const bruecken = kacheln.filter((k) => roadDef(k.art)?.bruecke)
+  if (bruecken.length === 0) return
+  const stellen: { fuss: Point; kopf: Point }[] = []
+  for (const k of bruecken) {
+    const n = !!roadAt(city, k.x, k.y - 1)
+    const s = !!roadAt(city, k.x, k.y + 1)
+    const o = !!roadAt(city, k.x + 1, k.y)
+    const w = !!roadAt(city, k.x - 1, k.y)
+    const laengs = (o || w) && !(n || s)
+    const ox = laengs ? 0 : 0.2
+    const oy = laengs ? 0.2 : 0
+    for (const seite of [-1, 1]) {
+      const px = k.x + 0.5 + ox * seite
+      const py = k.y + 0.5 + oy * seite
+      stellen.push({ fuss: toScreen(px, py), kopf: heb(city, px, py) })
+    }
+  }
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = '#6a635c'
+  ctx.lineWidth = 5.2
+  ctx.beginPath()
+  for (const p of stellen) {
+    ctx.moveTo(p.fuss.sx, p.fuss.sy)
+    ctx.lineTo(p.kopf.sx, p.kopf.sy)
+  }
+  ctx.stroke()
+  ctx.fillStyle = '#554e48'
+  for (const p of stellen) {
+    ctx.beginPath()
+    ctx.ellipse(p.fuss.sx, p.fuss.sy + 1, 3.4, 1.5, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+/** Geländer links und rechts am Brückendeck, außerhalb des Fahrbahnrandes */
+function gelaender(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel[], enden: (x: number, y: number) => Point[]): void {
+  const streben: { a: Point; b: Point }[] = []
+  const pfosten: Point[] = []
+  for (const k of kacheln) {
+    const def = roadDef(k.art)
+    if (!def?.bruecke) continue
+    const center = heb(city, k.x + 0.5, k.y + 0.5)
+    const ziele = enden(k.x, k.y)
+    const strecken = ziele.length > 0 ? ziele : [{ sx: center.sx + 8, sy: center.sy }]
+    // Knapp außerhalb des hellen Fahrbahnrandes, damit das Geländer am Deck bleibt
+    const abstand = def.width * TILE_H * 0.59 + 3.2
+    for (const ziel of strecken) {
+      const dx = ziel.sx - center.sx
+      const dy = ziel.sy - center.sy
+      const laenge = Math.hypot(dx, dy) || 1
+      const ox = (-dy / laenge) * abstand
+      const oy = (dx / laenge) * abstand
+      streben.push(
+        { a: { sx: center.sx + ox, sy: center.sy + oy }, b: { sx: ziel.sx + ox, sy: ziel.sy + oy } },
+        { a: { sx: center.sx - ox, sy: center.sy - oy }, b: { sx: ziel.sx - ox, sy: ziel.sy - oy } },
+      )
+    }
+    if (ziele.length === 1) {
+      const nachbar = ziele[0]
+      const dx = center.sx - nachbar.sx
+      const dy = center.sy - nachbar.sy
+      const laenge = Math.hypot(dx, dy) || 1
+      const ende = { sx: center.sx + (dx / laenge) * laenge, sy: center.sy + (dy / laenge) * laenge }
+      const ox = (-dy / laenge) * abstand
+      const oy = (dx / laenge) * abstand
+      pfosten.push({ sx: ende.sx + ox, sy: ende.sy + oy }, { sx: ende.sx - ox, sy: ende.sy - oy })
+    }
+  }
+  if (streben.length === 0) return
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = '#3c3834'
+  ctx.lineWidth = 3.4
+  ctx.beginPath()
+  for (const s of streben) {
+    ctx.moveTo(s.a.sx, s.a.sy + 1.2)
+    ctx.lineTo(s.b.sx, s.b.sy + 1.2)
+  }
+  ctx.stroke()
+  ctx.strokeStyle = '#fffdf8'
+  ctx.lineWidth = 1.6
+  ctx.beginPath()
+  for (const s of streben) {
+    ctx.moveTo(s.a.sx, s.a.sy - 0.6)
+    ctx.lineTo(s.b.sx, s.b.sy - 0.6)
+  }
+  ctx.stroke()
+  ctx.strokeStyle = '#6a635c'
+  ctx.lineWidth = 2.2
+  ctx.beginPath()
+  for (const p of pfosten) {
+    ctx.moveTo(p.sx, p.sy + 5)
+    ctx.lineTo(p.sx, p.sy - 3)
+  }
+  ctx.stroke()
+  ctx.restore()
+}
+
 /** Straßen und Gehwege – ohne Masten, die kommen mit `strassenMoebel` nach dem Boden */
 export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme: Theme, fein: boolean): void {
   const kacheln: Kachel[] = Object.entries(city.roads).map(([key, art]) => {
@@ -461,8 +548,10 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
     return list
   }
 
-  // Gehwege unter allen Straßen (nicht unter Fußwegen)
-  gehwege(ctx, city, kacheln.filter((k) => k.art !== 'weg'), fein)
+  // Pfeiler zuerst, das Deck wird darüber gemalt. Gehwege gibt es auf Brücken nicht,
+  // sonst läge eine Platte auf dem Wasser.
+  pfeiler(ctx, city, kacheln)
+  gehwege(ctx, city, kacheln.filter((k) => k.art !== 'weg' && !roadDef(k.art)?.bruecke), fein)
 
   ctx.save()
   ctx.lineCap = 'round'
@@ -476,7 +565,11 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
       if (pass === 2 && !def.marking) continue
       const bord = def.bruecke ? def.edge : (def.spuren ?? 1) >= 2 ? def.edge : art === 'weg' ? def.edge : BORD
       ctx.strokeStyle = pass === 0 ? bord : pass === 1 ? def.surface : (def.marking as string)
-      ctx.lineWidth = def.width * TILE_H * (pass === 0 ? 1.3 : pass === 1 ? 1 : 0.12)
+      // Brücken bleiben schmaler als die Kachel, sonst liegt das Deck wieder als Platte auf dem Wasser.
+      // Auf dem Land darf die Autobahn über die Kachel hinaus in den Standstreifen wachsen.
+      const breit =
+        pass === 0 ? (def.bruecke ? 1.18 : (def.spuren ?? 1) >= 2 ? 1.48 : 1.3) : pass === 1 ? 1 : 0.1
+      ctx.lineWidth = def.width * TILE_H * breit
       ctx.setLineDash(pass === 2 ? [6, 8] : [])
       ctx.beginPath()
       for (const k of kacheln) {
@@ -497,8 +590,9 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
             const dx = kurz.sx - center.sx
             const dy = kurz.sy - center.sy
             const laenge = Math.hypot(dx, dy) || 1
-            const ox = (-dy / laenge) * 3.4
-            const oy = (dx / laenge) * 1.7
+            const abstand = def.width * TILE_H * 0.2
+            const ox = (-dy / laenge) * abstand
+            const oy = (dx / laenge) * abstand * 0.5
             ctx.moveTo(center.sx + ox, center.sy + oy)
             ctx.lineTo(kurz.sx + ox, kurz.sy + oy)
             ctx.moveTo(center.sx - ox, center.sy - oy)
@@ -514,8 +608,9 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
   }
   ctx.setLineDash([])
   ctx.restore()
+  gelaender(ctx, city, kacheln, enden)
 
-  if (fein) fahrbahnDetails(ctx, city, kacheln)
+  if (fein) fahrbahnDetails(ctx, city, kacheln.filter((k) => !roadDef(k.art)?.bruecke))
 
   // Nachts liegt die Fahrbahn im Dunkeln – die Gehwege sind schon getönt
   if (licht.helligkeit < 1) {

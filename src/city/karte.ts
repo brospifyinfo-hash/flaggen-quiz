@@ -181,7 +181,7 @@ function strassen(ctx: CanvasRenderingContext2D, city: CityState, nacht: number)
       ctx.stroke()
       ctx.setLineDash([])
       // Zebrastreifen an Kreuzungen
-      if (nachbarn.length >= 3) {
+      if (nachbarn.length >= 3 && (def.spuren ?? 1) >= 2) {
         ctx.fillStyle = 'rgba(240,240,235,0.85)'
         for (const [dx, dy] of nachbarn) {
           for (let i = -2; i <= 2; i++) {

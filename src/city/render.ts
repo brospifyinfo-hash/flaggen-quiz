@@ -12,7 +12,7 @@ import { brennt, type Life } from './life'
 import { AUSBLICK, bodenVon, bergHoehe, gelaendeHoehe, istWasser, masse, streifenKacheln, type Boden, type Rand } from './landschaft'
 import { kriminalitaetsfeld } from './society'
 import { seiteZurStrasse, tilesOf } from './state'
-import { drawRoads, fahrbahnHoehe, gelaendeNetz, netzPfad, strassenMoebel } from './strassen'
+import { BRUECKEN_HUB, drawRoads, fahrbahnHoehe, gelaendeNetz, netzPfad, strassenMoebel } from './strassen'
 import { themeById, type Theme } from './themes'
 import type { CityState, Placed } from './types'
 import { seedAus, zeichen, zeichenFuerEmoji, type Zeichen } from './zeichen'
@@ -1223,7 +1223,7 @@ function stadtMalen(
           : paint.adding
             ? (def?.surface ?? '#ffffff')
             : '#ff5f7a'
-    if (def?.bruecke && paint.adding && !paint.wasser && !paint.zuschuetten && !paint.abtrag) ctx.translate(0, -18)
+    if (def?.bruecke && paint.adding && !paint.wasser && !paint.zuschuetten && !paint.abtrag) ctx.translate(0, -BRUECKEN_HUB)
     ctx.beginPath()
     for (const key of paint.tiles) {
       const [x, y] = key.split(':').map(Number)
