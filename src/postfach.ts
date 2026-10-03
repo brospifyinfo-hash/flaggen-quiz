@@ -20,6 +20,16 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-10-03-c',
+    datum: '3. Oktober 2026',
+    titel: 'Die Brücke kommt ohne Sprung an',
+    text: 'Autobahnbrücken laufen als Rampe auf die Straße. Das Deck bleibt eben, das Wasser darunter frei.',
+    punkte: [
+      'Am Ufer senkt sich das Deck auf die Fahrbahn, ohne abzuknicken.',
+      'Pfeiler stehen nur unter dem freien Feld, nicht in der Rampe.',
+    ],
+  },
+  {
     id: '2026-10-03-b',
     datum: '3. Oktober 2026',
     titel: 'Brücken, vier Spuren, weiter rauszoomen',

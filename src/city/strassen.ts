@@ -57,23 +57,44 @@ export function spurVersatz(def: { id: string; spuren?: number; bruecke?: boolea
   const halb = fahrbahnBreite(def) / 2
   const asphalt = halb * (def ? asphaltAnteil(def) : 0.88)
   if ((def?.spuren ?? 1) < 2) return Math.min(0.15, asphalt * 0.42)
-  return (streifen ? 0.78 : 0.28) * asphalt
+  return (streifen ? 0.84 : 0.24) * asphalt
 }
 
-/** Anteil 0 bis 1, wie sehr dieser Punkt auf einer Brücke liegt. An der Kante wird es eine Rampe. */
+/** In welcher Richtung die Brücke läuft. Seitlich darf das Deck nicht abfallen. */
+function spanAchse(city: CityState, x: number, y: number): 'x' | 'y' {
+  const o = !!roadAt(city, x + 1, y)
+  const w = !!roadAt(city, x - 1, y)
+  const n = !!roadAt(city, x, y - 1)
+  const s = !!roadAt(city, x, y + 1)
+  if ((o || w) && !(n || s)) return 'x'
+  if ((n || s) && !(o || w)) return 'y'
+  return o || w ? 'x' : 'y'
+}
+
+/** Wie lang die Rampe am Brückenende ist, in Kacheln */
+const RAMPE = 0.72
+
+/**
+ * Anteil 0 bis 1, wie hoch das Deck hier liegt. In der Mitte voll, am Übergang zur
+ * Straße auf 0, damit die Fahrbahn ohne Sprung ankommt. Quer zur Brücke bleibt die Höhe.
+ */
 function brueckenAnteil(city: CityState, x: number, y: number): number {
-  const probe: [number, number][] = [
-    [x - 0.02, y - 0.02],
-    [x + 0.02, y - 0.02],
-    [x - 0.02, y + 0.02],
-    [x + 0.02, y + 0.02],
-  ]
-  let summe = 0
-  for (const [px, py] of probe) {
-    const art = roadAt(city, Math.floor(px), Math.floor(py))
-    if (art && roadDef(art)?.bruecke) summe += 1
+  const tx = Math.floor(x)
+  const ty = Math.floor(y)
+  const art = roadAt(city, tx, ty)
+  if (!art || !roadDef(art)?.bruecke) return 0
+  const fx = x - tx
+  const fy = y - ty
+  const achse = spanAchse(city, tx, ty)
+  const dirs: [number, number][] = achse === 'x' ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]]
+  let anteil = 1
+  for (const [nx, ny] of dirs) {
+    const nachbar = roadAt(city, tx + nx, ty + ny)
+    if (nachbar && roadDef(nachbar)?.bruecke) continue
+    const zumRand = nx === 1 ? 1 - fx : nx === -1 ? fx : ny === 1 ? 1 - fy : fy
+    anteil = Math.min(anteil, Math.min(1, zumRand / RAMPE))
   }
-  return summe / 4
+  return anteil
 }
 
 /** Höhe der Fahrbahn: Hang plus Brückendeck */
@@ -466,6 +487,11 @@ function laternen(city: CityState, kacheln: Kachel[], fein: boolean, ziel: Moebe
 
 type Stueck = { x0: number; y0: number; x1: number; y1: number; art: string; gerade: boolean }
 
+/** Punkt neben der Mittellinie, aber auf der Höhe der Mittellinie. Das Deck kippt nicht zur Seite. */
+function stelle(city: CityState, x: number, y: number, hx: number, hy: number): Point {
+  return lift(toScreen(x, y), fahrbahnHoehe(city, hx, hy))
+}
+
 function band(city: CityState, x0: number, y0: number, x1: number, y1: number, halb: number): [Point, Point, Point, Point] {
   const dx = x1 - x0
   const dy = y1 - y0
@@ -473,18 +499,19 @@ function band(city: CityState, x0: number, y0: number, x1: number, y1: number, h
   const nx = (-dy / l) * halb
   const ny = (dx / l) * halb
   return [
-    heb(city, x0 + nx, y0 + ny),
-    heb(city, x1 + nx, y1 + ny),
-    heb(city, x1 - nx, y1 - ny),
-    heb(city, x0 - nx, y0 - ny),
+    stelle(city, x0 + nx, y0 + ny, x0, y0),
+    stelle(city, x1 + nx, y1 + ny, x1, y1),
+    stelle(city, x1 - nx, y1 - ny, x1, y1),
+    stelle(city, x0 - nx, y0 - ny, x0, y0),
   ]
 }
 
 function scheibe(city: CityState, x: number, y: number, halb: number): Point[] {
+  const h = fahrbahnHoehe(city, x, y)
   const punkte: Point[] = []
   for (let i = 0; i < 12; i++) {
     const w = (i / 12) * Math.PI * 2
-    punkte.push(heb(city, x + Math.cos(w) * halb, y + Math.sin(w) * halb))
+    punkte.push(lift(toScreen(x + Math.cos(w) * halb, y + Math.sin(w) * halb), h))
   }
   return punkte
 }
@@ -511,14 +538,15 @@ function pfeiler(ctx: CanvasRenderingContext2D, city: CityState, kacheln: Kachel
     const def = roadDef(k.art)
     if (!def) continue
     const halb = fahrbahnBreite(def) / 2
+    const cx = k.x + 0.5
+    const cy = k.y + 0.5
+    if (fahrbahnHoehe(city, cx, cy) - gelaendeHoehe(city, cx, cy) < BRUECKEN_HUB * 0.55) continue
     const o = !!roadAt(city, k.x + 1, k.y)
     const w = !!roadAt(city, k.x - 1, k.y)
     const laengs = o || w
     const ox = laengs ? 0 : 1
     const oy = laengs ? 1 : 0
-    const abstand = Math.max(0.16, halb * 0.52)
-    const cx = k.x + 0.5
-    const cy = k.y + 0.5
+    const abstand = Math.max(0.16, halb * 0.55)
     const koepfe: Point[] = []
     for (const seite of [-1, 1]) {
       const px = cx + ox * abstand * seite
@@ -577,10 +605,10 @@ function bruestung(ctx: CanvasRenderingContext2D, city: CityState, stueck: Stuec
   const hoch = 7
   const flach = Math.abs(fahrbahnHoehe(city, stueck.x0, stueck.y0) - fahrbahnHoehe(city, stueck.x1, stueck.y1)) < 14
   for (const seite of [-1, 1]) {
-    const a = heb(city, stueck.x0 + nx * aussen * seite, stueck.y0 + ny * aussen * seite)
-    const b = heb(city, stueck.x1 + nx * aussen * seite, stueck.y1 + ny * aussen * seite)
-    const c = heb(city, stueck.x1 + nx * innen * seite, stueck.y1 + ny * innen * seite)
-    const d = heb(city, stueck.x0 + nx * innen * seite, stueck.y0 + ny * innen * seite)
+    const a = stelle(city, stueck.x0 + nx * aussen * seite, stueck.y0 + ny * aussen * seite, stueck.x0, stueck.y0)
+    const b = stelle(city, stueck.x1 + nx * aussen * seite, stueck.y1 + ny * aussen * seite, stueck.x1, stueck.y1)
+    const c = stelle(city, stueck.x1 + nx * innen * seite, stueck.y1 + ny * innen * seite, stueck.x1, stueck.y1)
+    const d = stelle(city, stueck.x0 + nx * innen * seite, stueck.y0 + ny * innen * seite, stueck.x0, stueck.y0)
     if (flach) {
       quad(ctx, a, b, lift(b, hoch * 0.55), lift(a, hoch * 0.55), seite > 0 ? '#b7b0a4' : '#9c958a')
       quad(ctx, lift(a, hoch * 0.55), lift(b, hoch * 0.55), lift(c, hoch), lift(d, hoch), '#f7f4ee')
@@ -594,7 +622,7 @@ function bruestung(ctx: CanvasRenderingContext2D, city: CityState, stueck: Stuec
   for (const seite of [-1, 1]) {
     for (let i = 0; i < schritte; i++) {
       const t = (i + 0.5) / schritte
-      const p = heb(city, stueck.x0 + dx * t + nx * aussen * seite, stueck.y0 + dy * t + ny * aussen * seite)
+      const p = stelle(city, stueck.x0 + dx * t + nx * aussen * seite, stueck.y0 + dy * t + ny * aussen * seite, stueck.x0 + dx * t, stueck.y0 + dy * t)
       ctx.moveTo(p.sx, p.sy - hoch * 0.2)
       ctx.lineTo(p.sx, p.sy - hoch - 4)
     }
@@ -604,8 +632,8 @@ function bruestung(ctx: CanvasRenderingContext2D, city: CityState, stueck: Stuec
   ctx.lineWidth = 1.8
   ctx.beginPath()
   for (const seite of [-1, 1]) {
-    const a = heb(city, stueck.x0 + nx * aussen * seite, stueck.y0 + ny * aussen * seite)
-    const b = heb(city, stueck.x1 + nx * aussen * seite, stueck.y1 + ny * aussen * seite)
+    const a = stelle(city, stueck.x0 + nx * aussen * seite, stueck.y0 + ny * aussen * seite, stueck.x0, stueck.y0)
+    const b = stelle(city, stueck.x1 + nx * aussen * seite, stueck.y1 + ny * aussen * seite, stueck.x1, stueck.y1)
     ctx.moveTo(a.sx, a.sy - hoch - 4)
     ctx.lineTo(b.sx, b.sy - hoch - 4)
   }
@@ -638,13 +666,24 @@ function stueckeVon(city: CityState, kacheln: Kachel[]): Stueck[] {
   return liste
 }
 
+function geradeKachel(city: CityState, k: Kachel): boolean {
+  const n = !!roadAt(city, k.x, k.y - 1)
+  const s = !!roadAt(city, k.x, k.y + 1)
+  const o = !!roadAt(city, k.x + 1, k.y)
+  const w = !!roadAt(city, k.x - 1, k.y)
+  const zahl = Number(n) + Number(s) + Number(o) + Number(w)
+  return zahl === 2 && ((n && s) || (o && w))
+}
+
 function baender(ctx: CanvasRenderingContext2D, city: CityState, stuecke: Stueck[], kacheln: Kachel[], halbVon: (art: string) => number, farbeVon: (art: string) => string): void {
   const nachBreite = (a: string, b: string) => halbVon(a) - halbVon(b)
   for (const s of [...stuecke].sort((a, b) => nachBreite(a.art, b.art))) {
     const punkte = band(city, s.x0, s.y0, s.x1, s.y1, halbVon(s.art))
     flaeche(ctx, punkte, farbeVon(s.art))
   }
+  // Kappen nur in Kurven und Kreuzungen. Auf gerader Strecke macht die Scheibe am Brückenende einen Knick.
   for (const k of [...kacheln].sort((a, b) => nachBreite(a.art, b.art))) {
+    if (geradeKachel(city, k)) continue
     flaeche(ctx, scheibe(city, k.x + 0.5, k.y + 0.5, halbVon(k.art)), farbeVon(k.art))
   }
 }
@@ -703,6 +742,7 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
     quad(ctx, d, c, senken(c, DECK_DICKE), senken(d, DECK_DICKE), '#8f887e')
   }
   for (const k of deckKacheln) {
+    if (geradeKachel(city, k)) continue
     const rand = scheibe(city, k.x + 0.5, k.y + 0.5, halb(k.art)).map((p) => senken(p, DECK_DICKE))
     flaeche(ctx, rand, '#6a645c')
   }
@@ -723,8 +763,8 @@ export function drawRoads(ctx: CanvasRenderingContext2D, city: CityState, theme:
       const l = Math.hypot(dx, dy) || 1
       const nx = (-dy / l) * versatz
       const ny = (dx / l) * versatz
-      const a = heb(city, s.x0 + nx, s.y0 + ny)
-      const b = heb(city, s.x1 + nx, s.y1 + ny)
+      const a = stelle(city, s.x0 + nx, s.y0 + ny, s.x0, s.y0)
+      const b = stelle(city, s.x1 + nx, s.y1 + ny, s.x1, s.y1)
       ctx.strokeStyle = def.marking as string
       ctx.lineWidth = breite
       ctx.setLineDash(dash ?? [])
