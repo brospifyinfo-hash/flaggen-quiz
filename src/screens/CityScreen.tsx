@@ -103,6 +103,9 @@ import type { SaveData } from '../types'
 
 const EMBLEMS = ['🏙️', '🌆', '🏛️', '🌳', '⚓', '⛰️', '🔭', '🎓', '🚀', '🦉']
 const SEITEN: Rand[] = ['n', 'o', 's', 'w']
+/** Weit genug, um eine große Stadt im Ganzen zu sehen. Näher geht es bis fast an die Fassade. */
+const ZOOM_MIN = 0.07
+const ZOOM_MAX = 2.4
 
 function blickAuf(winkel: Blick, stadt: { land: number; breite?: number; hoehe?: number }): void {
   const { w, h } = masse(stadt)
@@ -743,7 +746,7 @@ function CityWorld({ data }: { data: SaveData }) {
         // Zwei Finger: zoomen, drehen und schieben in einem – wie bei einer Karte.
         const [a, b] = [...points.values()]
         const spread = Math.hypot(a.x - b.x, a.y - b.y)
-        if (pinch > 0 && spread > 0) camera.current.zoom = Math.max(0.45, Math.min(2.4, (startZoom * spread) / pinch))
+        if (pinch > 0 && spread > 0) camera.current.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, (startZoom * spread) / pinch))
 
         // Drehung schrittweise aufsummieren, damit der Sprung von +180° auf -180° nichts ausmacht
         const jetzt = Math.atan2(b.y - a.y, b.x - a.x)
@@ -776,10 +779,9 @@ function CityWorld({ data }: { data: SaveData }) {
       camera.current.x -= dx / camera.current.zoom
       camera.current.y -= dy / camera.current.zoom
       const flaeche = masse(live.current.city)
-      const limit = (Math.max(flaeche.w, flaeche.h) + 10) * 64
+      const limit = (Math.max(flaeche.w, flaeche.h) + 24) * 80
       camera.current.x = Math.max(-limit, Math.min(limit, camera.current.x))
-      if (live.current.ansicht === 'oben') camera.current.y = Math.max(-limit, Math.min(limit, camera.current.y))
-      else camera.current.y = Math.max(-220, Math.min(flaeche.h * 32 + 320, camera.current.y))
+      camera.current.y = Math.max(-limit, Math.min(limit, camera.current.y))
     }
 
     const up = (event: PointerEvent) => {
@@ -830,15 +832,29 @@ function CityWorld({ data }: { data: SaveData }) {
       }
     }
 
+    const rad = (event: WheelEvent) => {
+      event.preventDefault()
+      const vorher = camera.current.zoom
+      const nachher = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, vorher * Math.exp(-event.deltaY * 0.0015)))
+      const rect = box.getBoundingClientRect()
+      const mx = event.clientX - rect.left - size.current.w / 2
+      const my = event.clientY - rect.top - size.current.h / 2
+      camera.current.x += mx / vorher - mx / nachher
+      camera.current.y += my / vorher - my / nachher
+      camera.current.zoom = nachher
+    }
+
     box.addEventListener('pointerdown', down)
     box.addEventListener('pointermove', move)
     box.addEventListener('pointerup', up)
     box.addEventListener('pointercancel', up)
+    box.addEventListener('wheel', rad, { passive: false })
     return () => {
       box.removeEventListener('pointerdown', down)
       box.removeEventListener('pointermove', move)
       box.removeEventListener('pointerup', up)
       box.removeEventListener('pointercancel', up)
+      box.removeEventListener('wheel', rad)
     }
   }, [])
 

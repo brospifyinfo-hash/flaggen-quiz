@@ -9,10 +9,11 @@
 import { ampelFuer, HALTELINIE, istKreuzung } from './ampeln'
 import { eingangVon } from './bau'
 import { einzug } from './buildings'
-import { RATHAUS, buildingDef, effectsOf, footprint, type BuildingDef, type Klasse } from './catalog'
+import { RATHAUS, buildingDef, effectsOf, footprint, roadDef, type BuildingDef, type Klasse } from './catalog'
 import { BAUARTEN, MODELLE_NACH_KLASSE, type Modell, type Pose, type Rolle } from './figures'
 import { gesellschaft, kriminalitaetBei } from './society'
 import { roadAt, seiteZurStrasse, tilesOf, zugangVon, razziaMoeglich } from './state'
+import { spurVersatz } from './strassen'
 import type { CityState, Placed } from './types'
 
 export type Art = 'fuss' | 'rad' | 'auto' | 'dienst'
@@ -35,6 +36,8 @@ export interface Agent {
   tempo: number
   /** seitlicher Abstand von der Straßenmitte, rechts der Fahrtrichtung */
   spur: number
+  /** 0 innere Spur, 1 äußere Spur. Auf mehrspurigen Straßen fahren beide nebeneinander. */
+  streifen?: number
   zustand: 'unterwegs' | 'drinnen' | 'vorOrt' | 'ruht'
   /** Sekunden, die der jetzige Zustand noch dauert */
   warte: number
@@ -427,6 +430,7 @@ function neueFahrt(life: Life, city: CityState, klassen: Record<Klasse, number>)
       ...pfad,
       tempo: 1.4,
       spur: 0.17,
+      streifen: Math.random() < 0.5 ? 0 : 1,
       heim: von.placed.id,
       hin: nach.placed.id,
     })
@@ -480,6 +484,7 @@ function neueFahrt(life: Life, city: CityState, klassen: Record<Klasse, number>)
         ...fahrt,
         tempo: 1.6 + Math.random() * 0.5 + schnell,
         spur: 0.17,
+        streifen: Math.random() < 0.5 ? 0 : 1,
         heim: heim.placed.id,
         hin: ziel.placed.id,
       })
@@ -574,6 +579,7 @@ function einsatzStarten(life: Life, city: CityState, art: Einsatz['art'], ort: O
         strasse: pfad.map(() => true),
         tempo: 2.6 + i * 0.1,
         spur: 0.17,
+        streifen: i % 2,
         heim: hilfe.wache.placed.id,
         hin: ort.placed.id,
         einsatz: e.id,
@@ -622,8 +628,17 @@ function einsaetzePruefen(life: Life, city: CityState, ereignisse: Ereignis[]): 
 // Bewegung
 // ---------------------------------------------------------------------------
 
+/** Spur auf dieser Kachel: schmale Straße eine Spur, mehrspurige Straße zwei nebeneinander */
+function spurVon(city: CityState | undefined, a: Agent, kachel: { x: number; y: number }, aufStrasse: boolean): number {
+  if (!aufStrasse) return 0
+  if ((a.art === 'auto' || a.art === 'dienst') && city) {
+    return spurVersatz(roadDef(roadAt(city, Math.floor(kachel.x), Math.floor(kachel.y)) ?? ''), a.streifen ?? 0)
+  }
+  return a.spur
+}
+
 /** Wo steht jemand gerade – auf seiner Spur, an Ecken weich übergeblendet */
-function lage(a: Agent): void {
+function lage(a: Agent, city?: CityState): void {
   const n = a.weg.length
   if (n === 1) {
     a.x = a.weg[0].x
@@ -642,14 +657,14 @@ function lage(a: Agent): void {
   // rechts der Fahrtrichtung
   let nx = -ry
   let ny = rx
-  let spur = a.strasse[i] && a.strasse[i + 1] ? a.spur : 0
+  let spur = spurVon(city, a, p, !!(a.strasse[i] && a.strasse[i + 1]))
   if (i > 0 && t < 0.35) {
     // Übergang aus dem letzten Stück
     const o = a.weg[i - 1]
     const ol = Math.hypot(p.x - o.x, p.y - o.y) || 1
     const pnx = -(p.y - o.y) / ol
     const pny = (p.x - o.x) / ol
-    const vorherSpur = a.strasse[i - 1] && a.strasse[i] ? a.spur : 0
+    const vorherSpur = spurVon(city, a, o, !!(a.strasse[i - 1] && a.strasse[i]))
     const f = t / 0.35
     nx = pnx + (nx - pnx) * f
     ny = pny + (ny - pny) * f
@@ -695,7 +710,7 @@ function freieStrecke(a: Agent, agents: Agent[]): number {
     const seitlich = Math.abs(dx * a.ry - dy * a.rx)
     const gleich = b.rx * a.rx + b.ry * a.ry
     if (gleich >= 0.5) {
-      if (seitlich > 0.2) continue
+      if (seitlich > 0.18) continue
     } else if (!(gleich > 0.05 && voraus < abstand && seitlich < 0.3)) continue
     frei = Math.min(frei, voraus - abstand)
   }
@@ -711,6 +726,7 @@ function platzFrei(a: Agent, agents: Agent[]): boolean {
     if (b === a || !istWagen(b) || b.zustand !== 'unterwegs') continue
     const dx = b.x - a.x
     const dy = b.y - a.y
+    if (Math.abs(dx * a.ry - dy * a.rx) > 0.18) continue
     const noetig = wagenAbstand(a, b) * 0.85
     if (dx * dx + dy * dy < noetig * noetig) return false
   }
@@ -770,7 +786,7 @@ export function stepLife(life: Life, city: CityState, dt: number): Ereignis[] {
         continue
       }
       umkehren(a)
-      lage(a)
+      lage(a, city)
       if (istWagen(a) && !platzFrei(a, life.agents)) {
         // Vor der Tür steht gerade jemand – kurz warten, statt in ihn hineinzufahren
         umkehren(a)
@@ -830,7 +846,7 @@ export function stepLife(life: Life, city: CityState, dt: number): Ereignis[] {
     if (a.i >= n - 1) {
       a.i = n - 2
       a.t = 1
-      lage(a)
+      lage(a, city)
       // angekommen
       if (a.art === 'dienst' && !a.zurueck) {
         a.zustand = 'vorOrt'
@@ -878,7 +894,7 @@ export function stepLife(life: Life, city: CityState, dt: number): Ereignis[] {
       a.warte = a.art === 'auto' ? 10 + Math.random() * 18 : 6 + Math.random() * 16
       continue
     }
-    if (a.t >= 0) lage(a)
+    if (a.t >= 0) lage(a, city)
   }
   if (weg.length) {
     const raus = new Set(weg)

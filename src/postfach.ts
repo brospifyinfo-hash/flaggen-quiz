@@ -20,6 +20,17 @@ export interface Nachricht {
 
 export const NACHRICHTEN: Nachricht[] = [
   {
+    id: '2026-10-03-b',
+    datum: '3. Oktober 2026',
+    titel: 'Brücken, vier Spuren, weiter rauszoomen',
+    text: 'Brücken haben ein Deck mit Pfeilern und Geländer, das Wasser läuft darunter weiter. Mehrspurige Straßen sind breiter als ein Block.',
+    punkte: [
+      'Unter der Brücke bleibt der Fluss frei. Pfeiler tragen das Deck, eine Brüstung läuft an beiden Seiten.',
+      'Bundesstraße und Autobahn haben je Richtung zwei Spuren. Zwei Autos fahren nebeneinander.',
+      'Die Karte lässt sich viel weiter herauszoomen, mit dem Mausrad oder mit zwei Fingern.',
+    ],
+  },
+  {
     id: '2026-10-03-a',
     datum: '3. Oktober 2026',
     titel: 'Brücken mit Pfeilern, Autobahn mit Mittelstreifen',

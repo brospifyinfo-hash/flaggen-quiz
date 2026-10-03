@@ -30,7 +30,7 @@ export interface RoadDef {
   marking?: string
   /** Bäume am Rand */
   trees?: boolean
-  /** 2 heißt doppelspurig: dort stehen Ampeln, an schmalen Straßen und in Kurven nicht */
+  /** 2 heißt je Richtung zwei Fahrspuren: dort stehen Ampeln, und zwei Wagen fahren nebeneinander */
   spuren?: number
   /** Liegt über dem Wasser, nicht auf der Wiese */
   bruecke?: boolean
@@ -90,7 +90,7 @@ export const ROADS: RoadDef[] = [
     emoji: '🚗',
     coins: 120,
     materials: 2,
-    note: 'Zwei Spuren, Ampeln an Kreuzungen',
+    note: 'Je Richtung zwei Spuren, breiter als ein Block',
     width: 0.92,
     surface: '#3a404a',
     edge: '#d7d2c8',
@@ -103,7 +103,7 @@ export const ROADS: RoadDef[] = [
     emoji: '🏁',
     coins: 240,
     materials: 4,
-    note: 'Breit, mit Standstreifen',
+    note: 'Vier Spuren und Standstreifen, breiter als ein Block',
     width: 1.34,
     surface: '#2c3138',
     edge: '#6f8f45',
@@ -129,7 +129,7 @@ export const ROADS: RoadDef[] = [
     emoji: '🌉',
     coins: 320,
     materials: 6,
-    note: 'Autobahn über dem Wasser',
+    note: 'Autobahn über dem Wasser, je Richtung zwei Spuren',
     width: 1.34,
     surface: '#2c3138',
     edge: '#f4f0e8',

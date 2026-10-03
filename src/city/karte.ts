@@ -10,6 +10,7 @@ import { lichtFuer } from './licht'
 import type { Agent } from './life'
 import { AUSBLICK, bodenVon, istWasser, masse, streifenKacheln, type Boden } from './landschaft'
 import { krimFarbe, type Camera, type DrawOptions } from './render'
+import { fahrbahnBreite } from './strassen'
 import { kriminalitaetsfeld } from './society'
 import { tilesOf } from './state'
 import { themeById } from './themes'
@@ -129,7 +130,7 @@ function strassen(ctx: CanvasRenderingContext2D, city: CityState, nacht: number)
       const def = roadDef(typ)
       if (!def) continue
       const [x, y] = key.split(':').map(Number)
-      const breite = def.width
+      const breite = fahrbahnBreite(def)
       const halb = breite / 2
       const cx = x + 0.5
       const cy = y + 0.5
@@ -180,6 +181,25 @@ function strassen(ctx: CanvasRenderingContext2D, city: CityState, nacht: number)
       }
       ctx.stroke()
       ctx.setLineDash([])
+      if (gerade && (def.spuren ?? 1) >= 2) {
+        const asphalt = breite * 0.39
+        ctx.lineWidth = 0.035
+        ctx.setLineDash([0.14, 0.12])
+        ctx.beginPath()
+        const quer = nachbarn[0][0] !== 0
+        for (const seite of [-1, 1]) {
+          const v = asphalt * 0.52 * seite
+          if (quer) {
+            ctx.moveTo(x, cy + v)
+            ctx.lineTo(x + 1, cy + v)
+          } else {
+            ctx.moveTo(cx + v, y)
+            ctx.lineTo(cx + v, y + 1)
+          }
+        }
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
       // Zebrastreifen an Kreuzungen
       if (nachbarn.length >= 3 && (def.spuren ?? 1) >= 2) {
         ctx.fillStyle = 'rgba(240,240,235,0.85)'

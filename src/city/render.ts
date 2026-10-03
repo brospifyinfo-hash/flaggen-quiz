@@ -683,7 +683,7 @@ function drawGround(
     y1: fenster ? Math.min(y1, fenster.y1) : y1,
   }
   const flaeche = Math.max(0, sicht.x1 - sicht.x0) * Math.max(0, sicht.y1 - sicht.y0)
-  const step = flaeche > 28000 ? 3 : flaeche > 9000 ? 2 : 1
+  const step = zoom < 0.12 ? 4 : zoom < 0.22 || flaeche > 28000 ? 3 : flaeche > 9000 ? 2 : 1
   const grob = zoom < 0.42 || step > 1
   const aussenEcke = [toScreen(x0, y0), toScreen(x1, y0), toScreen(x1, y1), toScreen(x0, y1)]
 
@@ -1437,7 +1437,7 @@ export function cityFrame(city: CityState, view: { w: number; h: number }, weit 
   const bottom = Math.max(...ys) + 20
   // Lieber nah dran als alles im Bild: Häuser sollen als Häuser zu erkennen sein.
   const fit = Math.min(view.w / (right - left + 40), view.h / (bottom - top + 40))
-  const zoom = Math.max(weit ? 0.34 : 0.85, Math.min(2.2, fit))
+  const zoom = Math.max(weit ? 0.07 : 0.85, Math.min(2.2, fit))
   return { x: (left + right) / 2, y: (top + bottom) / 2, zoom }
 }
 
